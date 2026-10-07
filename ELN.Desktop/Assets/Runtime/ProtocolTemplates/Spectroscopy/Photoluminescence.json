@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "title": "Photoluminescence Protocol",
+  "description": "Photoluminescence (PL) spectroscopy measurement protocol",
+  "category": "Spectroscopy",
+  "accentColor": "#6a1b9a",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Horiba FluoroMax, Edinburgh FLS1000", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Excitation",
+      "rows": [
+        {
+          "fields": [
+            { "name": "excitationSource", "type": "select", "label": "Excitation Source", "options": [
+              { "value": "xe-lamp", "label": "Xe Lamp (monochromated)" },
+              { "value": "laser-uv", "label": "UV Laser" },
+              { "value": "laser-vis", "label": "Visible Laser" },
+              { "value": "led", "label": "LED" }
+            ]},
+            { "name": "excitationWavelength", "type": "text", "label": "Excitation Wavelength (nm)", "placeholder": "e.g. 325, 405, 532" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "excitationPower", "type": "text", "label": "Excitation Power", "placeholder": "e.g. 5 mW, slit 3 nm" },
+            { "name": "filter", "type": "text", "label": "Emission Filter", "placeholder": "e.g. 350 nm long-pass" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Detection",
+      "rows": [
+        {
+          "fields": [
+            { "name": "emissionRange", "type": "text", "label": "Emission Range (nm)", "placeholder": "e.g. 350 - 800" },
+            { "name": "detector", "type": "select", "label": "Detector", "options": [
+              { "value": "pmt", "label": "PMT" },
+              { "value": "ccd", "label": "CCD" },
+              { "value": "ingaas", "label": "InGaAs (NIR)" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "slitWidth", "type": "text", "label": "Slit Width (nm)", "placeholder": "e.g. 5" },
+            { "name": "integrationTime", "type": "text", "label": "Integration Time (s)", "placeholder": "e.g. 0.5" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "temperature", "type": "text", "label": "Temperature", "placeholder": "e.g. RT, 10 K" },
+            { "name": "geometry", "type": "select", "label": "Geometry", "options": [
+              { "value": "front-face", "label": "Front Face (solid)" },
+              { "value": "right-angle", "label": "Right Angle (solution)" },
+              { "value": "micro", "label": "Micro-PL (objective)" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "peakEmission", "type": "text", "label": "Peak Emission (nm)", "placeholder": "e.g. 550" },
+            { "name": "fwhm", "type": "text", "label": "FWHM (nm)", "placeholder": "e.g. 35" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

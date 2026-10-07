@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "title": "AFM Protocol",
+  "description": "Atomic force microscopy imaging and surface analysis protocol",
+  "category": "Characterization",
+  "accentColor": "#3498db",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Bruker Dimension Icon", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "manufacturer", "type": "text", "label": "Manufacturer", "autoFill": "equipment.manufacturer" },
+            { "name": "location", "type": "text", "label": "Location", "autoFill": "equipment.location" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Scan Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "mode", "type": "select", "label": "Imaging Mode", "options": [
+              { "value": "tapping", "label": "Tapping (AC)" },
+              { "value": "contact", "label": "Contact" },
+              { "value": "non-contact", "label": "Non-Contact" },
+              { "value": "peakforce", "label": "PeakForce QNM" }
+            ]},
+            { "name": "cantilever", "type": "text", "label": "Cantilever / Probe", "placeholder": "e.g. OTESPA-R3, SNL-10" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "scanSize", "type": "text", "label": "Scan Size (um)", "placeholder": "e.g. 5 x 5" },
+            { "name": "scanRate", "type": "text", "label": "Scan Rate (Hz)", "placeholder": "e.g. 1.0" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "resolution", "type": "text", "label": "Resolution (pixels)", "placeholder": "e.g. 512 x 512" },
+            { "name": "setpoint", "type": "text", "label": "Setpoint", "placeholder": "e.g. 0.8 V / 2 nN" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "environment", "type": "select", "label": "Environment", "options": [
+              { "value": "air", "label": "Air" },
+              { "value": "vacuum", "label": "Vacuum" },
+              { "value": "liquid", "label": "Liquid" },
+              { "value": "controlled", "label": "Controlled Atmosphere" }
+            ]},
+            { "name": "temperature", "type": "text", "label": "Temperature", "placeholder": "e.g. RT" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "roughnessRa", "type": "text", "label": "Roughness Ra (nm)", "placeholder": "e.g. 1.2" },
+            { "name": "roughnessRq", "type": "text", "label": "Roughness Rq (nm)", "placeholder": "e.g. 1.5" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

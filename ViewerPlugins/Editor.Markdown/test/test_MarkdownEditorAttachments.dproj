@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Config Condition="'$(Config)'==''">Debug</Config>
+    <Platform Condition="'$(Platform)'==''">Win32</Platform>
+    <ELN_ProductRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\..'))</ELN_ProductRoot>
+    <ELN_OutputRoot>$(ELN_ProductRoot)\_OUT\ViewerTests\test_MarkdownEditorAttachments\$(Platform)\$(Config)</ELN_OutputRoot>
+    <ELN_TmsRoot Condition="'$(ELN_TmsRoot)'==''">$(ELN_TMS_ROOT)</ELN_TmsRoot>
+    <ELN_ExternalUnitPaths Condition="'$(ELN_ExternalUnitPaths)'==''">$(ELN_EXTERNAL_UNIT_PATHS)</ELN_ExternalUnitPaths>
+    <ELN_ExternalUnitPaths Condition="'$(ELN_TmsRoot)'!=''">$(ELN_ExternalUnitPaths);$(ELN_TmsRoot)\tms.biz.aurelius\packages\d13\$(Platform)\$(Config);$(ELN_TmsRoot)\tms.biz.bcl\packages\d13\$(Platform)\$(Config)</ELN_ExternalUnitPaths>
+    <DCC_UnitSearchPath>$(ELN_OutputRoot)\Packages;$(ELN_ProductRoot)\ViewerPlugins\Core;$(ELN_ProductRoot)\ViewerPlugins\Core.Protocol;$(MSBuildProjectDirectory);..;$(ELN_ExternalUnitPaths)</DCC_UnitSearchPath>
+    <DCC_DcpOutput>$(ELN_OutputRoot)\Packages</DCC_DcpOutput>
+    <DCC_BplOutput>$(ELN_OutputRoot)</DCC_BplOutput>
+    <DCC_HppOutput>$(ELN_OutputRoot)\Hpp</DCC_HppOutput>
+    <DCC_ResourceOutput>$(ELN_OutputRoot)\Resources</DCC_ResourceOutput>
+    <PreBuildEvent/>
+    <PostBuildEvent/>
+    <PreLinkEvent/>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ProjectGuid>{C2E5F3D9-8C4F-50AB-C3E2-9D6F7A1B2C34}</ProjectGuid>
+    <MainSource>test_MarkdownEditorAttachments.dpr</MainSource>
+    <Base>True</Base>
+    <Config Condition="'$(Config)'==''">Debug</Config>
+    <Platform>Win32</Platform>
+    <AppType>Console</AppType>
+    <FrameworkType>None</FrameworkType>
+    <ProjectVersion>20.3</ProjectVersion>
+    <TargetedPlatforms>1</TargetedPlatforms>
+    <DCC_DependencyCheckOutputName>test_MarkdownEditorAttachments.exe</DCC_DependencyCheckOutputName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Config)'=='Debug'">
+    <DCC_Optimize>false</DCC_Optimize>
+    <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
+  </PropertyGroup>
+  <PropertyGroup>
+    <DCC_ExeOutput>$(ELN_OutputRoot)</DCC_ExeOutput>
+    <DCC_DcuOutput>$(ELN_OutputRoot)\DCU</DCC_DcuOutput>
+  </PropertyGroup>
+  <ItemGroup>
+    <DelphiCompile Include="$(MainSource)">
+      <MainSource>MainSource</MainSource>
+    </DelphiCompile>
+    <DCCReference Include="..\unit_MarkdownEditorAttachments.pas"/>
+    <BuildConfiguration Include="Base">
+      <Key>Base</Key>
+    </BuildConfiguration>
+    <BuildConfiguration Include="Debug">
+      <Key>Cfg_2</Key>
+      <CfgParent>Base</CfgParent>
+    </BuildConfiguration>
+  </ItemGroup>
+  <ProjectExtensions>
+    <Borland.Personality>Delphi.Personality.12</Borland.Personality>
+  </ProjectExtensions>
+  <Import Project="$(BDS)\Bin\CodeGear.Common.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Common.Targets')"/>
+  <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')"/>
+</Project>

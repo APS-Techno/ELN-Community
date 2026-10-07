@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "title": "Indentation Protocol",
+  "description": "Nanoindentation / microindentation hardness testing protocol",
+  "category": "Testing",
+  "accentColor": "#d97b4a",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Hysitron TI 950", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "manufacturer", "type": "text", "label": "Manufacturer", "autoFill": "equipment.manufacturer" },
+            { "name": "location", "type": "text", "label": "Location", "autoFill": "equipment.location" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Test Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "indenterType", "type": "select", "label": "Indenter Type", "options": [
+              { "value": "berkovich", "label": "Berkovich" },
+              { "value": "vickers", "label": "Vickers" },
+              { "value": "knoop", "label": "Knoop" },
+              { "value": "cube-corner", "label": "Cube Corner" },
+              { "value": "spherical", "label": "Spherical" }
+            ]},
+            { "name": "method", "type": "select", "label": "Method", "options": [
+              { "value": "nano", "label": "Nanoindentation" },
+              { "value": "micro", "label": "Microindentation" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "maxLoad", "type": "text", "label": "Max Load", "placeholder": "e.g. 5 mN" },
+            { "name": "loadingRate", "type": "text", "label": "Loading Rate", "placeholder": "e.g. 0.5 mN/s" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "holdTime", "type": "text", "label": "Hold Time (s)", "placeholder": "e.g. 10" },
+            { "name": "numberOfIndents", "type": "text", "label": "Number of Indents", "placeholder": "e.g. 10" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "spacing", "type": "text", "label": "Indent Spacing (um)", "placeholder": "e.g. 50" },
+            { "name": "temperature", "type": "text", "label": "Temperature", "placeholder": "e.g. RT" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "hardness", "type": "text", "label": "Hardness (GPa)", "placeholder": "e.g. 25.3 +/- 1.2" },
+            { "name": "modulus", "type": "text", "label": "Elastic Modulus (GPa)", "placeholder": "e.g. 320 +/- 15" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

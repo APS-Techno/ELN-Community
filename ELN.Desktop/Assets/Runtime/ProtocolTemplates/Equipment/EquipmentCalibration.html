@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    margin: 20px;
+    color: #222;
+    font-size: 13px;
+    background: #fff;
+  }
+  h2 {
+    margin: 0 0 4px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #e65100;
+  }
+  .subtitle {
+    color: #777;
+    font-size: 11px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid #e65100;
+    padding-bottom: 8px;
+  }
+  fieldset {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-bottom: 14px;
+  }
+  legend {
+    font-weight: 600;
+    font-size: 13px;
+    color: #e65100;
+    padding: 0 6px;
+  }
+  label {
+    display: block;
+    margin: 8px 0 3px 0;
+    font-weight: 600;
+    font-size: 12px;
+    color: #555;
+  }
+  input, select, textarea {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 13px;
+    box-sizing: border-box;
+    font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: #e65100;
+    outline: none;
+    box-shadow: 0 0 3px rgba(230,81,0,0.2);
+  }
+  .row { display: flex; gap: 12px; }
+  .col { flex: 1; }
+  .status-pass { color: #2e7d32; font-weight: 600; }
+  .status-fail { color: #c62828; font-weight: 600; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }
+  table th, table td {
+    border: 1px solid #ddd;
+    padding: 5px 8px;
+    font-size: 12px;
+    text-align: left;
+  }
+  table th {
+    background: #fff3e0;
+    font-weight: 600;
+    color: #e65100;
+  }
+  table input {
+    border: none;
+    padding: 2px 4px;
+    width: 100%;
+  }
+</style>
+</head>
+<body>
+
+<h2>Equipment Calibration Record</h2>
+<div class="subtitle">Instrument calibration and verification log</div>
+
+<fieldset>
+  <legend>Equipment Info</legend>
+  <div class="row">
+    <div class="col"><label>Instrument Name</label>
+    <input type="text" name="instrumentName" placeholder="e.g. Bruker D8 Advance XRD"></div>
+    <div class="col"><label>Asset / Serial Number</label>
+    <input type="text" name="serialNumber" placeholder="e.g. XRD-2019-003"></div>
+  </div>
+  <div class="row">
+    <div class="col"><label>Location</label>
+    <input type="text" name="location" placeholder="e.g. Lab 204, Building A"></div>
+    <div class="col"><label>Responsible Person</label>
+    <input type="text" name="responsible" placeholder="Name"></div>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>Calibration Details</legend>
+  <div class="row">
+    <div class="col"><label>Calibration Date</label>
+    <input type="date" name="calibDate"></div>
+    <div class="col"><label>Next Calibration Due</label>
+    <input type="date" name="nextCalibDate"></div>
+    <div class="col"><label>Calibration Type</label>
+    <select name="calibType">
+      <option value="routine">Routine</option>
+      <option value="initial">Initial</option>
+      <option value="after-repair">After Repair</option>
+      <option value="special">Special Request</option>
+    </select></div>
+  </div>
+  <label>Reference Standard Used</label>
+  <input type="text" name="referenceStandard" placeholder="e.g. NIST SRM 660c LaB6, certified weight set">
+  <label>Calibration Procedure</label>
+  <textarea name="procedure" rows="3" placeholder="Describe the calibration procedure performed..."></textarea>
+</fieldset>
+
+<fieldset>
+  <legend>Measurements</legend>
+  <table>
+    <tr>
+      <th>Parameter</th>
+      <th>Expected Value</th>
+      <th>Measured Value</th>
+      <th>Tolerance</th>
+      <th>Pass/Fail</th>
+    </tr>
+    <tr>
+      <td><input type="text" name="param1" placeholder="e.g. 2-theta offset"></td>
+      <td><input type="text" name="expected1" placeholder="0.000"></td>
+      <td><input type="text" name="measured1"></td>
+      <td><input type="text" name="tolerance1" placeholder="0.02"></td>
+      <td><select name="result1"><option value="pass">Pass</option><option value="fail">Fail</option></select></td>
+    </tr>
+    <tr>
+      <td><input type="text" name="param2"></td>
+      <td><input type="text" name="expected2"></td>
+      <td><input type="text" name="measured2"></td>
+      <td><input type="text" name="tolerance2"></td>
+      <td><select name="result2"><option value="pass">Pass</option><option value="fail">Fail</option></select></td>
+    </tr>
+    <tr>
+      <td><input type="text" name="param3"></td>
+      <td><input type="text" name="expected3"></td>
+      <td><input type="text" name="measured3"></td>
+      <td><input type="text" name="tolerance3"></td>
+      <td><select name="result3"><option value="pass">Pass</option><option value="fail">Fail</option></select></td>
+    </tr>
+  </table>
+</fieldset>
+
+<fieldset>
+  <legend>Result</legend>
+  <div class="row">
+    <div class="col"><label>Overall Status</label>
+    <select name="overallStatus">
+      <option value="pass">Pass - Within Specification</option>
+      <option value="pass-adjusted">Pass - After Adjustment</option>
+      <option value="fail">Fail - Out of Specification</option>
+      <option value="limited">Limited Use</option>
+    </select></div>
+    <div class="col"><label>Performed By</label>
+    <input type="text" name="performedBy" placeholder="Name"></div>
+  </div>
+  <label>Remarks</label>
+  <textarea name="remarks" rows="2" placeholder="Adjustments made, deviations, recommendations..."></textarea>
+</fieldset>
+
+</body>
+</html>

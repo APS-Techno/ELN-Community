@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "title": "Inspection Checklist",
+  "description": "Incoming material or in-process inspection checklist",
+  "category": "Quality",
+  "accentColor": "#37474f",
+  "sections": [
+    {
+      "title": "Inspection Details",
+      "rows": [
+        {
+          "fields": [
+            { "name": "itemDescription", "type": "text", "label": "Item / Material Description", "autoFill": "parent.title" },
+            { "name": "lotNumber", "type": "text", "label": "Lot / Batch Number", "placeholder": "e.g. LOT-2026-0042" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "supplier", "type": "text", "label": "Supplier / Source", "placeholder": "e.g. Sigma-Aldrich, internal" },
+            { "name": "receivedDate", "type": "date", "label": "Date Received" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "inspector", "type": "text", "label": "Inspector", "autoFill": "user.name" },
+            { "name": "inspectionDate", "type": "date", "label": "Inspection Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Visual Inspection",
+      "rows": [
+        {
+          "fields": [
+            { "name": "packaging", "type": "select", "label": "Packaging Condition", "options": [
+              { "value": "intact", "label": "Intact" },
+              { "value": "damaged", "label": "Damaged" },
+              { "value": "opened", "label": "Previously Opened" }
+            ]},
+            { "name": "labeling", "type": "select", "label": "Labeling", "options": [
+              { "value": "correct", "label": "Correct & Legible" },
+              { "value": "missing", "label": "Missing" },
+              { "value": "incorrect", "label": "Incorrect" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "appearance", "type": "text", "label": "Appearance", "placeholder": "e.g. clear liquid, white powder, no discoloration" },
+            { "name": "quantity", "type": "text", "label": "Quantity Received", "placeholder": "e.g. 500 mL, 25 g, 100 pcs" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Specification Check",
+      "rows": [
+        {
+          "fields": [
+            { "name": "specChecks", "type": "checkbox-group", "label": "Checks Performed", "options": [
+              { "value": "dimensions", "label": "Dimensions within tolerance" },
+              { "value": "weight", "label": "Weight / mass verified" },
+              { "value": "purity", "label": "Purity / CoA reviewed" },
+              { "value": "expiry", "label": "Expiry date valid" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Disposition",
+      "rows": [
+        {
+          "fields": [
+            { "name": "disposition", "type": "select", "label": "Disposition", "options": [
+              { "value": "accept", "label": "Accept" },
+              { "value": "reject", "label": "Reject" },
+              { "value": "conditional", "label": "Conditional Accept" },
+              { "value": "hold", "label": "On Hold (pending review)" }
+            ]},
+            { "name": "storageLocation", "type": "text", "label": "Storage Location", "placeholder": "e.g. Room C310, Fridge #2, Shelf A3" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

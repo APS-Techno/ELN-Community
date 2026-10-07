@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Troubleshooting — APS ELN Community Help</title>
+<link rel="stylesheet" href="help.css">
+</head>
+<body>
+<header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
+<main>
+<h1>Troubleshooting</h1>
+<p>Preserve the database, attachments and retained drafts before attempting recovery. Resolve the reported cause; do not edit database rows, remove format markers or delete sidecars to bypass checks.</p>
+<table><thead><tr><th>Symptom</th><th>What to check</th></tr></thead><tbody>
+<tr><td>A command is disabled.</td><td>Open a notebook and select the required project, item or attachment. Some operations are refused for archived, signed or read-only records.</td></tr>
+<tr><td>New reports a missing scientific catalog.</td><td>The Desktop executable needs its <code>CSV</code> directory with all seven selected catalogs. Obtain the matching Community runtime assets. Do not use a personal user CSV or an unrelated legacy installer tree.</td></tr>
+<tr><td>New refuses an attachment directory.</td><td>Select a separate empty directory. The database must be outside it. Existing files are never reused or deleted by notebook creation.</td></tr>
+<tr><td>Open reports unsupported local format or identity count.</td><td>Select a Community format-2 notebook with exactly one active identity. Open is not a Commercial conversion or migration tool.</td></tr>
+<tr><td>Open asks you to close or recover the notebook.</td><td>Close its owning client and preserve the database plus its journal/WAL sidecars. Recover through the owning client; do not delete sidecars.</td></tr>
+<tr><td>Attachments are missing after moving or restoring a notebook.</td><td>Choose the matching attachment root. Restore the full directory tree together with the database. Do not manually rename stored files.</td></tr>
+<tr><td>Help file not found.</td><td>The executable needs <code>Help/Index.html</code>, <code>Help/Shortcuts.html</code>, all topic pages and <code>help.css</code>. The Community Desktop helper stages this payload after a successful build.</td></tr>
+<tr><td>The HTML viewer is unavailable or Help is blank.</td><td>Select the matching Community HTML viewer plugin and its shared Core prerequisites. Verify the external WebView2 runtime/loader. A plugin-directory preference change needs a restart. Keep incompatible old APS packages out of the process search path.</td></tr>
+<tr><td>Markdown math, protocol forms or images do not display.</td><td>Check the selected viewer packages and their local assets: <code>Plugins/MarkdownViewer/</code> and <code>Plugins/Templates/</code>. Keep browser vendor/font subdirectories intact. Relative image references also need their matching notebook attachments.</td></tr>
+<tr><td>An editor reports a save conflict.</td><td>Keep the draft. Cancel to avoid overwriting, Reload to use current stored bytes, or choose Save Anyway only after checking what it will replace. Signed/read-only changes can still refuse the write. See <a href="FilesAndNotes.html">files and drafts</a>.</td></tr>
+<tr><td>A rename or upload reports recovery failure.</td><td>Keep the named backup and draft paths. Stop further changes and compare stored bytes and metadata before recovery. Do not hide the error by renaming files manually.</td></tr>
+<tr><td>A signing password is refused.</td><td>Use the exact local signing password. Opening the notebook does not validate that password. A failed signing attempt must not be treated as a completed signature.</td></tr>
+<tr><td>Equipment list is empty.</td><td>This is the Community seed, not a failed import. Add your own equipment through Reference Data. See <a href="ReferenceData.html">reference data</a>.</td></tr>
+<tr><td>Controls are clipped or a long file path fails.</td><td>Existing high-DPI and deep-path limits remain. Enlarge the dialog if supported, use shorter local paths and retain drafts. Do not assume these limitations are fixed by this Help payload.</td></tr>
+<tr><td>Small values appear as zero on chart tick labels.</td><td>Check the actual scientific values and units. Current chart labeling can round very small numbers even when the stored Double series retains them. PDF value tables preserve numeric values and tolerances; see <a href="AnalysisAndReports.html">reports</a>.</td></tr>
+<tr><td>A scientific package import omits data.</td><td>Package import is not a complete backup restore. The current importer supports its metadata/protocol subset; retain the original notebook and files.</td></tr>
+<tr><td>MCP fails at startup or a tool is refused.</td><td>Check all four absolute paths, the existing upload/plugin directories and current tool schema. Signed, foreign and missing targets remain refused. Human hypothesis gates are desktop-only.</td></tr>
+</tbody></table>
+<h2>Report a problem without exposing records</h2>
+<p>Record the command, exact error, build configuration and relevant file category. If possible, reproduce with a new synthetic notebook. Do not include passwords, keys, personal records, private endpoints or laboratory data in a public report. Keep full local evidence private until its contents are reviewed.</p>
+</main>
+<footer><a href="Index.html">All help topics</a></footer>
+</body>
+</html>

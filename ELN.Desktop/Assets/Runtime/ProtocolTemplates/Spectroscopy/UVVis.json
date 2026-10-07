@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "title": "UV-Vis Spectroscopy Protocol",
+  "description": "Ultraviolet-visible absorption spectroscopy measurement protocol",
+  "category": "Spectroscopy",
+  "accentColor": "#6a1b9a",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Shimadzu UV-2600, Agilent Cary 60", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Measurement Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "mode", "type": "select", "label": "Measurement Mode", "options": [
+              { "value": "absorbance", "label": "Absorbance" },
+              { "value": "transmittance", "label": "Transmittance" },
+              { "value": "reflectance", "label": "Reflectance" }
+            ]},
+            { "name": "scanMode", "type": "select", "label": "Scan Mode", "options": [
+              { "value": "spectrum", "label": "Wavelength Scan" },
+              { "value": "fixed", "label": "Fixed Wavelength" },
+              { "value": "kinetics", "label": "Time Course (Kinetics)" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "rangeStart", "type": "text", "label": "Start Wavelength (nm)", "placeholder": "e.g. 190" },
+            { "name": "rangeEnd", "type": "text", "label": "End Wavelength (nm)", "placeholder": "e.g. 900" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "scanSpeed", "type": "text", "label": "Scan Speed (nm/min)", "placeholder": "e.g. 600" },
+            { "name": "slitWidth", "type": "text", "label": "Slit Width (nm)", "placeholder": "e.g. 2" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "baseline", "type": "text", "label": "Baseline / Reference", "placeholder": "e.g. air, solvent, bare substrate" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Sample",
+      "rows": [
+        {
+          "fields": [
+            { "name": "sampleType", "type": "select", "label": "Sample Type", "options": [
+              { "value": "solution", "label": "Solution" },
+              { "value": "thin-film", "label": "Thin Film" },
+              { "value": "powder", "label": "Powder (integrating sphere)" },
+              { "value": "bulk", "label": "Bulk Solid" }
+            ]},
+            { "name": "cuvette", "type": "text", "label": "Cuvette / Substrate", "placeholder": "e.g. quartz 10 mm, glass slide" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "solvent", "type": "text", "label": "Solvent", "placeholder": "e.g. ethanol, water, DMSO (if solution)" },
+            { "name": "concentration", "type": "text", "label": "Concentration", "placeholder": "e.g. 0.1 mg/mL, 50 uM" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "absorptionEdge", "type": "text", "label": "Absorption Edge (nm)", "placeholder": "e.g. 350" },
+            { "name": "peakWavelength", "type": "text", "label": "Peak Wavelength (nm)", "placeholder": "e.g. 520" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "bandgap", "type": "text", "label": "Optical Band Gap (eV)", "placeholder": "e.g. 3.2 (from Tauc plot)" },
+            { "name": "peakAbsorbance", "type": "text", "label": "Peak Absorbance", "placeholder": "e.g. 1.25" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "title": "Equipment Calibration Record",
+  "category": "Equipment",
+  "accentColor": "#e65100",
+  "sections": [
+    {
+      "title": "Equipment Info",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrumentName", "type": "text", "label": "Instrument Name", "placeholder": "e.g. Bruker D8 Advance XRD", "autoFill": "equipment.model" },
+            { "name": "serialNumber", "type": "text", "label": "Asset / Serial Number", "placeholder": "e.g. XRD-2019-003", "autoFill": "equipment.manufacturer" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "location", "type": "text", "label": "Location", "placeholder": "e.g. Lab 204, Building A", "autoFill": "equipment.location" },
+            { "name": "responsible", "type": "text", "label": "Responsible Person", "placeholder": "Name", "autoFill": "user.name" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Calibration Details",
+      "rows": [
+        {
+          "fields": [
+            { "name": "calibDate", "type": "date", "label": "Calibration Date", "autoFill": "date.today" },
+            { "name": "nextCalibDate", "type": "date", "label": "Next Calibration Due" },
+            { "name": "calibType", "type": "select", "label": "Calibration Type", "options": [
+              { "value": "routine", "label": "Routine" },
+              { "value": "initial", "label": "Initial" },
+              { "value": "after-repair", "label": "After Repair" },
+              { "value": "special", "label": "Special Request" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "referenceStandard", "type": "text", "label": "Reference Standard Used", "placeholder": "e.g. NIST SRM 660c LaB6, certified weight set" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "procedure", "type": "richtext", "label": "Calibration Procedure", "rows": 3 }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Measurement 1",
+      "rows": [
+        {
+          "fields": [
+            { "name": "param1", "type": "text", "label": "Parameter", "placeholder": "e.g. 2-theta offset" },
+            { "name": "expected1", "type": "text", "label": "Expected Value", "placeholder": "0.000" },
+            { "name": "measured1", "type": "text", "label": "Measured Value" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "tolerance1", "type": "text", "label": "Tolerance", "placeholder": "0.02" },
+            { "name": "result1", "type": "select", "label": "Pass/Fail", "options": [
+              { "value": "pass", "label": "Pass" },
+              { "value": "fail", "label": "Fail" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Measurement 2",
+      "rows": [
+        {
+          "fields": [
+            { "name": "param2", "type": "text", "label": "Parameter" },
+            { "name": "expected2", "type": "text", "label": "Expected Value" },
+            { "name": "measured2", "type": "text", "label": "Measured Value" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "tolerance2", "type": "text", "label": "Tolerance" },
+            { "name": "result2", "type": "select", "label": "Pass/Fail", "options": [
+              { "value": "pass", "label": "Pass" },
+              { "value": "fail", "label": "Fail" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Measurement 3",
+      "rows": [
+        {
+          "fields": [
+            { "name": "param3", "type": "text", "label": "Parameter" },
+            { "name": "expected3", "type": "text", "label": "Expected Value" },
+            { "name": "measured3", "type": "text", "label": "Measured Value" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "tolerance3", "type": "text", "label": "Tolerance" },
+            { "name": "result3", "type": "select", "label": "Pass/Fail", "options": [
+              { "value": "pass", "label": "Pass" },
+              { "value": "fail", "label": "Fail" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Result",
+      "rows": [
+        {
+          "fields": [
+            { "name": "overallStatus", "type": "select", "label": "Overall Status", "options": [
+              { "value": "pass", "label": "Pass - Within Specification" },
+              { "value": "pass-adjusted", "label": "Pass - After Adjustment" },
+              { "value": "fail", "label": "Fail - Out of Specification" },
+              { "value": "limited", "label": "Limited Use" }
+            ]},
+            { "name": "performedBy", "type": "text", "label": "Performed By", "placeholder": "Name", "autoFill": "user.name" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "remarks", "type": "textarea", "label": "Remarks", "placeholder": "Adjustments made, deviations, recommendations...", "rows": 2 }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "title": "PCR Protocol",
+  "description": "Polymerase chain reaction amplification protocol",
+  "category": "Biology",
+  "accentColor": "#2e7d32",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Thermocycler", "placeholder": "e.g. Bio-Rad T100", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Reaction Mix",
+      "rows": [
+        {
+          "fields": [
+            { "name": "polymerase", "type": "text", "label": "Polymerase / Master Mix", "placeholder": "e.g. Phusion, Taq, Q5" },
+            { "name": "templateDNA", "type": "text", "label": "Template DNA", "placeholder": "e.g. genomic, plasmid, cDNA" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "templateAmount", "type": "text", "label": "Template Amount (ng)", "placeholder": "e.g. 50" },
+            { "name": "reactionVolume", "type": "text", "label": "Reaction Volume (uL)", "placeholder": "e.g. 25, 50" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "forwardPrimer", "type": "text", "label": "Forward Primer", "placeholder": "name or sequence" },
+            { "name": "reversePrimer", "type": "text", "label": "Reverse Primer", "placeholder": "name or sequence" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "primerConc", "type": "text", "label": "Primer Concentration (uM)", "placeholder": "e.g. 0.5" },
+            { "name": "mgConc", "type": "text", "label": "MgCl2 (mM)", "placeholder": "e.g. 1.5" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Cycling Conditions",
+      "rows": [
+        {
+          "fields": [
+            { "name": "initialDenat", "type": "text", "label": "Initial Denaturation", "placeholder": "e.g. 98C / 30s" },
+            { "name": "cycles", "type": "text", "label": "Number of Cycles", "placeholder": "e.g. 30" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "denaturation", "type": "text", "label": "Denaturation", "placeholder": "e.g. 98C / 10s" },
+            { "name": "annealing", "type": "text", "label": "Annealing", "placeholder": "e.g. 60C / 30s" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "extension", "type": "text", "label": "Extension", "placeholder": "e.g. 72C / 30s" },
+            { "name": "finalExtension", "type": "text", "label": "Final Extension", "placeholder": "e.g. 72C / 5min" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "expectedSize", "type": "text", "label": "Expected Product (bp)", "placeholder": "e.g. 850" },
+            { "name": "outcome", "type": "select", "label": "Outcome", "options": [
+              { "value": "success", "label": "Band at expected size" },
+              { "value": "multiple", "label": "Multiple bands" },
+              { "value": "none", "label": "No amplification" },
+              { "value": "smear", "label": "Smear / non-specific" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "elnTemplate": {
+    "version": 1,
+    "name": "Specimen — Structural",
+    "description": "Structural characterization of external specimen (XRD, Raman)",
+    "category": "Specimen",
+    "structure": {
+      "item": {
+        "title": "Specimen — Structural",
+        "type": 6,
+        "children": [
+          {
+            "title": "Characterisation",
+            "level": 1,
+            "type": 4,
+            "children": [
+              {
+                "title": "XRD",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "XRD",
+                "children": []
+              },
+              {
+                "title": "Raman",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "Raman",
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

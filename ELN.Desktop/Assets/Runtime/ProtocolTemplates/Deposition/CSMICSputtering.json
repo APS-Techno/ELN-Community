@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "title": "CSMIC Sputtering Protocol",
+  "description": "DC/RF magnetron sputtering on CSMIC Sputter (process details in .dsc file)",
+  "category": "Deposition",
+  "accentColor": "#4a90d9",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Substrate Preparation",
+      "rows": [
+        {
+          "fields": [
+            { "name": "substrate", "type": "text", "label": "Substrate", "placeholder": "e.g. Si (100), glass, steel" },
+            { "name": "substrateSize", "type": "text", "label": "Substrate Size", "placeholder": "e.g. 20x20 mm, 1 inch wafer" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "cleaning", "type": "select", "label": "Cleaning Procedure", "options": [
+              { "value": "ultrasonic", "label": "Ultrasonic (acetone + ethanol)" },
+              { "value": "piranha", "label": "Piranha Etch" },
+              { "value": "plasma", "label": "Plasma Cleaning" },
+              { "value": "none", "label": "As Received" }
+            ]},
+            { "name": "pretreatment", "type": "text", "label": "Pre-treatment", "placeholder": "e.g. ion etching 5 min" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "substratePosition", "type": "text", "label": "Substrate Position", "placeholder": "e.g. center, 70 mm offset" },
+            { "name": "substrateRotation", "type": "select", "label": "Substrate Rotation", "options": [
+              { "value": "on", "label": "On" },
+              { "value": "off", "label": "Off" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 4 }
+          ]
+        }
+      ]
+    }
+  ]
+}

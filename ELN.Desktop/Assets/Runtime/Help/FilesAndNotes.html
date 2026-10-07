@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Files and notes — APS ELN Community Help</title><link rel="stylesheet" href="help.css"></head>
+<body>
+<header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
+<main>
+<h1>Files and notes</h1>
+<p>Attachments belong to an item. Open a notebook, select an active project, then select the parent item. Signed items cannot have their attachment bytes changed. A read-only or archived project also blocks content changes.</p>
+<h2>Attach local files</h2>
+<ol><li>Choose <strong>Item &gt; Add File</strong>, or click <strong>Add File</strong>. Select the source files in the file browser.</li><li>For one ordinary file, check or change <strong>Attachment file type</strong> and <strong>Display name</strong> in the browser, then click <strong>Attach</strong>. There is no second dialog for that file.</li><li>For multiple files, click <strong>Review files</strong> to open <strong>Files to attach</strong>. Check each <strong>Source filename</strong>, <strong>Display name</strong> and <strong>Type</strong>. Select each row to change <strong>Selected file type</strong>.</li><li>In the multi-file review, keep <strong>Keep display names</strong>, or select <strong>Use prefix:</strong> and enter a prefix for numbered names. Click <strong>Attach</strong>.</li><li>Check the attached files in the item tree. Each source file is copied into notebook attachment storage; the source is not moved.</li></ol>
+<p>A selected deposition file can expand to a related file pair. That expanded selection also opens the multi-file review, even if you initially selected one source.</p>
+<p>Every selected file needs a valid file type and name. Register a missing type in <a href="ReferenceData.html">Reference Data</a>. If a copy fails, the failed attachment record is removed and remaining files are skipped. Earlier files in that batch may already be attached.</p>
+<h2>View or open an attachment</h2>
+<p>Click a thumbnail to show its working copy in the content viewer. Double-click an attachment or thumbnail to open it. Markdown uses the Markdown editor when that plugin is loaded. Other files normally open with their Windows application unless their selected plugin requests internal opening.</p>
+<table><thead><tr><th>Shipped viewer</th><th>File extensions</th></tr></thead><tbody>
+<tr><td>PDF</td><td><code>.pdf</code></td></tr>
+<tr><td>Image</td><td><code>.png .bmp .jpg .jpeg .tif .tiff</code></td></tr>
+<tr><td>HTML</td><td><code>.html .htm</code></td></tr>
+<tr><td>Markdown</td><td><code>.md</code></td></tr>
+<tr><td>Columnar data</td><td><code>.dat .csv .txt .ascii</code></td></tr>
+</tbody></table>
+<p>The Protocol viewer displays protocol forms; it is not a general file editor. Preview support depends on the loaded plugin and the file format. An extension match does not guarantee that all content can be parsed.</p>
+<h2>Stored bytes and working drafts</h2>
+<p class="note">Opening an attachment creates a separate local working copy. The path shown by the host is not the stored attachment. Saving in an external application changes that working copy first. Do not edit notebook storage files directly.</p>
+<ol><li>Finish saving in the external application.</li><li>Select the attachment and choose <strong>Tools &gt; Save Attachment Working Draft</strong> to copy changed working bytes back to the notebook.</li><li>To discard the working copy and load stored bytes, choose <strong>Tools &gt; Reload Attachment Working Draft</strong>. Close separate editor windows first. Confirm the discard prompt only if you do not need their edits.</li></ol>
+<p>If the stored attachment changed after the draft was opened, the host asks: <strong>Yes</strong> overwrites the current attachment with the draft; <strong>No</strong> starts reload and discard confirmation; <strong>Cancel</strong> keeps the draft without saving. Neither overwrite choice bypasses signed-item or project write restrictions.</p>
+<p>On notebook close or exit, the host asks about changed working files. <strong>Cancel</strong> stops closing. <strong>No</strong> leaves the draft outside notebook storage. The retained working-directory message identifies drafts and recovery files; keep that directory if recovery is needed. Retention is not a notebook backup.</p>
+<h2>Markdown editor</h2>
+<p>Use <strong>Edit</strong> in the Markdown viewer, or open a Markdown attachment. Edit the source and click <strong>Save</strong> or press <kbd>Ctrl</kbd>+<kbd>S</kbd>. A successful save updates the stored attachment through the notebook service. The editor writes its local file before it requests that save, so a failed or cancelled save can leave useful draft bytes.</p>
+<p>Its conflict dialog still uses server wording in Community. Here, “server” means the notebook attachment, not a remote server:</p>
+<ul><li><strong>Cancel</strong>: keep your edits without replacing stored bytes.</li><li><strong>Reload (discard my edits)</strong>: replace the draft with the current stored attachment.</li><li><strong>Save Anyway (overwrite server)</strong>: explicitly replace the current stored attachment with your draft, if write checks permit it.</li></ul>
+<p><strong>Reload</strong> also discards unsaved editor text after confirmation. Close prompts use Yes to save, No to discard unsaved editor text, and Cancel to keep the editor open. See <a href="Wiki.html">Wiki</a> for Markdown assets and navigation.</p>
+<h2>Replace, rename, move or delete</h2>
+<ul><li>Right-click a file and choose <strong>Reupload...</strong>. In <strong>Select replacement file</strong>, choose the new source. This replaces stored bytes, not just the current draft. A changed version or hash can refuse replacement; refresh before trying again.</li><li>Use <strong>Edit</strong> in the file context menu, or select the file and click <strong>Edit</strong>, to change its title and description. Rename can also move its stored bytes. A stale metadata version must be refreshed before renaming.</li><li>Choose <strong>Move to...</strong>, select a destination item from the current item list, then click <strong>Move</strong>. The destination must be writable and unsigned. This changes ownership of the attachment and can relocate its stored bytes.</li><li>Choose <strong>Delete</strong> and confirm to remove the attachment record and stored file. This is not a Recycle Bin operation.</li></ul>
+<p class="warning">Back up needed files before replacement or deletion. Resolve editor drafts before rename, replacement or move. Conflict handling protects draft saves; it does not promise safe simultaneous physical file moves. Do not use two processes to reorganize the same attachment storage at the same time.</p>
+<h2>Add and edit a note</h2>
+<ol><li>Select an item and choose <strong>Add Note</strong>. A selected file or entry can also supply its parent item.</li><li>Enter a nonempty <strong>Title:</strong> and the note text. Use <strong>B</strong>, <strong>I</strong> and <strong>U</strong> for selected-text formatting.</li><li>Click <strong>OK</strong> to save, or <strong>Cancel</strong> to leave the dialog.</li><li>Select the note to preview it. Double-click it, or use <strong>Edit</strong>, to change it. <strong>Delete</strong> removes the selected note after confirmation.</li></ol>
+<p>Notes store rich text as notebook entries, not as Markdown attachments. Signed parent content has write guards. See <a href="Items.html">Items</a>, <a href="Protocols.html">Protocols</a> and <a href="Integrity.html">Integrity</a>.</p>
+</main><footer><a href="Index.html">All help topics</a></footer>
+</body></html>

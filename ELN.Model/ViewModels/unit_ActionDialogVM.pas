@@ -1,0 +1,548 @@
+unit unit_ActionDialogVM;
+
+interface
+
+uses
+  System.SysUtils, System.Classes, System.Generics.Collections,
+  unit_ItemTypes, unit_Item, unit_ActionType, unit_Equipment, unit_EquipmentType,
+  unit_ValueType, unit_ActionTypeModel, unit_EquipmentModel, unit_ItemModel;
+
+type
+  TActionDialogVM = class
+  private
+    FActionTypeModel: TActionTypeModel;
+    FEquipmentModel: TEquipmentModel;
+    FItemModel: TItemModel;
+    FUserId: Integer;
+
+    FAllowedLevels: TItemLevels;
+    FLevel: TItemLevel;
+    FItemTypes: TArray<TItemType>;
+    FSelectedItemTypeIndex: Integer;
+
+    FAllActionTypes: TActionTypes;
+    FActionTypes: TActionTypes;
+    FSelectedActionTypeIndex: Integer;
+
+    FEquipments: TEquipments;
+    FSelectedEquipmentIndex: Integer;
+
+    FTitle: string;
+    FDescription: string;
+    FProperties: string;
+
+    FItem: TItem;
+    FOwnItem: Boolean;
+    FIsEditMode: Boolean;
+    FValuesDisplay: TArray<string>;
+
+    FOnChanged: TNotifyEvent;
+
+    procedure FilterItemTypes;
+    procedure FilterActionTypes;
+    procedure FilterEquipments;
+    procedure DoChanged;
+    procedure RefreshValuesDisplay;
+    function FormatValueLine(Val: TValue): string;
+  public
+    constructor Create(
+      AActionTypeModel: TActionTypeModel;
+      AEquipmentModel: TEquipmentModel;
+      AItemModel: TItemModel;
+      AUserId: Integer);
+    destructor Destroy; override;
+
+    // Initialization
+    procedure LoadForNew(AllowedLevels: TItemLevels);
+    procedure LoadForEdit(Item: TItem; AllowedLevels: TItemLevels);
+
+    // Filter cascade
+    procedure SetLevel(Value: TItemLevel);
+    procedure SetItemTypeIndex(Index: Integer);
+    procedure SetActionTypeIndex(Index: Integer);
+
+    procedure SetEquipmentIndex(Index: Integer);
+
+    // Value CRUD
+    procedure AddValue(AValueType: TValueType; ARecType: TRecType;
+      AValue, ATol: Double; const ADesc: string);
+    procedure DeleteValue(Index: Integer);
+
+    // Quick-add
+    procedure AddActionType(const ATitle: string; AKind: TActionKind);
+    procedure AddEquipment(const AModel, AManufacturer, ALocation: string);
+
+    // Extract
+    procedure ApplyTo(Item: TItem);
+
+    // Helpers
+    function GetSelectedItemType: TItemType;
+    function GetSelectedActionType: TActionType;
+
+    // Derived state
+    function ShowValues: Boolean;
+    function CanSave: Boolean;
+    function CanAddActionType: Boolean;
+    function CanAddEquipment: Boolean;
+    function ShowLevelSelector: Boolean;
+
+    // State properties (read by form)
+    property AllowedLevels: TItemLevels read FAllowedLevels;
+    property Level: TItemLevel read FLevel;
+    property ItemTypes: TArray<TItemType> read FItemTypes;
+    property SelectedItemTypeIndex: Integer read FSelectedItemTypeIndex;
+    property ActionTypes: TActionTypes read FActionTypes;
+    property SelectedActionTypeIndex: Integer read FSelectedActionTypeIndex;
+    property Equipments: TEquipments read FEquipments;
+    property SelectedEquipmentIndex: Integer read FSelectedEquipmentIndex;
+    property Title: string read FTitle write FTitle;
+    property Description: string read FDescription write FDescription;
+    property Properties: string read FProperties write FProperties;
+    property IsEditMode: Boolean read FIsEditMode;
+    property ValuesDisplay: TArray<string> read FValuesDisplay;
+    property Item: TItem read FItem;
+
+    property OnChanged: TNotifyEvent read FOnChanged write FOnChanged;
+  end;
+
+implementation
+
+uses
+  unit_ValueTypeModel;
+
+{ TActionDialogVM }
+
+constructor TActionDialogVM.Create(
+  AActionTypeModel: TActionTypeModel;
+  AEquipmentModel: TEquipmentModel;
+  AItemModel: TItemModel;
+  AUserId: Integer);
+begin
+  inherited Create;
+  FActionTypeModel := AActionTypeModel;
+  FEquipmentModel := AEquipmentModel;
+  FItemModel := AItemModel;
+  FUserId := AUserId;
+  FActionTypes := TActionTypes.Create;
+  FEquipments := TEquipments.Create;
+  FSelectedItemTypeIndex := -1;
+  FSelectedActionTypeIndex := -1;
+  FSelectedEquipmentIndex := -1;
+end;
+
+destructor TActionDialogVM.Destroy;
+begin
+  if FOwnItem then
+    FreeAndNil(FItem);
+  FreeAndNil(FActionTypes);
+  FreeAndNil(FEquipments);
+  inherited;
+end;
+
+procedure TActionDialogVM.DoChanged;
+begin
+  if Assigned(FOnChanged) then
+    FOnChanged(Self);
+end;
+
+{ Filter cascade }
+
+procedure TActionDialogVM.FilterItemTypes;
+var
+  ItemType: TItemType;
+  Count: Integer;
+begin
+  SetLength(FItemTypes, 0);
+  Count := 0;
+  for ItemType := Low(TItemType) to High(TItemType) do
+    if ItemType in [TItemType.Synthesis, TItemType.Treatment,
+                    TItemType.Measurement, TItemType.Testing,
+                    TItemType.Computing, TItemType.Characterization] then
+    begin
+      SetLength(FItemTypes, Count + 1);
+      FItemTypes[Count] := ItemType;
+      Inc(Count);
+    end;
+
+  if Length(FItemTypes) > 0 then
+    FSelectedItemTypeIndex := 0
+  else
+    FSelectedItemTypeIndex := -1;
+
+  FilterActionTypes;
+end;
+
+procedure TActionDialogVM.FilterActionTypes;
+var
+  AType: TActionType;
+  SelItemType: TItemType;
+begin
+  FreeAndNil(FActionTypes);
+  FActionTypes := TActionTypes.Create;
+  FSelectedActionTypeIndex := -1;
+
+  if (FSelectedItemTypeIndex < 0) or (FSelectedItemTypeIndex > High(FItemTypes)) then
+  begin
+    FilterEquipments;
+    Exit;
+  end;
+
+  SelItemType := FItemTypes[FSelectedItemTypeIndex];
+
+  FAllActionTypes := FActionTypeModel.GetTypes;
+  for AType in FAllActionTypes do
+    if AType.ItemType = SelItemType then
+      FActionTypes.Add(AType);
+
+  FilterEquipments;
+end;
+
+procedure TActionDialogVM.FilterEquipments;
+var
+  SelActionType: TActionType;
+  AllEquip: TEquipments;
+  I: Integer;
+begin
+  FreeAndNil(FEquipments);
+  FEquipments := TEquipments.Create;
+  FSelectedEquipmentIndex := -1;
+
+  if (FSelectedActionTypeIndex < 0) or
+     (FSelectedActionTypeIndex >= FActionTypes.Count) then
+    Exit;
+
+  SelActionType := FActionTypes[FSelectedActionTypeIndex];
+  if not Assigned(SelActionType.EquipmentType) then
+    Exit;
+
+  AllEquip := FEquipmentModel.GetEquipmentsByType(SelActionType.EquipmentType.Id);
+  for I := 0 to AllEquip.Count - 1 do
+    FEquipments.Add(AllEquip[I]);
+end;
+
+{ Initialization }
+
+procedure TActionDialogVM.LoadForNew(AllowedLevels: TItemLevels);
+begin
+  FIsEditMode := False;
+  FAllowedLevels := AllowedLevels;
+  FItem := TItem.Create;
+  FOwnItem := True;
+  FTitle := '';
+  FDescription := '';
+  FProperties := '';
+
+  if TItemLevel.Proc in AllowedLevels then
+    FLevel := TItemLevel.Proc
+  else if TItemLevel.Action in AllowedLevels then
+    FLevel := TItemLevel.Action;
+
+  FilterItemTypes;
+  DoChanged;
+end;
+
+procedure TActionDialogVM.LoadForEdit(Item: TItem; AllowedLevels: TItemLevels);
+var
+  I: Integer;
+begin
+  FIsEditMode := True;
+  FAllowedLevels := AllowedLevels;
+  FItem := Item;
+  FLevel := Item.Level;
+  FTitle := Item.Title;
+  FDescription := Item.Description;
+  FProperties := Item.Properties;
+
+  FilterItemTypes;
+
+  // Restore item type selection
+  FSelectedItemTypeIndex := -1;
+  for I := 0 to High(FItemTypes) do
+    if FItemTypes[I] = Item.Type_ then
+    begin
+      FSelectedItemTypeIndex := I;
+      Break;
+    end;
+
+  FilterActionTypes;
+
+  // Restore action type selection
+  FSelectedActionTypeIndex := -1;
+  if Assigned(Item.ActionType) then
+    for I := 0 to FActionTypes.Count - 1 do
+      if FActionTypes[I].Id = Item.ActionType.Id then
+      begin
+        FSelectedActionTypeIndex := I;
+        Break;
+      end;
+
+  FilterEquipments;
+
+  // Restore equipment selection from per-item equipment
+  FSelectedEquipmentIndex := -1;
+  if Assigned(Item.Equipment) then
+    for I := 0 to FEquipments.Count - 1 do
+      if FEquipments[I].Id = Item.Equipment.Id then
+      begin
+        FSelectedEquipmentIndex := I;
+        Break;
+      end;
+
+  RefreshValuesDisplay;
+  DoChanged;
+end;
+
+{ Filter cascade — public setters }
+
+procedure TActionDialogVM.SetLevel(Value: TItemLevel);
+begin
+  FLevel := Value;
+  FilterItemTypes;
+  DoChanged;
+end;
+
+procedure TActionDialogVM.SetItemTypeIndex(Index: Integer);
+begin
+  FSelectedItemTypeIndex := Index;
+  FilterActionTypes;
+  DoChanged;
+end;
+
+procedure TActionDialogVM.SetActionTypeIndex(Index: Integer);
+var
+  SelAT: TActionType;
+  I: Integer;
+begin
+  FSelectedActionTypeIndex := Index;
+  FilterEquipments;
+
+  // Pre-select default equipment and set default title
+  FSelectedEquipmentIndex := -1;
+  if (FSelectedActionTypeIndex >= 0) and (FSelectedActionTypeIndex < FActionTypes.Count) then
+  begin
+    SelAT := FActionTypes[FSelectedActionTypeIndex];
+    if Assigned(SelAT.Equipment) then
+      for I := 0 to FEquipments.Count - 1 do
+        if FEquipments[I].Id = SelAT.Equipment.Id then
+        begin
+          FSelectedEquipmentIndex := I;
+          Break;
+        end;
+
+    // Fallback to first equipment
+    if (FSelectedEquipmentIndex < 0) and (FEquipments.Count > 0) then
+      FSelectedEquipmentIndex := 0;
+
+    // Default title from action type when empty
+    if FTitle = '' then
+      FTitle := SelAT.Title;
+  end;
+
+  DoChanged;
+end;
+
+procedure TActionDialogVM.SetEquipmentIndex(Index: Integer);
+begin
+  FSelectedEquipmentIndex := Index;
+end;
+
+{ Value CRUD }
+
+procedure TActionDialogVM.AddValue(AValueType: TValueType; ARecType: TRecType;
+  AValue, ATol: Double; const ADesc: string);
+var
+  V: TValue;
+begin
+  if not Assigned(FItem) then Exit;
+
+  if FIsEditMode then
+    FItemModel.AddValue(AValueType, ARecType, AValue, FUserId, FItem, ATol, ADesc)
+  else
+  begin
+    V := TValue.Create;
+    V.ValueType := AValueType;
+    V.RecType := ARecType;
+    V.Value := AValue;
+    V.Tol := ATol;
+    V.Description := ADesc;
+    V.Item := FItem;
+    FItem.Values.Add(V);
+  end;
+
+  RefreshValuesDisplay;
+  DoChanged;
+end;
+
+procedure TActionDialogVM.DeleteValue(Index: Integer);
+begin
+  if not Assigned(FItem) then Exit;
+  if (Index < 0) or (Index >= FItem.Values.Count) then Exit;
+
+  if FIsEditMode then
+    FItemModel.RemoveValue(FItem.Values[Index], FItem, FUserId)
+  else
+    FItem.Values.Delete(Index);
+
+  RefreshValuesDisplay;
+  DoChanged;
+end;
+
+{ Quick-add }
+
+procedure TActionDialogVM.AddActionType(const ATitle: string; AKind: TActionKind);
+var
+  SelItemType: TItemType;
+  I: Integer;
+begin
+  if FSelectedItemTypeIndex < 0 then Exit;
+  SelItemType := FItemTypes[FSelectedItemTypeIndex];
+
+  FActionTypeModel.AddType(ATitle, AKind, SelItemType, nil);
+
+  FilterActionTypes;
+
+  // Select the newly added entry
+  for I := 0 to FActionTypes.Count - 1 do
+    if FActionTypes[I].Title = ATitle then
+    begin
+      FSelectedActionTypeIndex := I;
+      FilterEquipments;
+      Break;
+    end;
+
+  DoChanged;
+end;
+
+procedure TActionDialogVM.AddEquipment(const AModel, AManufacturer, ALocation: string);
+var
+  SelActionType: TActionType;
+  I: Integer;
+begin
+  if FSelectedActionTypeIndex < 0 then Exit;
+  SelActionType := FActionTypes[FSelectedActionTypeIndex];
+  if not Assigned(SelActionType.EquipmentType) then Exit;
+
+  FEquipmentModel.AddEquipment(SelActionType.EquipmentType, AModel, AManufacturer, ALocation);
+
+  // Reload all equipment of this type and find the newly added one
+  var AllEquip := FEquipmentModel.GetEquipmentsByType(SelActionType.EquipmentType.Id);
+  for I := 0 to AllEquip.Count - 1 do
+    if AllEquip[I].Model = AModel then
+    begin
+      FEquipments.Add(AllEquip[I]);
+      FSelectedEquipmentIndex := FEquipments.Count - 1;
+      Break;
+    end;
+
+  DoChanged;
+end;
+
+{ Extract }
+
+procedure TActionDialogVM.ApplyTo(Item: TItem);
+begin
+  Item.Level := FLevel;
+
+  if (FSelectedItemTypeIndex >= 0) and (FSelectedItemTypeIndex <= High(FItemTypes)) then
+    Item.Type_ := FItemTypes[FSelectedItemTypeIndex];
+
+  Item.Title := FTitle;
+  Item.Description := FDescription;
+
+  if (FSelectedActionTypeIndex >= 0) and (FSelectedActionTypeIndex < FActionTypes.Count) then
+    Item.ActionType := FActionTypes[FSelectedActionTypeIndex]
+  else
+    Item.ActionType := nil;
+
+  if (FSelectedEquipmentIndex >= 0) and (FSelectedEquipmentIndex < FEquipments.Count) then
+    Item.Equipment := FEquipments[FSelectedEquipmentIndex]
+  else
+    Item.Equipment := nil;
+
+  Item.Properties := FProperties;
+
+  // Transfer values from temp item (new mode)
+  if not FIsEditMode and Assigned(FItem) then
+    while FItem.Values.Count > 0 do
+      Item.Values.Add(FItem.Values.Extract(FItem.Values[0]));
+end;
+
+{ Helpers }
+
+function TActionDialogVM.GetSelectedItemType: TItemType;
+begin
+  if (FSelectedItemTypeIndex >= 0) and (FSelectedItemTypeIndex <= High(FItemTypes)) then
+    Result := FItemTypes[FSelectedItemTypeIndex]
+  else
+    Result := TItemType.Other;
+end;
+
+function TActionDialogVM.GetSelectedActionType: TActionType;
+begin
+  if (FSelectedActionTypeIndex >= 0) and (FSelectedActionTypeIndex < FActionTypes.Count) then
+    Result := FActionTypes[FSelectedActionTypeIndex]
+  else
+    Result := nil;
+end;
+
+{ Derived state }
+
+function TActionDialogVM.ShowValues: Boolean;
+begin
+  Result := True;
+end;
+
+function TActionDialogVM.CanSave: Boolean;
+begin
+  Result := Trim(FTitle) <> '';
+end;
+
+function TActionDialogVM.CanAddActionType: Boolean;
+begin
+  Result := FSelectedItemTypeIndex >= 0;
+end;
+
+function TActionDialogVM.CanAddEquipment: Boolean;
+begin
+  Result := (FSelectedActionTypeIndex >= 0) and
+            (FSelectedActionTypeIndex < FActionTypes.Count) and
+            Assigned(FActionTypes[FSelectedActionTypeIndex].EquipmentType);
+end;
+
+function TActionDialogVM.ShowLevelSelector: Boolean;
+begin
+  Result := True;
+end;
+
+{ Values display }
+
+function TActionDialogVM.FormatValueLine(Val: TValue): string;
+var
+  RecStr: string;
+begin
+  case Val.RecType of
+    EXP_CONDITION: RecStr := 'Condition';
+    TEST_RESULT:   RecStr := 'Result';
+  end;
+  Result := Val.ValueType.Symbol + ' = ' +
+    FormatSIValue(Val.Value, Val.ValueType.Units) +
+    ' [' + RecStr + ']';
+  if Val.Description <> '' then
+    Result := Result + '  '#$2014' ' + Val.Description;
+end;
+
+procedure TActionDialogVM.RefreshValuesDisplay;
+var
+  I: Integer;
+begin
+  if not Assigned(FItem) then
+  begin
+    SetLength(FValuesDisplay, 0);
+    Exit;
+  end;
+  SetLength(FValuesDisplay, FItem.Values.Count);
+  for I := 0 to FItem.Values.Count - 1 do
+    FValuesDisplay[I] := FormatValueLine(FItem.Values[I]);
+end;
+
+end.

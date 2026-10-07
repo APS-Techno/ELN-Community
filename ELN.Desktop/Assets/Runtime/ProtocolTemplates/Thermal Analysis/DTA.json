@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "title": "DTA Protocol",
+  "description": "Differential thermal analysis measurement protocol",
+  "category": "Thermal Analysis",
+  "accentColor": "#bf360c",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Netzsch STA 449", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Sample",
+      "rows": [
+        {
+          "fields": [
+            { "name": "sampleMass", "type": "text", "label": "Sample Mass (mg)", "placeholder": "e.g. 15.0" },
+            { "name": "referenceMaterial", "type": "text", "label": "Reference Material", "placeholder": "e.g. Al2O3, empty crucible" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "crucible", "type": "select", "label": "Crucible Type", "options": [
+              { "value": "alumina", "label": "Alumina" },
+              { "value": "pt", "label": "Platinum" },
+              { "value": "al", "label": "Aluminum" }
+            ]},
+            { "name": "atmosphere", "type": "select", "label": "Atmosphere", "options": [
+              { "value": "nitrogen", "label": "Nitrogen" },
+              { "value": "argon", "label": "Argon" },
+              { "value": "air", "label": "Air" },
+              { "value": "oxygen", "label": "Oxygen" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "gasFlow", "type": "text", "label": "Gas Flow (mL/min)", "placeholder": "e.g. 50" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Temperature Program",
+      "rows": [
+        {
+          "fields": [
+            { "name": "startTemp", "type": "text", "label": "Start Temperature (C)", "placeholder": "e.g. 25" },
+            { "name": "endTemp", "type": "text", "label": "End Temperature (C)", "placeholder": "e.g. 1200" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "heatingRate", "type": "text", "label": "Heating Rate (C/min)", "placeholder": "e.g. 10" },
+            { "name": "coolingRate", "type": "text", "label": "Cooling Rate (C/min)", "placeholder": "e.g. 10" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "exoPeaks", "type": "text", "label": "Exothermic Peaks (C)", "placeholder": "e.g. 520, 780" },
+            { "name": "endoPeaks", "type": "text", "label": "Endothermic Peaks (C)", "placeholder": "e.g. 260, 1050" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "phaseTransitions", "type": "text", "label": "Phase Transitions", "placeholder": "e.g. crystallization at 520C, melting at 1050C" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+# Build products and private runtime data
+_OUT/
+OUT/
+BIN/
+BPL/
+DCU/
+Win32/
+Win64/
+Debug/
+Release/
+__history/
+__recovery/
+__pycache__/
+*.dcu
+*.dcp
+*.bpl
+*.dll
+*.exe
+*.bpi
+*.lib
+*.obj
+*.o
+*.map
+*.hpp
+*.vrc
+*.rsm
+*.dsk
+*.dsv
+*.identcache
+*.local
+*.res
+!ELN.Desktop/ELabNotebook3.res
+*.db
+*.sqlite
+*.sqlite3
+# ELN.DB is source, not a notebook database.
+!ELN.DB/
+*.key
+*.pfx
+*.pem
+build-dependencies.local.psd1
+
+# Generated icon inputs/resources remain output-local
+ELN.Desktop/Views/dm_TreeImages.rc
+ELN.Desktop/Views/ELNIcons.dpr
+ELN.Desktop/Assets/DevTools/ToolBars/Light/
+ELN.Desktop/Assets/DevTools/ToolBars/Dark/
+
+# Local assistant and workstation metadata
+.claude/
+.claude-memory/
+.superpowers/
+.worktrees/
+CLAUDE.md
+AGENTS.md
+node_modules/

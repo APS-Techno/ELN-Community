@@ -1,0 +1,29 @@
+Symbol,Title,Units,Group
+d,Thickness,m,0
+Δ,Displacement,m,0
+R,Reflectivity,,1
+I,Intensity,,1
+W,Power,W,2
+U,Voltage,V,2
+I,Current,A,3
+P,Pressure,Pa,3
+σ,Roughness,m,0
+n,Refractive Index,,1
+k,Extinction,,1
+T,Temperature,K,2
+t,Time,s,2
+F,Flow,sccm,3
+H,Hardness,GPa,4
+E,Modulus,GPa,4
+μ,COF,,4
+WR,Wear rate,mm³/N·m,4
+θ,Contact Angle,°,5
+c,Concentration,mol/L,6
+pH,pH,,6
+ρ,Density,g/cm³,6
+η,Viscosity,Pa·s,6
+m,Mass,g,6
+V,Volume,mL,6
+σ,Conductivity,S/m,7
+R,Resistance,Ω,7
+Rs,Sheet Resistance,Ω/sq,7

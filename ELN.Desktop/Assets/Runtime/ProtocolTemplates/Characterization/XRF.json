@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "title": "XRF Protocol",
+  "description": "X-ray fluorescence spectroscopy measurement protocol",
+  "category": "Characterization",
+  "accentColor": "#3498db",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Bruker S8 Tiger, Rigaku ZSX", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "manufacturer", "type": "text", "label": "Manufacturer", "autoFill": "equipment.manufacturer" },
+            { "name": "location", "type": "text", "label": "Location", "autoFill": "equipment.location" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Measurement Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "method", "type": "select", "label": "Method", "options": [
+              { "value": "wdxrf", "label": "WDXRF (wavelength dispersive)" },
+              { "value": "edxrf", "label": "EDXRF (energy dispersive)" },
+              { "value": "txrf", "label": "TXRF (total reflection)" },
+              { "value": "micro", "label": "Micro-XRF" }
+            ]},
+            { "name": "xrayTube", "type": "text", "label": "X-ray Tube", "placeholder": "e.g. Rh, Cr, Mo" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "voltage", "type": "text", "label": "Voltage (kV)", "placeholder": "e.g. 50" },
+            { "name": "current", "type": "text", "label": "Current (mA)", "placeholder": "e.g. 40" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "atmosphere", "type": "select", "label": "Atmosphere", "options": [
+              { "value": "vacuum", "label": "Vacuum" },
+              { "value": "helium", "label": "Helium" },
+              { "value": "air", "label": "Air" }
+            ]},
+            { "name": "measurementTime", "type": "text", "label": "Measurement Time (s)", "placeholder": "e.g. 60, 300" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "spotSize", "type": "text", "label": "Spot Size (mm)", "placeholder": "e.g. 10, 28" },
+            { "name": "calibration", "type": "text", "label": "Calibration / Standard", "placeholder": "e.g. FP method, empirical, standard XY" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Sample Preparation",
+      "rows": [
+        {
+          "fields": [
+            { "name": "samplePrep", "type": "select", "label": "Preparation", "options": [
+              { "value": "as-is", "label": "As-Is (bulk / film)" },
+              { "value": "pressed", "label": "Pressed Pellet" },
+              { "value": "fused", "label": "Fused Bead" },
+              { "value": "liquid", "label": "Liquid Cup" },
+              { "value": "powder", "label": "Loose Powder" }
+            ]},
+            { "name": "substrate", "type": "text", "label": "Substrate / Matrix", "placeholder": "e.g. Si wafer, Mylar film, boric acid" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "elementsDetected", "type": "text", "label": "Elements Detected", "placeholder": "e.g. Ti, N, O, Si" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

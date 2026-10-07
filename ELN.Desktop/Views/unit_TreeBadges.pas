@@ -1,0 +1,480 @@
+unit unit_TreeBadges;
+
+{
+  The one badge look for the desktop trees ("soft badge"): an anti-aliased
+  rounded rectangle whose fill is a light tint of the badge's base colour
+  over the row background, with the label in a deeper shade of the same hue
+  (a lighter one on a dark background). Used by the item tree (comment and
+  link counts, tags, SIGNED, HYP) and the project tree (HYP n).
+
+  Colours adapt to the background the caller passes (row background, or the
+  selection colour on a selected row), so the light and Carbon themes need
+  no separate palette. Sizes scale by the caller's PPI - the tree's own
+  monitor DPI (Sender.CurrentPPI), never Screen.PixelsPerInch.
+
+  The pure colour maths (MixColor, RelativeLuminance, ContrastRatio,
+  BadgeColors) is exposed for the unit tests.
+}
+
+interface
+
+uses
+  Winapi.Windows, System.Types, Vcl.Graphics, VirtualTrees, VirtualTrees.Types;
+
+const
+  // Base colours (TColor, i.e. $00BBGGRR - written with RGB() below).
+  BADGE_TEAL    = TColor($008D8B0F);   // RGB(15,139,141)  HYP
+  BADGE_PLUM    = TColor($00A34F8E);   // RGB(142,79,163)  waiting for you
+  BADGE_RED     = TColor($001823B4);   // RGB(180,35,24)   SIGNED
+  BADGE_SLATE   = TColor($007C6B5B);   // RGB(91,107,124)  comment count
+  BADGE_VIOLET  = TColor($00955B6B);   // RGB(107,91,149)  link count
+  BADGE_BLUE    = TColor($00D96F1E);   // RGB(30,111,217)  tag without colour
+
+type
+  TBadgeColors = record
+    Fill: TColor;
+    Text: TColor;
+  end;
+
+/// Linear blend in RGB: T = 0 gives A, T = 1 gives B. System colours are
+/// resolved with ColorToRGB first.
+function MixColor(A, B: TColor; T: Double): TColor;
+/// WCAG relative luminance, 0 (black) .. 1 (white).
+function RelativeLuminance(C: TColor): Double;
+/// WCAG contrast ratio, 1 .. 21.
+function ContrastRatio(A, B: TColor): Double;
+/// Tinted fill and label colour for ABase on ABackground. The label is pushed
+/// darker (light background) or lighter (dark background) until it reaches a
+/// 4.5:1 contrast against the fill, or as far as it can go.
+function BadgeColors(ABase, ABackground: TColor): TBadgeColors;
+
+/// What a node's cells are painted on: the (focused or unfocused) selection
+/// colour for a selected node, else the tree background - VCL-style aware.
+function TreeRowBackground(ATree: TBaseVirtualTree; ANode: PVirtualNode): TColor;
+
+/// True when a node the user can see is expanded. Expanded nodes hidden under
+/// a collapsed parent do not count - FullCollapse can leave those behind.
+function TreeHasVisibleExpanded(ATree: TBaseVirtualTree): Boolean;
+
+const
+  /// Hover row actions, left to right: collapse subtree, expand subtree,
+  /// focus (collapse everything else).
+  TREE_ACTION_COLLAPSE = 0;
+  TREE_ACTION_EXPAND   = 1;
+  TREE_ACTION_FOCUS    = 2;
+  TREE_ACTION_COUNT    = 3;
+
+/// Button AIndex of the hover action pill, right-aligned and vertically
+/// centred in ACell (the hovered row's Title cell).
+function TreeActionButtonRect(const ACell: TRect; APPI, AIndex: Integer): TRect;
+/// The hover action under P, or -1.
+function TreeActionAt(const ACell: TRect; APPI: Integer; const P: TPoint): Integer;
+/// Paints the hover action pill in the badge look; AHot is the button under
+/// the mouse (-1 for none).
+procedure DrawTreeActions(ACanvas: TCanvas; const ACell: TRect; APPI: Integer;
+  ABackground: TColor; AHot: Integer);
+
+type
+  /// Draws soft-pill badges on one canvas for one paint call. Create it,
+  /// draw, free it: the destructor restores the canvas font, brush and pen.
+  TBadgePainter = class
+  private
+    FCanvas: TCanvas;
+    FPPI: Integer;
+    FBackground: TColor;
+    FSavedFont: TFont;
+    FBadgeFont: TFont;
+    FSavedBrushColor, FSavedPenColor: TColor;
+    FSavedBrushStyle: TBrushStyle;
+    FSavedPenWidth: Integer;
+    FPadX, FPadY, FGap: Integer;
+    function PillHeight: Integer;
+    procedure Paint(const R: TRect; const AText: string; ABase: TColor);
+  public
+    /// ABaseFont: the tree font (the badge is a semibold step smaller).
+    /// ABackground: what the pill sits on (row or selection colour).
+    constructor Create(ACanvas: TCanvas; ABaseFont: TFont; APPI: Integer;
+      ABackground: TColor);
+    destructor Destroy; override;
+    /// Width of the pill for AText (never narrower than it is tall).
+    function Width(const AText: string): Integer;
+    /// Space to leave between neighbouring badges.
+    property Gap: Integer read FGap;
+    /// Draws at X, vertically centred in ACell; returns the pill's right
+    /// edge. Draws nothing and returns X when the pill would pass ALimit.
+    function DrawAt(X: Integer; const ACell: TRect; const AText: string;
+      ABase: TColor; ALimit: Integer = MaxInt): Integer;
+    /// Draws with its right edge at ARight; returns the pill's left edge.
+    function DrawRightAligned(ARight: Integer; const ACell: TRect;
+      const AText: string; ABase: TColor): Integer;
+  end;
+
+implementation
+
+uses
+  System.SysUtils, System.Math, Vcl.Themes,
+  Winapi.GDIPAPI, Winapi.GDIPOBJ;
+
+function Channels(C: TColor; out R, G, B: Byte): TColor;
+begin
+  Result := ColorToRGB(C);
+  R := GetRValue(Result);
+  G := GetGValue(Result);
+  B := GetBValue(Result);
+end;
+
+function MixColor(A, B: TColor; T: Double): TColor;
+var
+  Ar, Ag, Ab, Br, Bg, Bb: Byte;
+begin
+  T := EnsureRange(T, 0, 1);
+  Channels(A, Ar, Ag, Ab);
+  Channels(B, Br, Bg, Bb);
+  Result := RGB(
+    Round(Ar + (Br - Ar) * T),
+    Round(Ag + (Bg - Ag) * T),
+    Round(Ab + (Bb - Ab) * T));
+end;
+
+function RelativeLuminance(C: TColor): Double;
+
+  function Lin(V: Byte): Double;
+  var
+    S: Double;
+  begin
+    S := V / 255;
+    if S <= 0.03928 then
+      Result := S / 12.92
+    else
+      Result := Power((S + 0.055) / 1.055, 2.4);
+  end;
+
+var
+  R, G, B: Byte;
+begin
+  Channels(C, R, G, B);
+  Result := 0.2126 * Lin(R) + 0.7152 * Lin(G) + 0.0722 * Lin(B);
+end;
+
+function ContrastRatio(A, B: TColor): Double;
+var
+  LA, LB: Double;
+begin
+  LA := RelativeLuminance(A);
+  LB := RelativeLuminance(B);
+  Result := (Max(LA, LB) + 0.05) / (Min(LA, LB) + 0.05);
+end;
+
+function BadgeColors(ABase, ABackground: TColor): TBadgeColors;
+const
+  MIN_CONTRAST = 4.5;
+var
+  Dark: Boolean;
+  Toward: TColor;
+  T: Double;
+begin
+  Dark := RelativeLuminance(ABackground) < 0.3;
+  if Dark then
+  begin
+    Result.Fill := MixColor(ABackground, ABase, 0.30);
+    Toward := clWhite;
+    T := 0.45;
+  end
+  else
+  begin
+    Result.Fill := MixColor(ABackground, ABase, 0.16);
+    Toward := clBlack;
+    T := 0.25;
+  end;
+  Result.Text := MixColor(ABase, Toward, T);
+  while (ContrastRatio(Result.Text, Result.Fill) < MIN_CONTRAST) and (T < 0.95) do
+  begin
+    T := T + 0.1;
+    Result.Text := MixColor(ABase, Toward, T);
+  end;
+end;
+
+function TreeRowBackground(ATree: TBaseVirtualTree; ANode: PVirtualNode): TColor;
+var
+  VST: TVirtualStringTree;
+begin
+  VST := ATree as TVirtualStringTree;
+  if Assigned(ANode) and (vsSelected in ANode.States) then
+  begin
+    if VST.Focused then
+      Result := VST.Colors.FocusedSelectionColor
+    else
+      Result := VST.Colors.UnfocusedSelectionColor;
+  end
+  else
+    Result := VST.Color;
+  Result := StyleServices.GetSystemColor(Result);
+end;
+
+function TreeHasVisibleExpanded(ATree: TBaseVirtualTree): Boolean;
+var
+  N: PVirtualNode;
+begin
+  N := ATree.GetFirstVisible;
+  while Assigned(N) do
+  begin
+    if ATree.Expanded[N] and ATree.HasChildren[N] then
+      Exit(True);
+    N := ATree.GetNextVisible(N);
+  end;
+  Result := False;
+end;
+
+function GPColor(C: TColor): TGPColor;
+begin
+  C := ColorToRGB(C);
+  Result := MakeColor(255, GetRValue(C), GetGValue(C), GetBValue(C));
+end;
+
+/// Rounded-rectangle path; D is the corner diameter. Caller frees.
+function RoundRectPath(L, T, W, H, D: Single): TGPGraphicsPath;
+begin
+  D := Min(D, Min(W, H));
+  Result := TGPGraphicsPath.Create;
+  Result.AddArc(L, T, D, D, 180, 90);
+  Result.AddArc(L + W - D, T, D, D, 270, 90);
+  Result.AddArc(L + W - D, T + H - D, D, D, 0, 90);
+  Result.AddArc(L, T + H - D, D, D, 90, 90);
+  Result.CloseFigure;
+end;
+
+procedure FillRoundRect(G: TGPGraphics; const R: TRect; D: Single; C: TColor);
+var
+  Path: TGPGraphicsPath;
+  Brush: TGPSolidBrush;
+begin
+  Path := RoundRectPath(R.Left, R.Top, R.Width, R.Height, D);
+  try
+    Brush := TGPSolidBrush.Create(GPColor(C));
+    try
+      G.FillPath(Brush, Path);
+    finally
+      Brush.Free;
+    end;
+  finally
+    Path.Free;
+  end;
+end;
+
+function TreeActionButtonRect(const ACell: TRect; APPI, AIndex: Integer): TRect;
+var
+  S, Pad, Right, Y: Integer;
+begin
+  if APPI <= 0 then
+    APPI := 96;
+  // Rows can be as short as ~20 px: let the pill take nearly the full height.
+  Pad := Max(1, MulDiv(1, APPI, 96));
+  S := Min(MulDiv(26, APPI, 96), ACell.Height - 2 * Pad);
+  Y := ACell.Top + (ACell.Height - S) div 2;
+  Right := ACell.Right - MulDiv(5, APPI, 96) - Pad
+    - (TREE_ACTION_COUNT - 1 - AIndex) * S;
+  Result := Rect(Right - S, Y, Right, Y + S);
+end;
+
+function TreeActionAt(const ACell: TRect; APPI: Integer; const P: TPoint): Integer;
+var
+  I: Integer;
+begin
+  for I := 0 to TREE_ACTION_COUNT - 1 do
+    if TreeActionButtonRect(ACell, APPI, I).Contains(P) then
+      Exit(I);
+  Result := -1;
+end;
+
+procedure DrawTreeActions(ACanvas: TCanvas; const ACell: TRect; APPI: Integer;
+  ABackground: TColor; AHot: Integer);
+var
+  Colors: TBadgeColors;
+  G: TGPGraphics;
+  Pen: TGPPen;
+  Brush: TGPSolidBrush;
+  Path: TGPGraphicsPath;
+  Pill, B: TRect;
+  I, Pad: Integer;
+  L, T, W, Mid, Arm: Single;
+begin
+  if APPI <= 0 then
+    APPI := 96;
+  Colors := BadgeColors(BADGE_SLATE, ABackground);
+  Pad := Max(1, MulDiv(1, APPI, 96));
+  Pill := TreeActionButtonRect(ACell, APPI, 0);
+  Pill.Right := TreeActionButtonRect(ACell, APPI, TREE_ACTION_COUNT - 1).Right;
+  Pill.Inflate(Pad, Pad);
+
+  G := TGPGraphics.Create(ACanvas.Handle);
+  try
+    G.SetSmoothingMode(SmoothingModeAntiAlias);
+    G.SetPixelOffsetMode(PixelOffsetModeHalf);
+    FillRoundRect(G, Pill, Pill.Height, Colors.Fill);
+
+    Pen := TGPPen.Create(GPColor(Colors.Text), 1.8 * APPI / 96);
+    Brush := TGPSolidBrush.Create(GPColor(Colors.Text));
+    try
+      for I := 0 to TREE_ACTION_COUNT - 1 do
+      begin
+        B := TreeActionButtonRect(ACell, APPI, I);
+        if I = AHot then
+          FillRoundRect(G, B, B.Height, MixColor(Colors.Fill, Colors.Text, 0.22));
+
+        // Glyph box: the middle ~56% of the button.
+        W := B.Width * 0.56;
+        L := B.Left + (B.Width - W) / 2;
+        T := B.Top + (B.Height - W) / 2;
+        Mid := W / 2;
+        Arm := W * 0.26;
+        case I of
+          TREE_ACTION_COLLAPSE, TREE_ACTION_EXPAND:
+            begin
+              // Rounded square with a minus (collapse) or plus (expand).
+              Path := RoundRectPath(L, T, W, W, W * 0.3);
+              try
+                G.DrawPath(Pen, Path);
+              finally
+                Path.Free;
+              end;
+              G.DrawLine(Pen, L + Mid - Arm, T + Mid, L + Mid + Arm, T + Mid);
+              if I = TREE_ACTION_EXPAND then
+                G.DrawLine(Pen, L + Mid, T + Mid - Arm, L + Mid, T + Mid + Arm);
+            end;
+          TREE_ACTION_FOCUS:
+            begin
+              // Target: ring with a centre dot.
+              G.DrawEllipse(Pen, L, T, W, W);
+              G.FillEllipse(Brush, L + Mid - Arm * 0.8, T + Mid - Arm * 0.8,
+                Arm * 1.6, Arm * 1.6);
+            end;
+        end;
+      end;
+    finally
+      Brush.Free;
+      Pen.Free;
+    end;
+  finally
+    G.Free;
+  end;
+end;
+
+{ TBadgePainter }
+
+constructor TBadgePainter.Create(ACanvas: TCanvas; ABaseFont: TFont;
+  APPI: Integer; ABackground: TColor);
+begin
+  inherited Create;
+  FCanvas := ACanvas;
+  FPPI := APPI;
+  if FPPI <= 0 then
+    FPPI := 96;
+  FBackground := ABackground;
+
+  FSavedFont := TFont.Create;
+  FSavedFont.Assign(FCanvas.Font);
+  FSavedBrushColor := FCanvas.Brush.Color;
+  FSavedBrushStyle := FCanvas.Brush.Style;
+  FSavedPenColor := FCanvas.Pen.Color;
+  FSavedPenWidth := FCanvas.Pen.Width;
+
+  // A semibold step smaller than the tree font. Height is in pixels and the
+  // tree font is already scaled for its monitor, so this follows the DPI.
+  // Re-applied on every call: the caller may draw its own text in between.
+  FBadgeFont := TFont.Create;
+  FBadgeFont.Assign(ABaseFont);
+  FBadgeFont.Height := Round(ABaseFont.Height * 0.86);
+  if SameText(ABaseFont.Name, 'Segoe UI') then
+  begin
+    FBadgeFont.Name := 'Segoe UI Semibold';
+    FBadgeFont.Style := [];
+  end
+  else
+    FBadgeFont.Style := [fsBold];
+
+  FPadX := MulDiv(6, FPPI, 96);
+  FPadY := MulDiv(2, FPPI, 96);
+  FGap := MulDiv(5, FPPI, 96);
+end;
+
+destructor TBadgePainter.Destroy;
+begin
+  FBadgeFont.Free;
+  if Assigned(FSavedFont) then
+  begin
+    FCanvas.Font.Assign(FSavedFont);
+    FSavedFont.Free;
+  end;
+  FCanvas.Brush.Color := FSavedBrushColor;
+  FCanvas.Brush.Style := FSavedBrushStyle;
+  FCanvas.Pen.Color := FSavedPenColor;
+  FCanvas.Pen.Width := FSavedPenWidth;
+  inherited;
+end;
+
+function TBadgePainter.PillHeight: Integer;
+begin
+  FCanvas.Font.Assign(FBadgeFont);
+  Result := FCanvas.TextHeight('Tg') + 2 * FPadY;
+end;
+
+function TBadgePainter.Width(const AText: string): Integer;
+var
+  H: Integer;
+begin
+  H := PillHeight;   // also applies the badge font
+  Result := Max(FCanvas.TextWidth(AText) + 2 * FPadX, H);
+end;
+
+procedure TBadgePainter.Paint(const R: TRect; const AText: string; ABase: TColor);
+var
+  Colors: TBadgeColors;
+  G: TGPGraphics;
+  TextR: TRect;
+begin
+  Colors := BadgeColors(ABase, FBackground);
+
+  G := TGPGraphics.Create(FCanvas.Handle);
+  try
+    G.SetSmoothingMode(SmoothingModeAntiAlias);
+    G.SetPixelOffsetMode(PixelOffsetModeHalf);
+    // Rounded rectangle: corner radius 4 px at 96 dpi, never past half height.
+    FillRoundRect(G, R, 2 * MulDiv(4, FPPI, 96), Colors.Fill);
+  finally
+    G.Free;   // flushes to the DC before the GDI text below
+  end;
+
+  // GDI text keeps ClearType; it blends over the opaque fill just drawn.
+  FCanvas.Font.Assign(FBadgeFont);
+  FCanvas.Brush.Style := bsClear;
+  FCanvas.Font.Color := Colors.Text;
+  TextR := R;
+  Winapi.Windows.DrawTextW(FCanvas.Handle, PWideChar(AText), Length(AText),
+    TextR, DT_CENTER or DT_VCENTER or DT_SINGLELINE or DT_NOPREFIX);
+end;
+
+function TBadgePainter.DrawAt(X: Integer; const ACell: TRect;
+  const AText: string; ABase: TColor; ALimit: Integer): Integer;
+var
+  W, H, Y: Integer;
+begin
+  W := Width(AText);
+  if X + W > ALimit then
+    Exit(X);
+  H := Min(PillHeight, ACell.Height - 2);
+  Y := ACell.Top + (ACell.Height - H) div 2;
+  Paint(Rect(X, Y, X + W, Y + H), AText, ABase);
+  Result := X + W;
+end;
+
+function TBadgePainter.DrawRightAligned(ARight: Integer; const ACell: TRect;
+  const AText: string; ABase: TColor): Integer;
+var
+  W: Integer;
+begin
+  W := Width(AText);
+  Result := ARight - W;
+  DrawAt(Result, ACell, AText, ABase);
+end;
+
+end.

@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "title": "FEM Simulation Protocol",
+  "description": "Finite element method simulation protocol",
+  "category": "Simulation",
+  "accentColor": "#7b1fa2",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "software", "type": "text", "label": "Software", "placeholder": "e.g. COMSOL, ANSYS, Abaqus", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample / Model", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "actionType", "type": "text", "label": "Action Type", "autoFill": "actionType.title" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Model Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "physicsModule", "type": "select", "label": "Physics Module", "options": [
+              { "value": "structural", "label": "Structural Mechanics" },
+              { "value": "thermal", "label": "Heat Transfer" },
+              { "value": "fluid", "label": "Fluid Dynamics" },
+              { "value": "electromagnetic", "label": "Electromagnetics" },
+              { "value": "multiphysics", "label": "Multiphysics" }
+            ]},
+            { "name": "geometry", "type": "select", "label": "Geometry", "options": [
+              { "value": "2d", "label": "2D" },
+              { "value": "2d-axi", "label": "2D Axisymmetric" },
+              { "value": "3d", "label": "3D" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "meshType", "type": "text", "label": "Mesh Type", "placeholder": "e.g. Triangular, Tetrahedral, mapped" },
+            { "name": "meshElements", "type": "text", "label": "Mesh Elements", "placeholder": "e.g. 50000" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "boundaryConditions", "type": "textarea", "label": "Boundary Conditions", "placeholder": "e.g. Fixed bottom, load on top face, symmetry planes", "rows": 2 }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "materialProps", "type": "textarea", "label": "Material Properties", "placeholder": "e.g. E = 200 GPa, nu = 0.3, rho = 7850 kg/m3", "rows": 2 }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "solver", "type": "text", "label": "Solver", "placeholder": "e.g. Direct (MUMPS), Iterative" },
+            { "name": "studyType", "type": "select", "label": "Study Type", "options": [
+              { "value": "stationary", "label": "Stationary" },
+              { "value": "transient", "label": "Time-Dependent" },
+              { "value": "eigenvalue", "label": "Eigenvalue" },
+              { "value": "parametric", "label": "Parametric Sweep" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

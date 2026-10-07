@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    margin: 20px;
+    color: #222;
+    font-size: 13px;
+    background: #fff;
+  }
+  h2 {
+    margin: 0 0 4px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #4527a0;
+  }
+  .subtitle {
+    color: #777;
+    font-size: 11px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid #4527a0;
+    padding-bottom: 8px;
+  }
+  fieldset {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-bottom: 14px;
+  }
+  legend {
+    font-weight: 600;
+    font-size: 13px;
+    color: #4527a0;
+    padding: 0 6px;
+  }
+  label {
+    display: block;
+    margin: 8px 0 3px 0;
+    font-weight: 600;
+    font-size: 12px;
+    color: #555;
+  }
+  input, select, textarea {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 13px;
+    box-sizing: border-box;
+    font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: #4527a0;
+    outline: none;
+    box-shadow: 0 0 3px rgba(69,39,160,0.2);
+  }
+  .row { display: flex; gap: 12px; }
+  .col { flex: 1; }
+  .task-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }
+  .task-table th, .task-table td {
+    border: 1px solid #ddd;
+    padding: 5px 8px;
+    font-size: 12px;
+    text-align: left;
+  }
+  .task-table th {
+    background: #ede7f6;
+    font-weight: 600;
+    color: #4527a0;
+  }
+  .task-table input, .task-table select {
+    border: none;
+    padding: 2px 4px;
+    width: 100%;
+  }
+</style>
+</head>
+<body>
+
+<h2>Weekly Lab Report</h2>
+<div class="subtitle">Weekly progress tracking and planning</div>
+
+<fieldset>
+  <legend>Report Info</legend>
+  <div class="row">
+    <div class="col"><label>Researcher</label>
+    <input type="text" name="researcher" placeholder="Name"></div>
+    <div class="col"><label>Week Starting</label>
+    <input type="date" name="weekStart"></div>
+    <div class="col"><label>Week Ending</label>
+    <input type="date" name="weekEnd"></div>
+  </div>
+  <div class="row">
+    <div class="col"><label>Project</label>
+    <input type="text" name="project" placeholder="Project name or ID"></div>
+    <div class="col"><label>Supervisor</label>
+    <input type="text" name="supervisor" placeholder="Name"></div>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>Tasks Completed This Week</legend>
+  <table class="task-table">
+    <tr>
+      <th style="width:40%">Task</th>
+      <th style="width:35%">Result / Outcome</th>
+      <th style="width:10%">Hours</th>
+      <th style="width:15%">Status</th>
+    </tr>
+    <tr>
+      <td><input type="text" name="task1"></td>
+      <td><input type="text" name="result1"></td>
+      <td><input type="number" name="hours1"></td>
+      <td><select name="status1"><option value="done">Done</option><option value="partial">Partial</option><option value="blocked">Blocked</option></select></td>
+    </tr>
+    <tr>
+      <td><input type="text" name="task2"></td>
+      <td><input type="text" name="result2"></td>
+      <td><input type="number" name="hours2"></td>
+      <td><select name="status2"><option value="done">Done</option><option value="partial">Partial</option><option value="blocked">Blocked</option></select></td>
+    </tr>
+    <tr>
+      <td><input type="text" name="task3"></td>
+      <td><input type="text" name="result3"></td>
+      <td><input type="number" name="hours3"></td>
+      <td><select name="status3"><option value="done">Done</option><option value="partial">Partial</option><option value="blocked">Blocked</option></select></td>
+    </tr>
+    <tr>
+      <td><input type="text" name="task4"></td>
+      <td><input type="text" name="result4"></td>
+      <td><input type="number" name="hours4"></td>
+      <td><select name="status4"><option value="done">Done</option><option value="partial">Partial</option><option value="blocked">Blocked</option></select></td>
+    </tr>
+  </table>
+</fieldset>
+
+<fieldset>
+  <legend>Key Results &amp; Highlights</legend>
+  <textarea name="highlights" rows="3" placeholder="Summarize the most important results, breakthroughs, or findings..."></textarea>
+</fieldset>
+
+<fieldset>
+  <legend>Issues &amp; Challenges</legend>
+  <textarea name="issues" rows="2" placeholder="Problems encountered, equipment failures, delays..."></textarea>
+</fieldset>
+
+<fieldset>
+  <legend>Plan for Next Week</legend>
+  <textarea name="nextWeekPlan" rows="3" placeholder="Planned experiments, tasks, milestones..."></textarea>
+  <label>Resources / Support Needed</label>
+  <textarea name="resourcesNeeded" rows="2" placeholder="Equipment time, materials, assistance..."></textarea>
+</fieldset>
+
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local MCP integration — APS ELN Community Help</title>
+<link rel="stylesheet" href="help.css">
+</head>
+<body>
+<header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
+<main>
+<h1>Local MCP integration</h1>
+<p>The Community MCP host exposes local notebook tools over standard input and output. It does not provide a remote server, login API, team administration or an AI/RAG subsystem. A client that launches it can read or change records within the local principal's permitted scope.</p>
+<h2>Prepare a local session</h2>
+<ol><li>Create a Community notebook in the desktop. Close the desktop before using the same notebook in an MCP session.</li><li>Select the database and its matching attachment directory. Create a separate upload directory and a plugin directory. Both directories must exist; an empty plugin directory is valid if no viewer extraction is needed.</li><li>Place only intended upload inputs under the upload root. Use local directories without junctions or symbolic-link aliases.</li><li>Configure your MCP client to launch the host with four absolute paths:</li></ol>
+<pre>ELNCommunityMCP.exe --notebook "C:\ELNExample\notebook.sqlite" --storage "C:\ELNExample\attachments" --upload-root "C:\ELNExample\uploads" --plugins "C:\ELNExample\plugins"</pre>
+<p>The paths are examples, not supplied directories. The host only opens an existing notebook; it does not create one or migrate it. Each option also accepts <code>--name=value</code>. Do not use the Desktop-only <code>--config</code> option here.</p>
+<h2>Transport and tool discovery</h2>
+<p>The transport reads one UTF-8 JSON-RPC request per line and writes one response per request with an ID. Notifications have no response. Diagnostic messages go to standard error; they are not JSON-RPC response lines. Closing standard input ends the session normally. Use a client compatible with this line-based stdio transport.</p>
+<pre>{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
+{"jsonrpc":"2.0","method":"notifications/initialized"}
+{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_projects","arguments":{}}}</pre>
+<p>Read the current <code>tools/list</code> schemas instead of guessing arguments. The selected host currently registers 58 tools. Scientific tools include <code>create_project</code>, <code>create_item</code>, <code>add_value</code> and <code>get_values</code>, together with navigation, search, files and Wiki functions. Read-only author metadata is not account administration.</p>
+<h2>Write and review boundaries</h2>
+<ul><li>Created records belong to the current local principal. A supplied owner parameter cannot turn a local session into another user's session.</li><li>Writes to signed items and foreign or missing projects/items are refused. The tool manager reloads the active principal before each tool call.</li><li><code>upload_file</code> reads only an allowed source path under the upload root. A path outside that root is refused; do not broaden the root to an entire disk.</li><li>Human hypothesis approval and conclusion acceptance are not MCP tools. Calling <code>approve_hypothesis</code> or <code>accept_conclusion</code> returns tool-not-found. Perform those gates in the desktop.</li></ul>
+<p class="warning">An automation client can make persistent changes. Check its requested tool and arguments before permitting writes, keep backups, and use a synthetic notebook for integration tests. Local signatures and review states are not substitutes for operating-system access controls.</p>
+<p>See <a href="Hypotheses.html">human review</a>, <a href="Integrity.html">signatures</a> and <a href="Notebooks.html">backup</a>.</p>
+</main>
+<footer><a href="Index.html">All help topics</a></footer>
+</body>
+</html>

@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "title": "XPS Protocol",
+  "description": "X-ray photoelectron spectroscopy measurement protocol",
+  "category": "Characterization",
+  "accentColor": "#3498db",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. PHI 5000 VersaProbe", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "manufacturer", "type": "text", "label": "Manufacturer", "autoFill": "equipment.manufacturer" },
+            { "name": "location", "type": "text", "label": "Location", "autoFill": "equipment.location" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "xraySource", "type": "select", "label": "X-ray Source", "options": [
+              { "value": "AlKa", "label": "Al Ka (1486.6 eV)" },
+              { "value": "MgKa", "label": "Mg Ka (1253.6 eV)" }
+            ]},
+            { "name": "basePressure", "type": "text", "label": "Base Pressure (mbar)", "placeholder": "e.g. 5e-10" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Acquisition Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "surveyRange", "type": "text", "label": "Survey Range (eV)", "placeholder": "e.g. 0-1200" },
+            { "name": "passEnergySurvey", "type": "text", "label": "Pass Energy Survey (eV)", "placeholder": "e.g. 160" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "highResRegions", "type": "text", "label": "High-Res Regions", "placeholder": "e.g. C1s, O1s, Ti2p, N1s" },
+            { "name": "passEnergyHR", "type": "text", "label": "Pass Energy HR (eV)", "placeholder": "e.g. 20" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "spotSize", "type": "text", "label": "Spot Size (um)", "placeholder": "e.g. 100" },
+            { "name": "chargeComp", "type": "select", "label": "Charge Compensation", "options": [
+              { "value": "none", "label": "None" },
+              { "value": "electron", "label": "Electron flood gun" },
+              { "value": "dual", "label": "Dual beam (e- + Ar+)" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

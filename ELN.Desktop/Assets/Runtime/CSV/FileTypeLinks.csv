@@ -1,0 +1,19 @@
+ActionType,FileType
+Deposition,.dsc
+Deposition,.log
+XRD,.xrdml
+SEM,.tiff
+TEM,.tiff
+TEM,.dm3
+3D Profiling,.fibps
+AFM,.fcv
+Indentation,.mit
+Tribotest,.zrw
+Adhesion,.tst
+Transmittance,.spa
+XRR Simulation,.xrcx
+XRR Simulation,.xrc
+MD Simulation,.lmpin
+MD Simulation,.lammps
+MD Simulation,.dump
+FEM Simulation,.mph

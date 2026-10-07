@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "title": "Tribotest Protocol",
+  "description": "Reciprocating ball-on-disc tribometer wear test",
+  "category": "Testing",
+  "accentColor": "#d97b4a",
+  "sections": [
+    {
+      "title": "Test Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. CSM Tribometer", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "placeholder": "e.g. W/B4C-001", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "counterBody", "type": "text", "label": "Counter Body", "placeholder": "e.g. Al2O3 ball, 6 mm" },
+            { "name": "contactGeometry", "type": "select", "label": "Contact Geometry", "options": [
+              { "value": "ball-on-disc", "label": "Ball-on-disc" },
+              { "value": "ball-on-flat", "label": "Ball-on-flat" },
+              { "value": "pin-on-disc", "label": "Pin-on-disc" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Test Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "load", "type": "text", "label": "Normal Load", "placeholder": "e.g. 1 N" },
+            { "name": "speed", "type": "text", "label": "Speed (mm/s)", "placeholder": "e.g. 5" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "stroke", "type": "text", "label": "Stroke (mm)", "placeholder": "e.g. 5" },
+            { "name": "cycles", "type": "text", "label": "Cycles", "placeholder": "e.g. 50000" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "temperature", "type": "text", "label": "Temperature", "placeholder": "e.g. RT" },
+            { "name": "atmosphere", "type": "text", "label": "Atmosphere", "placeholder": "e.g. Air, Vacuum, N2" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "humidity", "type": "text", "label": "Humidity (%RH)", "placeholder": "e.g. 45" },
+            { "name": "lubricant", "type": "text", "label": "Lubricant", "placeholder": "e.g. Dry, PAO oil" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "meanCOF", "type": "text", "label": "Mean COF", "placeholder": "e.g. 0.13" },
+            { "name": "steadyStateCOF", "type": "text", "label": "Steady-State COF", "placeholder": "e.g. 0.12" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "wearRate", "type": "text", "label": "Wear Rate (mm3/Nm)", "placeholder": "e.g. 1.2e-6" },
+            { "name": "wearVolume", "type": "text", "label": "Wear Volume (mm3)", "placeholder": "e.g. 0.003" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "trackWidth", "type": "text", "label": "Track Width (um)", "placeholder": "e.g. 250" },
+            { "name": "trackDepth", "type": "text", "label": "Track Depth (um)", "placeholder": "e.g. 1.5" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

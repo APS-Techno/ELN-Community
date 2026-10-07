@@ -1,0 +1,44 @@
+{
+  "elnTemplate": {
+    "version": 1,
+    "name": "Specimen — Surface Morphology",
+    "description": "Surface morphology characterization of external specimen (SEM, AFM, 3D Profiling)",
+    "category": "Specimen",
+    "structure": {
+      "item": {
+        "title": "Specimen — Surface Morphology",
+        "type": 6,
+        "children": [
+          {
+            "title": "Characterisation",
+            "level": 1,
+            "type": 4,
+            "children": [
+              {
+                "title": "SEM",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "SEM",
+                "children": []
+              },
+              {
+                "title": "AFM",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "AFM",
+                "children": []
+              },
+              {
+                "title": "3D Profiling",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "3D Profiling",
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

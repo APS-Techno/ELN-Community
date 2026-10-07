@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "title": "Weekly Lab Report",
+  "category": "Reporting",
+  "accentColor": "#4527a0",
+  "sections": [
+    {
+      "title": "Report Info",
+      "rows": [
+        {
+          "fields": [
+            { "name": "researcher", "type": "text", "label": "Researcher", "placeholder": "Name" },
+            { "name": "weekStart", "type": "date", "label": "Week Starting" },
+            { "name": "weekEnd", "type": "date", "label": "Week Ending" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "project", "type": "text", "label": "Project", "placeholder": "Project name or ID" },
+            { "name": "supervisor", "type": "text", "label": "Supervisor", "placeholder": "Name" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Task 1",
+      "rows": [
+        {
+          "fields": [
+            { "name": "task1", "type": "text", "label": "Task" },
+            { "name": "result1", "type": "text", "label": "Result / Outcome" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "hours1", "type": "number", "label": "Hours" },
+            { "name": "status1", "type": "select", "label": "Status", "options": [
+              { "value": "done", "label": "Done" },
+              { "value": "partial", "label": "Partial" },
+              { "value": "blocked", "label": "Blocked" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Task 2",
+      "rows": [
+        {
+          "fields": [
+            { "name": "task2", "type": "text", "label": "Task" },
+            { "name": "result2", "type": "text", "label": "Result / Outcome" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "hours2", "type": "number", "label": "Hours" },
+            { "name": "status2", "type": "select", "label": "Status", "options": [
+              { "value": "done", "label": "Done" },
+              { "value": "partial", "label": "Partial" },
+              { "value": "blocked", "label": "Blocked" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Task 3",
+      "rows": [
+        {
+          "fields": [
+            { "name": "task3", "type": "text", "label": "Task" },
+            { "name": "result3", "type": "text", "label": "Result / Outcome" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "hours3", "type": "number", "label": "Hours" },
+            { "name": "status3", "type": "select", "label": "Status", "options": [
+              { "value": "done", "label": "Done" },
+              { "value": "partial", "label": "Partial" },
+              { "value": "blocked", "label": "Blocked" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Task 4",
+      "rows": [
+        {
+          "fields": [
+            { "name": "task4", "type": "text", "label": "Task" },
+            { "name": "result4", "type": "text", "label": "Result / Outcome" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "hours4", "type": "number", "label": "Hours" },
+            { "name": "status4", "type": "select", "label": "Status", "options": [
+              { "value": "done", "label": "Done" },
+              { "value": "partial", "label": "Partial" },
+              { "value": "blocked", "label": "Blocked" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Key Results & Highlights",
+      "rows": [
+        {
+          "fields": [
+            { "name": "highlights", "type": "richtext", "label": "Key Results & Highlights", "rows": 3 }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Issues & Challenges",
+      "rows": [
+        {
+          "fields": [
+            { "name": "issues", "type": "textarea", "label": "Issues & Challenges", "placeholder": "Problems encountered, equipment failures, delays...", "rows": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Plan for Next Week",
+      "rows": [
+        {
+          "fields": [
+            { "name": "nextWeekPlan", "type": "richtext", "label": "Plan for Next Week", "rows": 3 }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "resourcesNeeded", "type": "textarea", "label": "Resources / Support Needed", "placeholder": "Equipment time, materials, assistance...", "rows": 2 }
+          ]
+        }
+      ]
+    }
+  ]
+}

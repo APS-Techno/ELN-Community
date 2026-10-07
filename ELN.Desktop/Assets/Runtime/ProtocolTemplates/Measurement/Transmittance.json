@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "title": "Transmittance Protocol",
+  "description": "Optical transmittance / absorbance measurement protocol",
+  "category": "Measurement",
+  "accentColor": "#00897b",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Shimadzu UV-3600", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "manufacturer", "type": "text", "label": "Manufacturer", "autoFill": "equipment.manufacturer" },
+            { "name": "location", "type": "text", "label": "Location", "autoFill": "equipment.location" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Measurement Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "measureMode", "type": "select", "label": "Mode", "options": [
+              { "value": "transmittance", "label": "Transmittance (%T)" },
+              { "value": "absorbance", "label": "Absorbance (A)" },
+              { "value": "reflectance", "label": "Reflectance (%R)" }
+            ]},
+            { "name": "spectralRange", "type": "text", "label": "Spectral Range (nm)", "placeholder": "e.g. 200-2500" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "scanSpeed", "type": "text", "label": "Scan Speed (nm/min)", "placeholder": "e.g. 200" },
+            { "name": "slitWidth", "type": "text", "label": "Slit Width (nm)", "placeholder": "e.g. 2" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "reference", "type": "text", "label": "Reference", "placeholder": "e.g. Air, BaSO4, substrate" },
+            { "name": "incidenceAngle", "type": "text", "label": "Angle of Incidence (deg)", "placeholder": "e.g. 0 (normal)" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

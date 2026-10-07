@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notebooks, identity and backup — APS ELN Community Help</title>
+<link rel="stylesheet" href="help.css">
+</head>
+<body>
+<header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
+<main>
+<h1>Notebooks, identity and backup</h1>
+<h2>Keep the database and attachments together</h2>
+<p>A complete notebook consists of its <code>.sqlite</code> database and its matching attachment directory. Keep the directory structure and filenames unchanged. Attachment metadata alone cannot restore missing file bytes.</p>
+<p class="warning">The signing password is not a database-opening password. Protect the database, attachment directory, backups and retained drafts with operating-system access controls. Community is not an encrypted notebook or a multi-user server.</p>
+<h2>Open or switch a notebook</h2>
+<ol><li>Choose <strong>File → Open Notebook...</strong> and select the Community database.</li><li>Select that notebook's attachment directory, not a directory from another notebook.</li><li>If another notebook is active, finish or cancel its pending editor and working-draft decisions. The candidate is validated before the active notebook is released.</li><li>Check the notebook path and local identity in the main window before making changes.</li></ol>
+<p>Opening does not create a database or migrate an existing database. The supported local format is version 2 and requires exactly one active identity. Commercial databases, unsupported local formats and SQLite WAL-mode databases need a separately controlled conversion; changing a marker or deleting a user record is not a conversion.</p>
+<p>Choose <strong>File → Close Notebook</strong> before reopening the same database with a different attachment root. Preferences cannot relocate storage. When moving a closed notebook, move the database and its matching attachment directory as a pair, then select their new locations.</p>
+<h2>Local identity and signing</h2>
+<p>Notebook creation records the name supplied in the local-profile dialog and creates one ordinary local identity. No Admin promotion or team account is needed. The current Community desktop has no separate profile-edit command. Use the original signing password for <a href="Integrity.html">record signing</a>; opening a notebook does not request it.</p>
+<h2>Make a consistent backup</h2>
+<ol><li>Save intended changes. Resolve editor conflicts and note any retained draft or recovery directory.</li><li>Close the notebook and stop all Desktop and MCP processes that use it. Do not copy a database while a writer is active.</li><li>Copy the database and the entire attachment directory into one backup set. Keep their association clear.</li><li>Copy any retained working-draft/recovery directory separately if it contains changes you still need. A draft is not part of the saved attachment tree.</li><li>Restore into a new location, not over an open notebook. Open the restored database with the restored attachment directory and check representative records and attachments before relying on it.</li></ol>
+<p class="warning">Do not delete <code>-journal</code>, <code>-wal</code> or <code>-shm</code> files to make Open succeed. Close or recover the database in its owning client first. Preserve the database, sidecars and attachments if recovery is needed.</p>
+<p>Scientific package export and PDF export are not full notebook backups. The current package importer restores only its supported metadata/protocol subset, not a complete record/file/value hierarchy. See <a href="AnalysisAndReports.html">reports and packages</a>.</p>
+<h2>Launch with explicit paths</h2>
+<pre>ELNCommunity.exe --config "C:\ELNExample\desktop.ini" --notebook "C:\ELNExample\notebook.sqlite" --storage "C:\ELNExample\attachments" --plugins "C:\ELNExample\plugins"</pre>
+<p>These are illustrative paths; create or select your own existing notebook and runtime plugin directory. Supply <code>--notebook</code> and <code>--storage</code> together. <code>--config</code> selects the local settings file, not the notebook. Without startup notebook arguments, use the File menu. See <a href="Troubleshooting.html">troubleshooting</a> for validation errors.</p>
+</main>
+<footer><a href="Index.html">All help topics</a></footer>
+</body>
+</html>

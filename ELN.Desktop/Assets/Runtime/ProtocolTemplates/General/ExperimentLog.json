@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "title": "Experiment Log",
+  "category": "General",
+  "accentColor": "#1a5276",
+  "sections": [
+    {
+      "title": "Experiment Info",
+      "rows": [
+        {
+          "fields": [
+            { "name": "experimentId", "type": "text", "label": "Experiment ID", "placeholder": "e.g. EXP-2026-001" },
+            { "name": "date", "type": "date", "label": "Date" },
+            { "name": "researcher", "type": "text", "label": "Researcher", "placeholder": "Name" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "title", "type": "text", "label": "Title", "placeholder": "Short descriptive title of the experiment" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Objective",
+      "rows": [
+        {
+          "fields": [
+            { "name": "objective", "type": "textarea", "label": "Objective", "placeholder": "What is the goal of this experiment?", "rows": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Materials & Equipment",
+      "rows": [
+        {
+          "fields": [
+            { "name": "materials", "type": "richtext", "label": "Materials & Equipment", "rows": 3 }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Procedure",
+      "rows": [
+        {
+          "fields": [
+            { "name": "procedure", "type": "richtext", "label": "Procedure", "rows": 5 }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Observations & Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "observations", "type": "richtext", "label": "Observations & Results", "rows": 4 }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Analysis & Conclusions",
+      "rows": [
+        {
+          "fields": [
+            { "name": "analysis", "type": "richtext", "label": "Analysis & Conclusions", "rows": 3 }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "status", "type": "select", "label": "Status", "options": [
+              { "value": "in-progress", "label": "In Progress" },
+              { "value": "completed", "label": "Completed" },
+              { "value": "failed", "label": "Failed" },
+              { "value": "needs-repeat", "label": "Needs Repeat" }
+            ]}
+          ]
+        }
+      ]
+    }
+  ]
+}

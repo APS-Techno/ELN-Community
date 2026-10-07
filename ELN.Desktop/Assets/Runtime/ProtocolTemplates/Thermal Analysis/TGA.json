@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "title": "TGA Protocol",
+  "description": "Thermogravimetric analysis measurement protocol",
+  "category": "Thermal Analysis",
+  "accentColor": "#bf360c",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Netzsch TG 209, TA Q500", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Sample",
+      "rows": [
+        {
+          "fields": [
+            { "name": "sampleMass", "type": "text", "label": "Sample Mass (mg)", "placeholder": "e.g. 12.5" },
+            { "name": "crucible", "type": "select", "label": "Crucible Type", "options": [
+              { "value": "alumina", "label": "Alumina" },
+              { "value": "pt", "label": "Platinum" },
+              { "value": "al", "label": "Aluminum" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "atmosphere", "type": "select", "label": "Atmosphere", "options": [
+              { "value": "nitrogen", "label": "Nitrogen" },
+              { "value": "argon", "label": "Argon" },
+              { "value": "air", "label": "Air" },
+              { "value": "oxygen", "label": "Oxygen" }
+            ]},
+            { "name": "gasFlow", "type": "text", "label": "Gas Flow (mL/min)", "placeholder": "e.g. 50" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Temperature Program",
+      "rows": [
+        {
+          "fields": [
+            { "name": "startTemp", "type": "text", "label": "Start Temperature (C)", "placeholder": "e.g. 25" },
+            { "name": "endTemp", "type": "text", "label": "End Temperature (C)", "placeholder": "e.g. 800" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "heatingRate", "type": "text", "label": "Heating Rate (C/min)", "placeholder": "e.g. 10" },
+            { "name": "isothermalHold", "type": "text", "label": "Isothermal Hold (min)", "placeholder": "e.g. 30 at end temp" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "massLoss", "type": "text", "label": "Total Mass Loss (%)", "placeholder": "e.g. 35.2" },
+            { "name": "residue", "type": "text", "label": "Residue (%)", "placeholder": "e.g. 64.8" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "onsetTemp", "type": "text", "label": "Onset Temperature (C)", "placeholder": "e.g. 230" },
+            { "name": "decompositionSteps", "type": "text", "label": "Decomposition Steps", "placeholder": "e.g. 2 steps: 230-310C (15%), 420-550C (20%)" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

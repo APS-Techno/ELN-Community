@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+{{CSS}}
+</style>
+</head>
+<body>
+<h2>{{TITLE}}</h2>
+<div style="display:flex;gap:16px;">
+<table style="flex:1;">
+<tr><th>Type</th><td>{{TYPE}}</td></tr>
+<tr><th>Status</th><td>{{STATUS}}</td></tr>
+<tr><th>Created</th><td>{{CREATED}}</td></tr>
+{{?MODIFIED}}<tr><th>Modified</th><td>{{MODIFIED}}</td></tr>{{/MODIFIED}}
+</table>
+{{?EQUIPMENT}}<table style="flex:1;">
+<tr><th>Model</th><td>{{EQUIP_MODEL}}</td></tr>
+<tr><th>Manufacturer</th><td>{{EQUIP_MANUFACTURER}}</td></tr>
+{{?EQUIP_LOCATION}}<tr><th>Location</th><td>{{EQUIP_LOCATION}}</td></tr>{{/EQUIP_LOCATION}}
+</table>{{/EQUIPMENT}}
+</div>
+{{?FORMDATA}}<h3>Form Data</h3>
+<pre>{{FORMDATA}}</pre>{{/FORMDATA}}
+</body>
+</html>

@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "title": "XRF Calibration Protocol",
+  "description": "Full calibration of XRF instrument with certified reference standards",
+  "category": "Characterization",
+  "accentColor": "#3498db",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "autoFill": "equipment.model" },
+            { "name": "location", "type": "text", "label": "Location", "autoFill": "equipment.location" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Calibration Method",
+      "rows": [
+        {
+          "fields": [
+            { "name": "method", "type": "select", "label": "Calibration Method", "options": [
+              { "value": "empirical", "label": "Empirical (standard curves)" },
+              { "value": "fp", "label": "Fundamental Parameters (FP)" },
+              { "value": "fp-empirical", "label": "FP with Empirical Correction" },
+              { "value": "compton", "label": "Compton Normalization" }
+            ]},
+            { "name": "application", "type": "text", "label": "Application / Program", "placeholder": "e.g. Thin Films, Bulk Alloys, Oxides" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "elements", "type": "text", "label": "Calibrated Elements", "placeholder": "e.g. Ti, N, O, C, Si, Cr" },
+            { "name": "concentrationRange", "type": "text", "label": "Concentration Range", "placeholder": "e.g. 0.1 - 99.9 wt%, 1 - 5000 nm" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Reference Standards",
+      "rows": [
+        {
+          "fields": [
+            { "name": "standards", "type": "textarea", "label": "Standards Used", "rows": 4, "placeholder": "1. NIST SRM 1155 — stainless steel\n2. NIST SRM 660c — LaB6\n3. In-house Ref-TiN-200nm\n4. ..." }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "standardCount", "type": "text", "label": "Number of Standards", "placeholder": "e.g. 8" },
+            { "name": "matrixMatch", "type": "select", "label": "Matrix Matching", "options": [
+              { "value": "matched", "label": "Matrix-Matched" },
+              { "value": "partial", "label": "Partially Matched" },
+              { "value": "fp-corrected", "label": "FP Matrix Correction" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Instrument Conditions",
+      "rows": [
+        {
+          "fields": [
+            { "name": "xrayTube", "type": "text", "label": "X-ray Tube", "placeholder": "e.g. Rh, Cr, Mo" },
+            { "name": "atmosphere", "type": "select", "label": "Atmosphere", "options": [
+              { "value": "vacuum", "label": "Vacuum" },
+              { "value": "helium", "label": "Helium" },
+              { "value": "air", "label": "Air" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "voltage", "type": "text", "label": "Voltage (kV)", "placeholder": "e.g. 50" },
+            { "name": "current", "type": "text", "label": "Current (mA)", "placeholder": "e.g. 40" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Calibration Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "rSquared", "type": "text", "label": "R-squared (worst)", "placeholder": "e.g. 0.9995" },
+            { "name": "see", "type": "text", "label": "Standard Error of Estimate", "placeholder": "e.g. 0.12 wt%" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "verificationResult", "type": "textarea", "label": "Verification (measured vs certified)", "rows": 3, "placeholder": "Ref-TiN-200nm: 198.5 nm (cert: 200 nm)\nSRM 1155 Fe: 68.2% (cert: 68.35%)" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "outcome", "type": "select", "label": "Outcome", "options": [
+              { "value": "accepted", "label": "Accepted — calibration valid" },
+              { "value": "adjusted", "label": "Accepted after adjustment" },
+              { "value": "rejected", "label": "Rejected — redo required" }
+            ]},
+            { "name": "validUntil", "type": "date", "label": "Valid Until" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

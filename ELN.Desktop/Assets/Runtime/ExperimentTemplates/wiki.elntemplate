@@ -1,0 +1,21 @@
+{
+  "elnTemplate": {
+    "version": 2,
+    "name": "Wiki",
+    "description": "Per-project wiki skeleton (Goals/Ideas/Literature/Analysis/References + README)",
+    "category": "Wiki",
+    "structure": {
+      "folder": {
+        "title": "Wiki",
+        "children": [
+          { "folder": { "title": "Goals",       "children": [] } },
+          { "folder": { "title": "Ideas",       "children": [] } },
+          { "folder": { "title": "Literature",  "children": [] } },
+          { "folder": { "title": "Analysis",    "children": [] } },
+          { "folder": { "title": "References",  "children": [] } },
+          { "item":   { "title": "README", "level": 1, "type": 9, "children": [] } }
+        ]
+      }
+    }
+  }
+}

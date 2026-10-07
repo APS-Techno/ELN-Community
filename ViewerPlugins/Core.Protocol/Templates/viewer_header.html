@@ -1,0 +1,37 @@
+<div style="margin:0 0 16px 0;padding:0 0 12px 0;border-bottom:2px solid #ddd;">
+<h2 style="margin:0 0 8px 0;font-size:15px;font-weight:600;">{{TITLE}}</h2>
+<div style="display:flex;gap:16px;font-size:12px;">
+<table style="border-collapse:collapse;flex:1;">
+<tr>
+  <th style="background:#ebebeb;text-align:left;padding:4px 8px;width:35%;font-weight:normal;border-bottom:1px solid #d0d0d0;">Type</th>
+  <td style="padding:4px 8px;border-bottom:1px solid #e8e8e8;">{{TYPE}}</td>
+</tr>
+<tr>
+  <th style="background:#ebebeb;text-align:left;padding:4px 8px;font-weight:normal;border-bottom:1px solid #d0d0d0;">Status</th>
+  <td style="padding:4px 8px;border-bottom:1px solid #e8e8e8;">{{STATUS}}</td>
+</tr>
+<tr>
+  <th style="background:#ebebeb;text-align:left;padding:4px 8px;font-weight:normal;border-bottom:1px solid #d0d0d0;">Created</th>
+  <td style="padding:4px 8px;border-bottom:1px solid #e8e8e8;">{{CREATED}}</td>
+</tr>
+{{?MODIFIED}}<tr>
+  <th style="background:#ebebeb;text-align:left;padding:4px 8px;font-weight:normal;border-bottom:1px solid #d0d0d0;">Modified</th>
+  <td style="padding:4px 8px;border-bottom:1px solid #e8e8e8;">{{MODIFIED}}</td>
+</tr>{{/MODIFIED}}
+</table>
+{{?EQUIPMENT}}<table style="border-collapse:collapse;flex:1;">
+<tr>
+  <th style="background:#e6f0e6;text-align:left;padding:4px 8px;width:35%;font-weight:normal;border-bottom:1px solid #c0d0c0;">Model</th>
+  <td style="padding:4px 8px;border-bottom:1px solid #e8e8e8;">{{EQUIP_MODEL}}</td>
+</tr>
+<tr>
+  <th style="background:#e6f0e6;text-align:left;padding:4px 8px;font-weight:normal;border-bottom:1px solid #c0d0c0;">Manufacturer</th>
+  <td style="padding:4px 8px;border-bottom:1px solid #e8e8e8;">{{EQUIP_MANUFACTURER}}</td>
+</tr>
+{{?EQUIP_LOCATION}}<tr>
+  <th style="background:#e6f0e6;text-align:left;padding:4px 8px;font-weight:normal;border-bottom:1px solid #c0d0c0;">Location</th>
+  <td style="padding:4px 8px;border-bottom:1px solid #e8e8e8;">{{EQUIP_LOCATION}}</td>
+</tr>{{/EQUIP_LOCATION}}
+</table>{{/EQUIPMENT}}
+</div>
+</div>

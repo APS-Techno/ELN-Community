@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "title": "Safety Assessment",
+  "category": "Safety",
+  "accentColor": "#c62828",
+  "sections": [
+    {
+      "title": "Activity Information",
+      "rows": [
+        {
+          "fields": [
+            { "name": "activityTitle", "type": "text", "label": "Activity / Experiment Title", "placeholder": "Brief description of the work", "flex": 2 },
+            { "name": "assessmentDate", "type": "date", "label": "Date" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "assessor", "type": "text", "label": "Assessed By", "placeholder": "Name" },
+            { "name": "labLocation", "type": "text", "label": "Lab Location", "placeholder": "e.g. Lab 204, Building A" },
+            { "name": "riskLevel", "type": "select", "label": "Risk Level", "options": [
+              { "value": "low", "label": "Low" },
+              { "value": "medium", "label": "Medium" },
+              { "value": "high", "label": "High" },
+              { "value": "critical", "label": "Critical" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Hazard Identification",
+      "rows": [
+        {
+          "fields": [
+            { "name": "hazardTypes", "type": "checkbox-group", "label": "Hazard Types Present", "options": [
+              { "name": "hazChemical", "label": "Chemical" },
+              { "name": "hazThermal", "label": "Thermal" },
+              { "name": "hazElectrical", "label": "Electrical" },
+              { "name": "hazMechanical", "label": "Mechanical" },
+              { "name": "hazRadiation", "label": "Radiation" },
+              { "name": "hazBiological", "label": "Biological" },
+              { "name": "hazPressure", "label": "High Pressure" },
+              { "name": "hazNano", "label": "Nanomaterials" },
+              { "name": "hazCryo", "label": "Cryogenic" },
+              { "name": "hazLaser", "label": "Laser" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "hazMaterials", "type": "textarea", "label": "Hazardous Materials Used", "placeholder": "List chemicals, gases, or other hazardous materials with CAS numbers if applicable...", "rows": 2 }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "hazDescription", "type": "richtext", "label": "Describe Potential Hazards", "rows": 3 }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Safety Measures",
+      "rows": [
+        {
+          "fields": [
+            { "name": "requiredPPE", "type": "checkbox-group", "label": "Required PPE", "options": [
+              { "name": "ppeSafetyGlasses", "label": "Safety Glasses" },
+              { "name": "ppeLabCoat", "label": "Lab Coat" },
+              { "name": "ppeGloves", "label": "Gloves" },
+              { "name": "ppeFumeHood", "label": "Fume Hood" },
+              { "name": "ppeFaceShield", "label": "Face Shield" },
+              { "name": "ppeRespirator", "label": "Respirator" },
+              { "name": "ppeHearingProt", "label": "Hearing Protection" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "controlMeasures", "type": "richtext", "label": "Control Measures", "rows": 3 }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "emergencyProc", "type": "textarea", "label": "Emergency Procedures", "placeholder": "Spill response, first aid, emergency contacts...", "rows": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Approval",
+      "rows": [
+        {
+          "fields": [
+            { "name": "supervisorName", "type": "text", "label": "Supervisor Name", "placeholder": "Name" },
+            { "name": "approvalDate", "type": "date", "label": "Approval Date" },
+            { "name": "approvalStatus", "type": "select", "label": "Status", "options": [
+              { "value": "pending", "label": "Pending Review" },
+              { "value": "approved", "label": "Approved" },
+              { "value": "revision", "label": "Needs Revision" },
+              { "value": "rejected", "label": "Rejected" }
+            ]}
+          ]
+        }
+      ]
+    }
+  ]
+}

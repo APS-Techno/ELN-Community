@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "title": "Device Fabrication Protocol",
+  "description": "Micro/nanofabrication process protocol for electronic devices",
+  "category": "Electronics",
+  "accentColor": "#1565c0",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "deviceName", "type": "text", "label": "Device / Batch Name", "autoFill": "parent.title" },
+            { "name": "substrate", "type": "text", "label": "Substrate", "placeholder": "e.g. Si/SiO2 (300 nm), glass, PET" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Lithography",
+      "rows": [
+        {
+          "fields": [
+            { "name": "lithoMethod", "type": "select", "label": "Method", "options": [
+              { "value": "photolitho", "label": "Photolithography (UV)" },
+              { "value": "ebeam", "label": "E-beam Lithography" },
+              { "value": "nanoimprint", "label": "Nanoimprint" },
+              { "value": "shadow-mask", "label": "Shadow Mask" },
+              { "value": "none", "label": "None" }
+            ]},
+            { "name": "resist", "type": "text", "label": "Resist", "placeholder": "e.g. AZ5214, PMMA A4, SU-8" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "spinSpeed", "type": "text", "label": "Spin Speed (rpm)", "placeholder": "e.g. 4000" },
+            { "name": "exposureDose", "type": "text", "label": "Exposure Dose", "placeholder": "e.g. 100 mJ/cm2, 300 uC/cm2" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "developer", "type": "text", "label": "Developer", "placeholder": "e.g. AZ726 MIF, MIBK:IPA 1:3" },
+            { "name": "devTime", "type": "text", "label": "Development Time (s)", "placeholder": "e.g. 60" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Metallization / Active Layer",
+      "rows": [
+        {
+          "fields": [
+            { "name": "depositionMethod", "type": "select", "label": "Deposition Method", "options": [
+              { "value": "evaporation", "label": "Thermal Evaporation" },
+              { "value": "ebeam-evap", "label": "E-beam Evaporation" },
+              { "value": "sputtering", "label": "Sputtering" },
+              { "value": "ald", "label": "ALD" },
+              { "value": "spin-coat", "label": "Spin Coating" }
+            ]},
+            { "name": "material", "type": "text", "label": "Material / Stack", "placeholder": "e.g. Ti(5nm)/Au(50nm)" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "liftoff", "type": "select", "label": "Lift-off", "options": [
+              { "value": "acetone", "label": "Acetone soak" },
+              { "value": "nmp", "label": "NMP / Remover PG" },
+              { "value": "none", "label": "No lift-off (etched)" }
+            ]},
+            { "name": "liftoffTime", "type": "text", "label": "Lift-off Time", "placeholder": "e.g. 30 min" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "yield", "type": "text", "label": "Device Yield", "placeholder": "e.g. 18/20 working" },
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

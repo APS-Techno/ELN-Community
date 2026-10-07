@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "title": "Batch Release Record",
+  "description": "Batch / lot release decision record",
+  "category": "Quality",
+  "accentColor": "#37474f",
+  "sections": [
+    {
+      "title": "Batch Information",
+      "rows": [
+        {
+          "fields": [
+            { "name": "batchId", "type": "text", "label": "Batch / Lot ID", "autoFill": "parent.title" },
+            { "name": "productName", "type": "text", "label": "Product Name", "placeholder": "e.g. TiN coating, Mo/B multilayer" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "batchSize", "type": "text", "label": "Batch Size", "placeholder": "e.g. 20 substrates, 500 mL" },
+            { "name": "manufacturingDate", "type": "date", "label": "Manufacturing Date" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "reviewer", "type": "text", "label": "Reviewer", "autoFill": "user.name" },
+            { "name": "reviewDate", "type": "date", "label": "Review Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Quality Checks",
+      "rows": [
+        {
+          "fields": [
+            { "name": "checksCompleted", "type": "checkbox-group", "label": "Completed Checks", "options": [
+              { "value": "visual", "label": "Visual inspection passed" },
+              { "value": "dimensional", "label": "Dimensional / thickness within spec" },
+              { "value": "mechanical", "label": "Mechanical properties within spec" },
+              { "value": "chemical", "label": "Composition / purity verified" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "deviations", "type": "text", "label": "Deviations Noted", "placeholder": "e.g. none, sample #5 out of tolerance" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Release Decision",
+      "rows": [
+        {
+          "fields": [
+            { "name": "decision", "type": "select", "label": "Decision", "options": [
+              { "value": "released", "label": "Released" },
+              { "value": "rejected", "label": "Rejected" },
+              { "value": "rework", "label": "Rework Required" },
+              { "value": "concession", "label": "Released with Concession" }
+            ]},
+            { "name": "expiryDate", "type": "date", "label": "Expiry / Retest Date" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

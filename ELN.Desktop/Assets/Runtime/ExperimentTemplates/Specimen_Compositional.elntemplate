@@ -1,0 +1,37 @@
+{
+  "elnTemplate": {
+    "version": 1,
+    "name": "Specimen — Compositional",
+    "description": "Compositional analysis of external specimen (XPS, TEM)",
+    "category": "Specimen",
+    "structure": {
+      "item": {
+        "title": "Specimen — Compositional",
+        "type": 6,
+        "children": [
+          {
+            "title": "Characterisation",
+            "level": 1,
+            "type": 4,
+            "children": [
+              {
+                "title": "XPS",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "XPS",
+                "children": []
+              },
+              {
+                "title": "TEM",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "TEM",
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

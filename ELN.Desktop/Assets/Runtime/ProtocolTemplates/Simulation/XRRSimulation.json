@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "title": "XRR Simulation Protocol",
+  "description": "X-ray reflectivity simulation and fitting protocol",
+  "category": "Simulation",
+  "accentColor": "#7b1fa2",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "software", "type": "text", "label": "Software", "placeholder": "e.g. X-Ray Calc 3, GenX, IMD", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "actionType", "type": "text", "label": "Action Type", "autoFill": "actionType.title" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Model Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "wavelength", "type": "text", "label": "Wavelength (A)", "placeholder": "e.g. 1.5406" },
+            { "name": "angleRange", "type": "text", "label": "Angle Range (deg)", "placeholder": "e.g. 0.2 - 8" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "layerStructure", "type": "textarea", "label": "Layer Structure", "placeholder": "e.g. Si / Mo (3.5 nm) / Si (4.2 nm) x 20 / capping", "rows": 2 }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "fittingMethod", "type": "select", "label": "Fitting Method", "options": [
+              { "value": "lm", "label": "Levenberg-Marquardt" },
+              { "value": "de", "label": "Differential Evolution" },
+              { "value": "ga", "label": "Genetic Algorithm" },
+              { "value": "manual", "label": "Manual" }
+            ]},
+            { "name": "chiSquared", "type": "text", "label": "Chi-squared", "placeholder": "e.g. 0.015" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "elnTemplate": {
+    "version": 1,
+    "name": "Deposition + X-Ray Optics",
+    "description": "Thin film deposition for X-ray optics with thickness measurement, XRD structural analysis, and XRR simulation",
+    "category": "Deposition",
+    "structure": {
+      "proc": {
+        "title": "Deposition + X-Ray Optics",
+        "type": 0,
+        "actionTypeName": "Deposition",
+        "children": [
+          {
+            "title": "Specimen",
+            "level": 1,
+            "type": 6,
+            "children": [
+              {
+                "title": "Thickness",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "3D Profiling",
+                "children": []
+              },
+              {
+                "title": "Characterisation",
+                "level": 1,
+                "type": 4,
+                "children": [
+                  {
+                    "title": "XRD",
+                    "level": 1,
+                    "type": 4,
+                    "actionTypeName": "XRD",
+                    "children": [
+                      {
+                        "title": "XRR Simulation",
+                        "level": 2,
+                        "type": 5,
+                        "actionTypeName": "XRR Simulation",
+                        "children": []
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

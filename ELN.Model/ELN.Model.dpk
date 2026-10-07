@@ -1,0 +1,134 @@
+﻿package ELN.Model;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS ON}
+{$RANGECHECKS ON}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  dbrtl,
+  vcl,
+  tmsbcl,
+  aurelius;
+
+contains
+  unit_TimeHelper in '..\ELN.Domain\unit_TimeHelper.pas',
+  unit_ProjectAccessPolicy in 'unit_ProjectAccessPolicy.pas',
+  unit_Hypothesis in '..\ELN.Domain\unit_Hypothesis.pas',
+  unit_HypothesisRun in '..\ELN.Domain\unit_HypothesisRun.pas',
+  unit_HypothesisEvidence in '..\ELN.Domain\unit_HypothesisEvidence.pas',
+  unit_HypothesisStatusChange in '..\ELN.Domain\unit_HypothesisStatusChange.pas',
+  unit_HypothesisRules in 'unit_HypothesisRules.pas',
+  unit_HypothesisHash in 'unit_HypothesisHash.pas',
+  unit_HypothesisHashSelfTest in 'unit_HypothesisHashSelfTest.pas',
+  unit_HypothesisModel in 'unit_HypothesisModel.pas',
+  unit_HypothesisQueries in 'unit_HypothesisQueries.pas',
+  unit_HypothesisGuard in 'unit_HypothesisGuard.pas',
+  unit_ProjectModel in 'unit_ProjectModel.pas',
+  unit_AuthorModel in 'unit_AuthorModel.pas',
+  Bcrypt in 'Bcrypt.pas',
+  unit_Types in '..\ELN.DB\unit_Types.pas',
+  unit_DataModel in 'unit_DataModel.pas',
+  unit_FolderModel in 'unit_FolderModel.pas',
+  unit_TELNModel in 'unit_TELNModel.pas',
+  unit_ItemModel in 'unit_ItemModel.pas',
+  unit_LabEntry in '..\ELN.Domain\unit_LabEntry.pas',
+  unit_Protocol in '..\ELN.Domain\unit_Protocol.pas',
+  unit_ActionType in '..\ELN.Domain\unit_ActionType.pas',
+  unit_ELNDB_Dictionary in '..\ELN.Domain\unit_ELNDB_Dictionary.pas',
+  unit_Equipment in '..\ELN.Domain\unit_Equipment.pas',
+  unit_EquipmentType in '..\ELN.Domain\unit_EquipmentType.pas',
+  unit_FileType in '..\ELN.Domain\unit_FileType.pas',
+  unit_ItemTypes in '..\ELN.Domain\unit_ItemTypes.pas',
+  unit_Item in '..\ELN.Domain\unit_Item.pas',
+  unit_Project in '..\ELN.Domain\unit_Project.pas',
+  unit_ProjectGroup in '..\ELN.Domain\unit_ProjectGroup.pas',
+  unit_User in '..\ELN.Domain\unit_User.pas',
+  unit_UserDevice in '..\ELN.Domain\unit_UserDevice.pas',
+  unit_UserRole in '..\ELN.Domain\unit_UserRole.pas',
+  unit_UsersHistory in '..\ELN.Domain\unit_UsersHistory.pas',
+  unit_UserHistoryModel in 'unit_UserHistoryModel.pas',
+  unit_TreeStateModel in 'unit_TreeStateModel.pas',
+  unit_ActionTypeModel in 'unit_ActionTypeModel.pas',
+  unit_EquipmentModel in 'unit_EquipmentModel.pas',
+  unit_EquipmentTypeModel in 'unit_EquipmentTypeModel.pas',
+  unit_FileTypeModel in 'unit_FileTypeModel.pas',
+  unit_FileTypeLink in '..\ELN.Domain\unit_FileTypeLink.pas',
+  unit_FileModel in 'unit_FileModel.pas',
+  unit_FileRelocator in 'unit_FileRelocator.pas',
+  unit_NotebookStorage in 'unit_NotebookStorage.pas',
+  unit_FilePaths in 'unit_FilePaths.pas',
+  unit_FileLocator in 'unit_FileLocator.pas',
+  unit_ValueType in '..\ELN.Domain\unit_ValueType.pas',
+  unit_ValueTypeCategories in '..\ELN.Domain\unit_ValueTypeCategories.pas',
+  unit_ValueTypeModel in 'unit_ValueTypeModel.pas',
+  unit_Template in '..\ELN.Domain\unit_Template.pas',
+  unit_ProtocolTemplateModel in 'unit_ProtocolTemplateModel.pas',
+  unit_ProtocolTemplateHtmlGenerator in 'unit_ProtocolTemplateHtmlGenerator.pas',
+  unit_ProtocolStatusChange in '..\ELN.Domain\unit_ProtocolStatusChange.pas',
+  unit_ProtocolStatusModel in 'unit_ProtocolStatusModel.pas',
+  unit_PackageExport in 'unit_PackageExport.pas',
+  unit_PackageImport in 'unit_PackageImport.pas',
+  unit_AuditLog in '..\ELN.Domain\unit_AuditLog.pas',
+  unit_AuditHelper in 'unit_AuditHelper.pas',
+  unit_AuditLogModel in 'unit_AuditLogModel.pas',
+  unit_ProjectPermission in '..\ELN.Domain\unit_ProjectPermission.pas',
+  unit_ConflictHandler in 'unit_ConflictHandler.pas',
+  unit_Signature in '..\ELN.Domain\unit_Signature.pas',
+  unit_SignatureModel in 'unit_SignatureModel.pas',
+  unit_Favorite in '..\ELN.Domain\unit_Favorite.pas',
+  unit_FavoritesModel in 'unit_FavoritesModel.pas',
+  unit_Tag in '..\ELN.Domain\unit_Tag.pas',
+  unit_TagModel in 'unit_TagModel.pas',
+  unit_Comment in '..\ELN.Domain\unit_Comment.pas',
+  unit_CommentModel in 'unit_CommentModel.pas',
+  unit_ExperimentTemplate in '..\ELN.Domain\unit_ExperimentTemplate.pas',
+  unit_ExperimentTemplateModel in 'unit_ExperimentTemplateModel.pas',
+  unit_RecycleBinModel in 'unit_RecycleBinModel.pas',
+  unit_DBSetting in '..\ELN.Domain\unit_DBSetting.pas',
+  unit_ServiceImport in 'unit_ServiceImport.pas',
+  unit_DBSettingsModel in 'unit_DBSettingsModel.pas',
+  unit_SearchModel in 'unit_SearchModel.pas',
+  unit_ReportBuilder in 'unit_ReportBuilder.pas',
+  unit_ItemLink in '..\ELN.Domain\unit_ItemLink.pas',
+  unit_LinkType in '..\ELN.Domain\unit_LinkType.pas',
+  unit_ItemLinkModel in 'unit_ItemLinkModel.pas',
+  unit_LinkTypeModel in 'unit_LinkTypeModel.pas',
+  unit_ViewerState in '..\ELN.Domain\unit_ViewerState.pas',
+  unit_UserTreeState in '..\ELN.Domain\unit_UserTreeState.pas',
+  unit_AuditRule in '..\ELN.Domain\unit_AuditRule.pas',
+  unit_ClientLog in '..\ELN.Domain\unit_ClientLog.pas',
+  unit_SubmissionIdempotency in '..\ELN.Domain\unit_SubmissionIdempotency.pas',
+  unit_DomainEntities in '..\ELN.Domain\unit_DomainEntities.pas',
+  unit_SchemaUpdate in '..\ELN.DB\unit_SchemaUpdate.pas',
+  unit_ItemLinkMigrationSeed in '..\ELN.DB\unit_ItemLinkMigrationSeed.pas',
+  unit_AuditModel in 'unit_AuditModel.pas',
+  unit_ViewerStateModel in 'unit_ViewerStateModel.pas',
+  unit_TemplateTagsModel in 'unit_TemplateTagsModel.pas',
+  unit_ProjectGroupModel in 'unit_ProjectGroupModel.pas';
+
+end.
+

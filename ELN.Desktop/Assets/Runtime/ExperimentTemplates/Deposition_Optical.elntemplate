@@ -1,0 +1,52 @@
+{
+  "elnTemplate": {
+    "version": 1,
+    "name": "Deposition + Optical",
+    "description": "Thin film deposition with optical characterization (Ellipsometry, Transmittance)",
+    "category": "Deposition",
+    "structure": {
+      "proc": {
+        "title": "Deposition + Optical",
+        "type": 0,
+        "actionTypeName": "Deposition",
+        "children": [
+          {
+            "title": "Specimen",
+            "level": 1,
+            "type": 6,
+            "children": [
+              {
+                "title": "Thickness",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "3D Profiling",
+                "children": []
+              },
+              {
+                "title": "Characterisation",
+                "level": 1,
+                "type": 4,
+                "children": [
+                  {
+                    "title": "Ellipsometry",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "Ellipsometry",
+                    "children": []
+                  },
+                  {
+                    "title": "Transmittance",
+                    "level": 2,
+                    "type": 2,
+                    "actionTypeName": "Transmittance",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "elnTemplate": {
+    "version": 1,
+    "name": "Deposition + Structural",
+    "description": "Thin film deposition with structural characterization (XRD, Raman)",
+    "category": "Deposition",
+    "structure": {
+      "proc": {
+        "title": "Deposition + Structural",
+        "type": 0,
+        "actionTypeName": "Deposition",
+        "children": [
+          {
+            "title": "Specimen",
+            "level": 1,
+            "type": 6,
+            "children": [
+              {
+                "title": "Thickness",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "3D Profiling",
+                "children": []
+              },
+              {
+                "title": "Characterisation",
+                "level": 1,
+                "type": 4,
+                "children": [
+                  {
+                    "title": "XRD",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "XRD",
+                    "children": []
+                  },
+                  {
+                    "title": "Raman",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "Raman",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

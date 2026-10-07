@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "title": "TEM Protocol",
+  "description": "Transmission electron microscopy imaging protocol",
+  "category": "Characterization",
+  "accentColor": "#3498db",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. JEOL JEM-2100F", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "manufacturer", "type": "text", "label": "Manufacturer", "autoFill": "equipment.manufacturer" },
+            { "name": "location", "type": "text", "label": "Location", "autoFill": "equipment.location" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Specimen Preparation",
+      "rows": [
+        {
+          "fields": [
+            { "name": "prepMethod", "type": "select", "label": "Preparation Method", "options": [
+              { "value": "fib", "label": "FIB Lift-out" },
+              { "value": "ion-milling", "label": "Ion Milling" },
+              { "value": "ultramicrotome", "label": "Ultramicrotomy" },
+              { "value": "crushing", "label": "Crushing / Dispersion" },
+              { "value": "electropolish", "label": "Electropolishing" }
+            ]},
+            { "name": "gridType", "type": "text", "label": "Grid Type", "placeholder": "e.g. Cu 200 mesh, lacey carbon" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Imaging Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "acceleratingVoltage", "type": "text", "label": "Accelerating Voltage (kV)", "placeholder": "e.g. 200" },
+            { "name": "mode", "type": "select", "label": "Imaging Mode", "options": [
+              { "value": "bf", "label": "Bright Field" },
+              { "value": "df", "label": "Dark Field" },
+              { "value": "hrtem", "label": "HRTEM" },
+              { "value": "stem", "label": "STEM" },
+              { "value": "saed", "label": "SAED" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "spotSize", "type": "text", "label": "Spot Size", "placeholder": "e.g. 3" },
+            { "name": "cameraLength", "type": "text", "label": "Camera Length (mm)", "placeholder": "e.g. 250" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

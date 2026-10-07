@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "title": "Impedance Spectroscopy Protocol",
+  "description": "Electrochemical impedance spectroscopy (EIS) measurement protocol",
+  "category": "Electronics",
+  "accentColor": "#1565c0",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Gamry Reference 600+, Solartron 1260", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample / Device ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Measurement Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "freqStart", "type": "text", "label": "Start Frequency (Hz)", "placeholder": "e.g. 0.01" },
+            { "name": "freqStop", "type": "text", "label": "Stop Frequency (Hz)", "placeholder": "e.g. 1e6" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "pointsPerDecade", "type": "text", "label": "Points per Decade", "placeholder": "e.g. 10" },
+            { "name": "acAmplitude", "type": "text", "label": "AC Amplitude (mV)", "placeholder": "e.g. 10" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "dcBias", "type": "text", "label": "DC Bias (V)", "placeholder": "e.g. 0, OCV" },
+            { "name": "electrodeConfig", "type": "select", "label": "Electrode Configuration", "options": [
+              { "value": "2electrode", "label": "2-Electrode" },
+              { "value": "3electrode", "label": "3-Electrode" },
+              { "value": "4electrode", "label": "4-Electrode" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "temperature", "type": "text", "label": "Temperature", "placeholder": "e.g. RT, 25 C" },
+            { "name": "electrolyte", "type": "text", "label": "Electrolyte / Medium", "placeholder": "e.g. 0.1 M KCl, solid state" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

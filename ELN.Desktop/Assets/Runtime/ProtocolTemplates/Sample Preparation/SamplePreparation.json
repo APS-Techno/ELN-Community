@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "title": "Sample Preparation",
+  "category": "Sample Preparation",
+  "accentColor": "#2e7d32",
+  "sections": [
+    {
+      "title": "Sample Identity",
+      "rows": [
+        {
+          "fields": [
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "placeholder": "e.g. S-2026-001" },
+            { "name": "batchNumber", "type": "text", "label": "Batch Number", "placeholder": "e.g. B-042" },
+            { "name": "prepDate", "type": "date", "label": "Date" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "material", "type": "text", "label": "Material / Composition", "placeholder": "e.g. TiO2 nanoparticles, Al-6061" },
+            { "name": "substrate", "type": "text", "label": "Substrate", "placeholder": "e.g. Si wafer, glass slide, steel coupon" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Preparation Steps",
+      "rows": [
+        {
+          "fields": [
+            { "name": "cleaning", "type": "textarea", "label": "Cleaning / Pre-treatment", "placeholder": "e.g. Ultrasonic bath in acetone 10 min, IPA rinse, N2 blow dry", "rows": 2 }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "method", "type": "select", "label": "Preparation Method", "options": [
+              { "value": "", "label": "-- Select method --" },
+              { "value": "spin-coating", "label": "Spin Coating" },
+              { "value": "dip-coating", "label": "Dip Coating" },
+              { "value": "sputtering", "label": "Sputtering" },
+              { "value": "evaporation", "label": "Evaporation" },
+              { "value": "cvd", "label": "CVD" },
+              { "value": "sol-gel", "label": "Sol-Gel" },
+              { "value": "mechanical", "label": "Mechanical Processing" },
+              { "value": "other", "label": "Other" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "processParams", "type": "text", "label": "Process Parameters", "autoFill": "conditions.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "postTreatment", "type": "textarea", "label": "Post-treatment", "placeholder": "Annealing, etching, polishing...", "rows": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Quality Check",
+      "rows": [
+        {
+          "fields": [
+            { "name": "visualCheck", "type": "select", "label": "Visual Inspection", "options": [
+              { "value": "pass", "label": "Pass" },
+              { "value": "minor-defects", "label": "Minor Defects" },
+              { "value": "fail", "label": "Fail" }
+            ]},
+            { "name": "thickness", "type": "text", "label": "Thickness / Dimension", "placeholder": "e.g. 150 nm, 2.0 mm", "autoFill": "results.d" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "notes", "type": "textarea", "label": "Notes", "placeholder": "Any deviations, observations, storage conditions...", "rows": 2 }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "title": "DSC Protocol",
+  "description": "Differential scanning calorimetry measurement protocol",
+  "category": "Thermal Analysis",
+  "accentColor": "#bf360c",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Netzsch DSC 214, TA Q2000", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Sample",
+      "rows": [
+        {
+          "fields": [
+            { "name": "sampleMass", "type": "text", "label": "Sample Mass (mg)", "placeholder": "e.g. 8.5" },
+            { "name": "referenceMass", "type": "text", "label": "Reference Mass (mg)", "placeholder": "e.g. empty crucible" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "crucible", "type": "select", "label": "Crucible Type", "options": [
+              { "value": "al-sealed", "label": "Aluminum (sealed)" },
+              { "value": "al-pierced", "label": "Aluminum (pierced lid)" },
+              { "value": "al-open", "label": "Aluminum (open)" },
+              { "value": "pt", "label": "Platinum" },
+              { "value": "alumina", "label": "Alumina" }
+            ]},
+            { "name": "atmosphere", "type": "select", "label": "Atmosphere", "options": [
+              { "value": "nitrogen", "label": "Nitrogen" },
+              { "value": "argon", "label": "Argon" },
+              { "value": "air", "label": "Air" },
+              { "value": "oxygen", "label": "Oxygen" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "gasFlow", "type": "text", "label": "Gas Flow (mL/min)", "placeholder": "e.g. 50" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Temperature Program",
+      "rows": [
+        {
+          "fields": [
+            { "name": "startTemp", "type": "text", "label": "Start Temperature (C)", "placeholder": "e.g. 25" },
+            { "name": "endTemp", "type": "text", "label": "End Temperature (C)", "placeholder": "e.g. 400" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "heatingRate", "type": "text", "label": "Heating Rate (C/min)", "placeholder": "e.g. 10" },
+            { "name": "coolingRate", "type": "text", "label": "Cooling Rate (C/min)", "placeholder": "e.g. 10" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "cycles", "type": "text", "label": "Number of Cycles", "placeholder": "e.g. 2 (heat-cool-heat)" },
+            { "name": "isothermalHold", "type": "text", "label": "Isothermal Hold (min)", "placeholder": "e.g. 5 at end temp" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "glassTrans", "type": "text", "label": "Glass Transition Tg (C)", "placeholder": "e.g. 125.3" },
+            { "name": "meltingPoint", "type": "text", "label": "Melting Point Tm (C)", "placeholder": "e.g. 260.1" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "enthalpy", "type": "text", "label": "Enthalpy (J/g)", "placeholder": "e.g. 45.2" },
+            { "name": "crystallization", "type": "text", "label": "Crystallization Tc (C)", "placeholder": "e.g. 195.8" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

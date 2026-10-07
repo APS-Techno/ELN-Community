@@ -1,0 +1,64 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Config Condition="'$(Config)'==''">Debug</Config>
+    <Platform Condition="'$(Platform)'==''">Win32</Platform>
+    <ELN_ProductRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..'))</ELN_ProductRoot>
+    <ELN_OutputRoot>$(ELN_ProductRoot)\_OUT\CommunityDesktop\$(Platform)\$(Config)</ELN_OutputRoot>
+    <ELN_TmsRoot Condition="'$(ELN_TmsRoot)'==''">$(ELN_TMS_ROOT)</ELN_TmsRoot>
+    <ELN_ExternalUnitPaths Condition="'$(ELN_ExternalUnitPaths)'==''">$(ELN_EXTERNAL_UNIT_PATHS)</ELN_ExternalUnitPaths>
+    <ELN_ExternalUnitPaths Condition="'$(ELN_TmsRoot)'!=''">$(ELN_ExternalUnitPaths);$(ELN_TmsRoot)\tms.biz.aurelius\packages\d13\$(Platform)\$(Config);$(ELN_TmsRoot)\tms.biz.bcl\packages\d13\$(Platform)\$(Config)</ELN_ExternalUnitPaths>
+    <DCC_UnitSearchPath>$(ELN_OutputRoot)\Packages;..\ViewerPlugins\Core;..\ViewerPlugins\Core.Protocol;..\ELN.Community;..\ELN.Domain;..\ELN.Model;..\ELN.Model\ViewModels;..\ELN.DB;..\ELN.Components;..\ELN.Desktop\Units;..\ELN.Desktop\Views;..\ELN.Desktop\ViewModels;..\ELN.Desktop\Forms;..\ELN.Desktop\Editors;..\ELN.Desktop\Dialogs;..\ELN.Desktop\Dialogs\System;..\ELN.Desktop\Dialogs\Search;..\ELN.Desktop\Dialogs\Projects;..\ELN.Desktop\Dialogs\Items;..\ELN.Desktop\Dialogs\Protocols;..\ELN.Desktop\Dialogs\Protocols\Cards;..\ELN.Desktop\Dialogs\Hypotheses;..\ELN.Desktop\Dialogs\ExperimentTemplates;..\ELN.Desktop\Dialogs\Export;$(ELN_ExternalUnitPaths)</DCC_UnitSearchPath>
+    <DCC_DcpOutput>$(ELN_OutputRoot)\Packages</DCC_DcpOutput>
+    <DCC_BplOutput>$(ELN_OutputRoot)</DCC_BplOutput>
+    <DCC_HppOutput>$(ELN_OutputRoot)\Hpp</DCC_HppOutput>
+    <DCC_ResourceOutput>$(ELN_OutputRoot)\Resources</DCC_ResourceOutput>
+    <PreBuildEvent/>
+    <PostBuildEvent/>
+    <PreLinkEvent/>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ProjectGuid>{195E2648-E369-45CC-B3AD-5341A66B013E}</ProjectGuid>
+    <ProjectVersion>20.4</ProjectVersion>
+    <FrameworkType>VCL</FrameworkType>
+    <MainSource>ELNCommunity.dpr</MainSource>
+    <Base>True</Base>
+    <Config Condition="'$(Config)'==''">Debug</Config>
+    <Platform Condition="'$(Platform)'==''">Win32</Platform>
+    <TargetedPlatforms>1</TargetedPlatforms>
+    <AppType>Application</AppType>
+    <DCC_Namespace>Winapi;System.Win;System;Xml;Data;Vcl;Vcl.Imaging;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
+    <DCC_DcuOutput>$(ELN_OutputRoot)\DCU</DCC_DcuOutput>
+    <DCC_ExeOutput>$(ELN_OutputRoot)</DCC_ExeOutput>
+    <DCC_BplOutput>$(ELN_OutputRoot)</DCC_BplOutput>
+    <DCC_UsePackage>rtl;vcl;vcledge;TMSVCLPluginFrameworkPkgCoreDXE16;ELNPluginCore;ELNProtocolCore;vclimg;vclwinx;Tee;RaizeComponentsVcl</DCC_UsePackage>
+    <UsePackages>true</UsePackages>
+    <DCC_RemoteDebug>false</DCC_RemoteDebug>
+    <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
+    <AppDPIAwarenessMode>PerMonitorV2</AppDPIAwarenessMode>
+    <Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
+    <Icon_MainIcon>..\ELN.Desktop\Assets\DevTools\AppIcons\ELN3_icon.ico</Icon_MainIcon>
+    <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
+    <VerInfo_Locale>1033</VerInfo_Locale>
+    <VerInfo_Keys>FileDescription=ELN Community Desktop;ProductName=ELN Community;ProductVersion=2.0;FileVersion=2.0;OriginalFilename=ELNCommunity.exe</VerInfo_Keys>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Config)'=='Debug'">
+    <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
+    <DCC_DebugInformation>1</DCC_DebugInformation>
+    <DCC_LocalDebugSymbols>true</DCC_LocalDebugSymbols>
+    <DCC_Optimize>false</DCC_Optimize>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Config)'=='Release'">
+    <DCC_DebugInformation>0</DCC_DebugInformation>
+    <DCC_LocalDebugSymbols>false</DCC_LocalDebugSymbols>
+    <DCC_Optimize>true</DCC_Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <DelphiCompile Include="$(MainSource)"><MainSource>MainSource</MainSource></DelphiCompile>
+    <DCCReference Include="frm_CommunityMain.pas"><Form>frmCommunityMain</Form></DCCReference>
+    <DCCReference Include="frm_LocalProfile.pas"><Form>dlgLocalProfile</Form></DCCReference>
+    <DCCReference Include="frm_CommunityPreferences.pas"><Form>dlgCommunityPreferences</Form></DCCReference>
+    <BuildConfiguration Include="Debug"><Key>Cfg_1</Key><CfgParent>Base</CfgParent></BuildConfiguration>
+    <BuildConfiguration Include="Release"><Key>Cfg_2</Key><CfgParent>Base</CfgParent></BuildConfiguration>
+  </ItemGroup>
+  <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')" />
+</Project>

@@ -1,0 +1,48 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Config Condition="'$(Config)'==''">Debug</Config>
+    <Platform Condition="'$(Platform)'==''">Win32</Platform>
+    <ELN_ProductRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..'))</ELN_ProductRoot>
+    <ELN_OutputRoot>$(ELN_ProductRoot)\_OUT\CommunityTests\$(Platform)\$(Config)</ELN_OutputRoot>
+    <ELN_TmsRoot Condition="'$(ELN_TmsRoot)'==''">$(ELN_TMS_ROOT)</ELN_TmsRoot>
+    <ELN_ExternalUnitPaths Condition="'$(ELN_ExternalUnitPaths)'==''">$(ELN_EXTERNAL_UNIT_PATHS)</ELN_ExternalUnitPaths>
+    <ELN_ExternalUnitPaths Condition="'$(ELN_TmsRoot)'!=''">$(ELN_ExternalUnitPaths);$(ELN_TmsRoot)\tms.biz.aurelius\packages\d13\$(Platform)\$(Config);$(ELN_TmsRoot)\tms.biz.bcl\packages\d13\$(Platform)\$(Config)</ELN_ExternalUnitPaths>
+    <DCC_UnitSearchPath>..\ELN.Model;..\ELN.Domain;..\ELN.Community;..\ELN.DB;..\ELN.Components;..\ELN.Model\ViewModels;..\ELN.Desktop\Units;$(ELN_ExternalUnitPaths)</DCC_UnitSearchPath>
+    <DCC_DcpOutput>$(ELN_OutputRoot)\Packages</DCC_DcpOutput>
+    <DCC_BplOutput>$(ELN_OutputRoot)</DCC_BplOutput>
+    <DCC_HppOutput>$(ELN_OutputRoot)\Hpp</DCC_HppOutput>
+    <DCC_ResourceOutput>$(ELN_OutputRoot)\Resources</DCC_ResourceOutput>
+    <PreBuildEvent/>
+    <PostBuildEvent/>
+    <PreLinkEvent/>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ProjectGuid>{19A6680E-80C1-4378-8B64-88310F809AF8}</ProjectGuid>
+    <ProjectVersion>20.3</ProjectVersion>
+    <FrameworkType>None</FrameworkType>
+    <AppType>Console</AppType>
+    <MainSource>CommunityStorageTests.dpr</MainSource>
+    <Config Condition="'$(Config)'==''">Debug</Config>
+    <Platform Condition="'$(Platform)'==''">Win32</Platform>
+    <TargetedPlatforms>3</TargetedPlatforms>
+    <DCC_Namespace>System;Winapi</DCC_Namespace>
+    <DCC_UsePackage></DCC_UsePackage>
+    <DCC_ExeOutput>$(ELN_OutputRoot)</DCC_ExeOutput>
+    <DCC_DcuOutput>$(ELN_OutputRoot)\DCU</DCC_DcuOutput>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Config)'=='Debug'">
+    <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
+    <DCC_Optimize>false</DCC_Optimize>
+    <DCC_IntegerOverflowCheck>true</DCC_IntegerOverflowCheck>
+    <DCC_RangeChecking>true</DCC_RangeChecking>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Config)'=='Release'">
+    <DCC_Optimize>true</DCC_Optimize>
+  </PropertyGroup>
+  <ItemGroup>
+    <DelphiCompile Include="$(MainSource)">
+      <MainSource>MainSource</MainSource>
+    </DelphiCompile>
+  </ItemGroup>
+  <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets"/>
+</Project>

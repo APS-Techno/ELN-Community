@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "title": "MD Simulation Protocol",
+  "description": "Molecular dynamics simulation protocol",
+  "category": "Simulation",
+  "accentColor": "#7b1fa2",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "software", "type": "text", "label": "Software", "placeholder": "e.g. LAMMPS, GROMACS, VASP", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample / System", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "actionType", "type": "text", "label": "Action Type", "autoFill": "actionType.title" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Simulation Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "potential", "type": "text", "label": "Interatomic Potential", "placeholder": "e.g. EAM, Tersoff, ReaxFF" },
+            { "name": "ensemble", "type": "select", "label": "Ensemble", "options": [
+              { "value": "nve", "label": "NVE (Microcanonical)" },
+              { "value": "nvt", "label": "NVT (Canonical)" },
+              { "value": "npt", "label": "NPT (Isothermal-Isobaric)" },
+              { "value": "nph", "label": "NPH" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "temperature", "type": "text", "label": "Temperature (K)", "placeholder": "e.g. 300" },
+            { "name": "pressure", "type": "text", "label": "Pressure (GPa)", "placeholder": "e.g. 0" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "timestep", "type": "text", "label": "Timestep (fs)", "placeholder": "e.g. 1" },
+            { "name": "totalSteps", "type": "text", "label": "Total Steps", "placeholder": "e.g. 1e6" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "systemSize", "type": "text", "label": "System Size (atoms)", "placeholder": "e.g. 10000" },
+            { "name": "boxDimensions", "type": "text", "label": "Box Dimensions (A)", "placeholder": "e.g. 50 x 50 x 100" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

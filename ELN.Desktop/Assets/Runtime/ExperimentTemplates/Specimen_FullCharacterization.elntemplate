@@ -1,0 +1,114 @@
+{
+  "elnTemplate": {
+    "version": 1,
+    "name": "Specimen — Full Characterization",
+    "description": "Comprehensive characterization of external specimen: structural, surface, optical, compositional, and mechanical",
+    "category": "Specimen",
+    "structure": {
+      "item": {
+        "title": "Specimen — Full Characterization",
+        "type": 6,
+        "children": [
+          {
+            "title": "Characterisation",
+            "level": 1,
+            "type": 4,
+            "children": [
+              {
+                "title": "XRD",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "XRD",
+                "children": []
+              },
+              {
+                "title": "Raman",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "Raman",
+                "children": []
+              },
+              {
+                "title": "SEM",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "SEM",
+                "children": []
+              },
+              {
+                "title": "AFM",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "AFM",
+                "children": []
+              },
+              {
+                "title": "3D Profiling",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "3D Profiling",
+                "children": []
+              },
+              {
+                "title": "Ellipsometry",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "Ellipsometry",
+                "children": []
+              },
+              {
+                "title": "Transmittance",
+                "level": 2,
+                "type": 2,
+                "actionTypeName": "Transmittance",
+                "children": []
+              },
+              {
+                "title": "XPS",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "XPS",
+                "children": []
+              },
+              {
+                "title": "TEM",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "TEM",
+                "children": []
+              }
+            ]
+          },
+          {
+            "title": "Testing",
+            "level": 1,
+            "type": 3,
+            "children": [
+              {
+                "title": "Indentation",
+                "level": 2,
+                "type": 3,
+                "actionTypeName": "Indentation",
+                "children": []
+              },
+              {
+                "title": "Tribotest",
+                "level": 2,
+                "type": 3,
+                "actionTypeName": "Tribotest",
+                "children": []
+              },
+              {
+                "title": "3D Profiling",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "3D Profiling",
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

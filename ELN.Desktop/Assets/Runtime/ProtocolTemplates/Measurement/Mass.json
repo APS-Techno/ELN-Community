@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "title": "Mass Measurement Protocol",
+  "description": "Precision mass / weight measurement protocol",
+  "category": "Measurement",
+  "accentColor": "#00897b",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Balance", "placeholder": "e.g. Mettler Toledo XPE205", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "manufacturer", "type": "text", "label": "Manufacturer", "autoFill": "equipment.manufacturer" },
+            { "name": "location", "type": "text", "label": "Location", "autoFill": "equipment.location" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Measurement Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "balanceType", "type": "select", "label": "Balance Type", "options": [
+              { "value": "analytical", "label": "Analytical (0.1 mg)" },
+              { "value": "micro", "label": "Micro (0.001 mg)" },
+              { "value": "precision", "label": "Precision (1 mg)" },
+              { "value": "semi-micro", "label": "Semi-Micro (0.01 mg)" }
+            ]},
+            { "name": "readability", "type": "text", "label": "Readability", "placeholder": "e.g. 0.01 mg" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "calibration", "type": "select", "label": "Calibration", "options": [
+              { "value": "internal", "label": "Internal (Auto)" },
+              { "value": "external", "label": "External Standard" },
+              { "value": "skipped", "label": "Skipped" }
+            ]},
+            { "name": "temperature", "type": "text", "label": "Room Temperature (C)", "placeholder": "e.g. 22" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "humidity", "type": "text", "label": "Humidity (%RH)", "placeholder": "e.g. 45" },
+            { "name": "numberOfReadings", "type": "text", "label": "Number of Readings", "placeholder": "e.g. 5" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "massBefore", "type": "text", "label": "Mass Before (mg)", "placeholder": "e.g. 125.342" },
+            { "name": "massAfter", "type": "text", "label": "Mass After (mg)", "placeholder": "e.g. 125.518" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "massDifference", "type": "text", "label": "Mass Difference (mg)", "placeholder": "e.g. 0.176" },
+            { "name": "uncertainty", "type": "text", "label": "Uncertainty", "placeholder": "e.g. +/- 0.005 mg" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

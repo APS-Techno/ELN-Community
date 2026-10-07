@@ -1,0 +1,57 @@
+Ext,Description
+.xrcx,X-Ray Calc Project
+.opju,Origin Project
+.pdf,PDF File
+.xlsx,Excel Sheet
+.dsc,Sputtering Recipie
+.log,Sputtering Log
+.rp4,3D Profile
+.xrdml,XRD Data
+.tiff,TIFF Image
+.csv,CSV Data
+.txt,Text File
+.png,PNG Image
+.jpg,JPEG Image
+.docx,Word Document
+.pptx,PowerPoint Presentation
+.html,HTML Document
+.json,JSON Data
+.dsr,DSR Data File
+.zrw,Tribotester Data
+.bmp,BMP Image
+.tif,TIFF Image
+.gif,GIF Image
+.eps,Encapsulated PostScript
+.doc,Word Document (Legacy)
+.ppt,PowerPoint Presentation (Legacy)
+.xls,Excel Sheet (Legacy)
+.htm,HTML Document
+.rtf,Rich Text Format
+.mcdx,Mathcad Document
+.opj,Origin Project (Legacy)
+.dat,Data File
+.dm3,Digital Micrograph Image
+.vk4,Keyence Profilometer Data
+.raw,Raw Data
+.spa,FTIR Spectrum
+.tsv,Tab-Separated Values
+.data,Data File
+.asc,ASCII Data
+.xy,XY Data
+.xqt,Hitachi AFM Scan Data
+.iqt,Hitachi AFM Data
+.mit,Nanoindentation Data
+.fcv,AFM Force Curve Data
+.xjf,Hitachi AFM Image
+.xjr,Hitachi AFM Force Curve
+.xrc,X-Ray Calc Project
+.fibps,Filmetrics Profilometer Data
+.mph,COMSOL Model
+.lmpin,LAMMPS Input
+.lammps,LAMMPS Data
+.ovito,OVITO Session
+.xyz,Molecular Coordinates
+.ipj,Inventor Project
+.rpt,Report File
+.tst,Test Data
+.dump,Simulation Dump

@@ -1,0 +1,52 @@
+{
+  "elnTemplate": {
+    "version": 1,
+    "name": "Deposition + Compositional",
+    "description": "Thin film deposition with compositional analysis (XPS, TEM)",
+    "category": "Deposition",
+    "structure": {
+      "proc": {
+        "title": "Deposition + Compositional",
+        "type": 0,
+        "actionTypeName": "Deposition",
+        "children": [
+          {
+            "title": "Specimen",
+            "level": 1,
+            "type": 6,
+            "children": [
+              {
+                "title": "Thickness",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "3D Profiling",
+                "children": []
+              },
+              {
+                "title": "Characterisation",
+                "level": 1,
+                "type": 4,
+                "children": [
+                  {
+                    "title": "XPS",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "XPS",
+                    "children": []
+                  },
+                  {
+                    "title": "TEM",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "TEM",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

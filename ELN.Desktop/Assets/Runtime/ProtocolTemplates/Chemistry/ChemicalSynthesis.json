@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "title": "Chemical Synthesis",
+  "description": "Chemical synthesis and reaction protocol",
+  "category": "Chemistry",
+  "accentColor": "#4a90d9",
+  "sections": [
+    {
+      "title": "Reagents & Conditions",
+      "rows": [
+        {
+          "fields": [
+            { "name": "reagents", "type": "richtext", "label": "Reagents", "rows": 3 }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "reactionTemp", "type": "text", "label": "Reaction Temperature (C)", "placeholder": "e.g. 80" },
+            { "name": "reactionTime", "type": "text", "label": "Reaction Time", "placeholder": "e.g. 2h 30min" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "solvent", "type": "text", "label": "Solvent", "placeholder": "e.g. Ethanol, DI Water" },
+            { "name": "ph", "type": "text", "label": "pH", "placeholder": "e.g. 7.0" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "conditions", "type": "text", "label": "Conditions", "autoFill": "conditions.all" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Procedure",
+      "rows": [
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "procedure", "type": "richtext", "label": "Procedure", "rows": 4 }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "yield", "type": "number", "label": "Yield (%)", "placeholder": "e.g. 85" },
+            { "name": "appearance", "type": "text", "label": "Product Appearance", "placeholder": "e.g. White powder" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "elnTemplate": {
+    "version": 1,
+    "name": "Deposition + Mechanical",
+    "description": "Thin film deposition with mechanical testing (Indentation, Tribotest, Adhesion)",
+    "category": "Deposition",
+    "structure": {
+      "proc": {
+        "title": "Deposition + Mechanical",
+        "type": 0,
+        "actionTypeName": "Deposition",
+        "children": [
+          {
+            "title": "Specimen",
+            "level": 1,
+            "type": 6,
+            "children": [
+              {
+                "title": "Thickness",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "3D Profiling",
+                "children": []
+              },
+              {
+                "title": "Testing",
+                "level": 1,
+                "type": 3,
+                "children": [
+                  {
+                    "title": "Indentation",
+                    "level": 2,
+                    "type": 3,
+                    "actionTypeName": "Indentation",
+                    "children": []
+                  },
+                  {
+                    "title": "Tribotest",
+                    "level": 2,
+                    "type": 3,
+                    "actionTypeName": "Tribotest",
+                    "children": []
+                  },
+                  {
+                    "title": "3D Profiling",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "3D Profiling",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

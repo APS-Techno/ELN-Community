@@ -1,0 +1,122 @@
+{
+  "elnTemplate": {
+    "version": 1,
+    "name": "Deposition + Full Characterization",
+    "description": "Thin film deposition with comprehensive characterization: structural, surface, optical, compositional, and mechanical",
+    "category": "Deposition",
+    "structure": {
+      "proc": {
+        "title": "Deposition + Full Characterization",
+        "type": 0,
+        "actionTypeName": "Deposition",
+        "children": [
+          {
+            "title": "Specimen",
+            "level": 1,
+            "type": 6,
+            "children": [
+              {
+                "title": "Thickness",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "3D Profiling",
+                "children": []
+              },
+              {
+                "title": "Characterisation",
+                "level": 1,
+                "type": 4,
+                "children": [
+                  {
+                    "title": "XRD",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "XRD",
+                    "children": []
+                  },
+                  {
+                    "title": "Raman",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "Raman",
+                    "children": []
+                  },
+                  {
+                    "title": "SEM",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "SEM",
+                    "children": []
+                  },
+                  {
+                    "title": "AFM",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "AFM",
+                    "children": []
+                  },
+                  {
+                    "title": "Ellipsometry",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "Ellipsometry",
+                    "children": []
+                  },
+                  {
+                    "title": "Transmittance",
+                    "level": 2,
+                    "type": 2,
+                    "actionTypeName": "Transmittance",
+                    "children": []
+                  },
+                  {
+                    "title": "XPS",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "XPS",
+                    "children": []
+                  },
+                  {
+                    "title": "TEM",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "TEM",
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "title": "Testing",
+                "level": 1,
+                "type": 3,
+                "children": [
+                  {
+                    "title": "Indentation",
+                    "level": 2,
+                    "type": 3,
+                    "actionTypeName": "Indentation",
+                    "children": []
+                  },
+                  {
+                    "title": "Tribotest",
+                    "level": 2,
+                    "type": 3,
+                    "actionTypeName": "Tribotest",
+                    "children": []
+                  },
+                  {
+                    "title": "3D Profiling",
+                    "level": 2,
+                    "type": 4,
+                    "actionTypeName": "3D Profiling",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

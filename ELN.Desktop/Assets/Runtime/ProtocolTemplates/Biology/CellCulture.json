@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "title": "Cell Culture Protocol",
+  "description": "Mammalian cell culture passage and maintenance protocol",
+  "category": "Biology",
+  "accentColor": "#2e7d32",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "cellLine", "type": "text", "label": "Cell Line", "placeholder": "e.g. HeLa, HEK293, NIH/3T3" },
+            { "name": "passageNumber", "type": "text", "label": "Passage Number", "placeholder": "e.g. P12" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Culture Conditions",
+      "rows": [
+        {
+          "fields": [
+            { "name": "medium", "type": "text", "label": "Culture Medium", "placeholder": "e.g. DMEM + 10% FBS + 1% Pen/Strep" },
+            { "name": "vessel", "type": "select", "label": "Vessel", "options": [
+              { "value": "t25", "label": "T-25 Flask" },
+              { "value": "t75", "label": "T-75 Flask" },
+              { "value": "t175", "label": "T-175 Flask" },
+              { "value": "6well", "label": "6-Well Plate" },
+              { "value": "96well", "label": "96-Well Plate" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "temperature", "type": "text", "label": "Temperature (C)", "placeholder": "e.g. 37" },
+            { "name": "co2", "type": "text", "label": "CO2 (%)", "placeholder": "e.g. 5" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "seedingDensity", "type": "text", "label": "Seeding Density", "placeholder": "e.g. 5x10^4 cells/cm2" },
+            { "name": "confluency", "type": "text", "label": "Confluency at Passage (%)", "placeholder": "e.g. 80-90" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Procedure",
+      "rows": [
+        {
+          "fields": [
+            { "name": "dissociation", "type": "select", "label": "Dissociation Agent", "options": [
+              { "value": "trypsin", "label": "Trypsin-EDTA (0.25%)" },
+              { "value": "trypsin005", "label": "Trypsin-EDTA (0.05%)" },
+              { "value": "accutase", "label": "Accutase" },
+              { "value": "tryple", "label": "TrypLE Express" }
+            ]},
+            { "name": "dissociationTime", "type": "text", "label": "Dissociation Time (min)", "placeholder": "e.g. 3-5" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "splitRatio", "type": "text", "label": "Split Ratio", "placeholder": "e.g. 1:4, 1:10" },
+            { "name": "viability", "type": "text", "label": "Viability (%)", "placeholder": "e.g. 95" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Observations",
+      "rows": [
+        {
+          "fields": [
+            { "name": "morphology", "type": "text", "label": "Cell Morphology", "placeholder": "e.g. normal, rounded, elongated" },
+            { "name": "contamination", "type": "select", "label": "Contamination Check", "options": [
+              { "value": "clear", "label": "Clear" },
+              { "value": "turbid", "label": "Turbid (suspected)" },
+              { "value": "confirmed", "label": "Contaminated" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

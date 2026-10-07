@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting started — APS ELN Community Help</title>
+<link rel="stylesheet" href="help.css">
+</head>
+<body>
+<header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
+<main>
+<h1>Getting started</h1>
+<p>APS ELN Community is a local, single-user laboratory notebook. It stores scientific records in a SQLite database and attachment bytes in a separate directory. There is no server login or team-account administration.</p>
+<h2>Before you start</h2>
+<ul><li>Use a prepared Community Desktop runtime with the scientific catalogs, selected viewer plugins and their local assets. A source build alone is not a standalone installer.</li><li>Choose a writable database location and a separate attachment directory. Use short local paths. Do not use a laboratory notebook to test an unfamiliar build.</li><li>Keep a signing password for your local profile. It is used when signing records; it does not encrypt the database or protect opening the notebook.</li></ul>
+<h2>Create your first notebook</h2>
+<ol><li>Choose <strong>File → New Notebook...</strong>. Select a new database filename, such as <code>notebook.sqlite</code>. Do not select an existing file.</li><li>Select a separate, empty attachment directory. The database must be outside this directory.</li><li>Enter your first name, last name, signing password and matching confirmation. Complete the dialog.</li><li>The application checks the seven required scientific catalogs and imports the reference data. The supplied equipment catalogs are empty; add your own equipment through <strong>Reference Data → Equipment...</strong>.</li><li>Select <strong>Project → New Project</strong> and complete the project dialog. Select the project before creating folders or scientific records.</li><li>Create a procedure, specimen or action with the <strong>Item</strong> menu. Add a value, protocol, note or file to the selected record. See <a href="Items.html">items</a> and <a href="Values.html">values</a>.</li></ol>
+<h2>Use the main window</h2>
+<p>The project panel selects a project or folder. The item tree shows its scientific hierarchy and attached content. The content panel displays the selected file, protocol, values or hypothesis view. The status bar identifies the active notebook and selected attachment. Commands that need a notebook are unavailable until one is open.</p>
+<p>Use <strong>Tools → Dashboard</strong> for the notebook overview. Use each panel's search field to filter it; use <strong>Tools → Search...</strong> for a wider search. See <a href="Search.html">search and navigation</a>.</p>
+<h2>Set the display and paths</h2>
+<p>Open <strong>Tools → Preferences...</strong>. General settings control the VCL theme, dashboard, chart appearance, preview scope and item IDs. Tree settings control scale, spacing, tint and colors. Path settings select templates, plugins and a report logo. The attachment root is shown for information; this dialog does not move notebook files. A plugin-directory change takes effect on the next launch. An explicit <code>--plugins</code> launch argument selects the plugin directory for that run.</p>
+<h2>Finish safely</h2>
+<p>Save editor changes before closing or switching notebooks. Closing can ask you to save an attachment working copy. <strong>No</strong> keeps the draft in the working directory; it does not save those bytes into the notebook. Read and retain the working-copy path shown at close. See <a href="Notebooks.html">notebook backup</a> and <a href="FilesAndNotes.html">working drafts</a>.</p>
+</main>
+<footer><a href="Index.html">All help topics</a></footer>
+</body>
+</html>

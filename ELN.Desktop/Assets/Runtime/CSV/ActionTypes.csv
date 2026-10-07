@@ -1,0 +1,21 @@
+Title,Kind,ItemType,EquipmentType
+Deposition,Synthesys,Synthesis,Deposition System
+Annealing,Treatment,Treatment,Furnace
+XRD,Testing,Characterization,Diffractometer
+XPS,Testing,Characterization,Spectrometer
+SEM,Testing,Characterization,Electron Microscope
+TEM,Testing,Characterization,Electron Microscope
+Raman,Testing,Characterization,Spectrometer
+3D Profiling,Testing,Characterization,Profiler
+AFM,Testing,Characterization,AFM
+Ellipsometry,Testing,Characterization,Spectrometer
+Indentation,Testing,Testing,Mechanical Tester
+Tribotest,Testing,Testing,Mechanical Tester
+Adhesion,Testing,Testing,Mechanical Tester
+Transmittance,Measurement,Measurement,Spectrometer
+Wettability,Measurement,Measurement,
+Mass,Measurement,Measurement,Balance
+XRR Simulation,Simulation,Computing,Software
+MD Simulation,Simulation,Computing,Software
+FEM Simulation,Simulation,Computing,Software
+Chemical Synthesis,Synthesys,Synthesis,

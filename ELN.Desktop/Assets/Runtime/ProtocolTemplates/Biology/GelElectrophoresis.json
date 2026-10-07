@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "title": "Gel Electrophoresis Protocol",
+  "description": "Agarose or polyacrylamide gel electrophoresis protocol",
+  "category": "Biology",
+  "accentColor": "#2e7d32",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Electrophoresis System", "placeholder": "e.g. Bio-Rad Mini-Sub Cell GT", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Gel Preparation",
+      "rows": [
+        {
+          "fields": [
+            { "name": "gelType", "type": "select", "label": "Gel Type", "options": [
+              { "value": "agarose", "label": "Agarose" },
+              { "value": "page", "label": "PAGE (native)" },
+              { "value": "sds-page", "label": "SDS-PAGE" }
+            ]},
+            { "name": "concentration", "type": "text", "label": "Concentration (%)", "placeholder": "e.g. 1.0, 10" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "buffer", "type": "select", "label": "Running Buffer", "options": [
+              { "value": "tae", "label": "TAE (1x)" },
+              { "value": "tbe", "label": "TBE (0.5x)" },
+              { "value": "tris-glycine", "label": "Tris-Glycine" },
+              { "value": "mops", "label": "MOPS" }
+            ]},
+            { "name": "stain", "type": "select", "label": "Stain / Dye", "options": [
+              { "value": "ethidium", "label": "Ethidium Bromide" },
+              { "value": "sybr-safe", "label": "SYBR Safe" },
+              { "value": "sybr-green", "label": "SYBR Green" },
+              { "value": "coomassie", "label": "Coomassie Blue" },
+              { "value": "silver", "label": "Silver Stain" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Run Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "voltage", "type": "text", "label": "Voltage (V)", "placeholder": "e.g. 100" },
+            { "name": "runTime", "type": "text", "label": "Run Time (min)", "placeholder": "e.g. 45" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "ladder", "type": "text", "label": "DNA / Protein Ladder", "placeholder": "e.g. 1 kb Plus, PageRuler" },
+            { "name": "loadingVolume", "type": "text", "label": "Loading Volume (uL)", "placeholder": "e.g. 10" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "bandPattern", "type": "text", "label": "Band Pattern", "placeholder": "e.g. single band at ~850 bp" },
+            { "name": "outcome", "type": "select", "label": "Outcome", "options": [
+              { "value": "success", "label": "Expected bands visible" },
+              { "value": "faint", "label": "Faint / weak bands" },
+              { "value": "absent", "label": "No bands" },
+              { "value": "degraded", "label": "Degradation / smear" }
+            ]}
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

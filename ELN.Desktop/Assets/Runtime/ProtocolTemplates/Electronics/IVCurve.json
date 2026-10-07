@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "title": "IV Curve Measurement",
+  "description": "Current-voltage characteristic measurement protocol",
+  "category": "Electronics",
+  "accentColor": "#1565c0",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Keithley 2400, Keysight B2912A", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample / Device ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Device Under Test",
+      "rows": [
+        {
+          "fields": [
+            { "name": "deviceType", "type": "select", "label": "Device Type", "options": [
+              { "value": "resistor", "label": "Resistor / Thin Film" },
+              { "value": "diode", "label": "Diode / LED" },
+              { "value": "transistor", "label": "Transistor" },
+              { "value": "solar-cell", "label": "Solar Cell" },
+              { "value": "other", "label": "Other" }
+            ]},
+            { "name": "contactConfig", "type": "select", "label": "Contact Configuration", "options": [
+              { "value": "2wire", "label": "2-Wire" },
+              { "value": "4wire", "label": "4-Wire (Kelvin)" },
+              { "value": "probe-station", "label": "Probe Station" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "contactMaterial", "type": "text", "label": "Contact Material", "placeholder": "e.g. Au, Al, ITO" },
+            { "name": "contactArea", "type": "text", "label": "Contact Area", "placeholder": "e.g. 1 mm2, 0.5 cm2" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Measurement Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "sweepMode", "type": "select", "label": "Sweep Mode", "options": [
+              { "value": "voltage", "label": "Voltage Sweep" },
+              { "value": "current", "label": "Current Sweep" }
+            ]},
+            { "name": "compliance", "type": "text", "label": "Compliance Limit", "placeholder": "e.g. 100 mA, 10 V" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "startValue", "type": "text", "label": "Start", "placeholder": "e.g. -1 V" },
+            { "name": "stopValue", "type": "text", "label": "Stop", "placeholder": "e.g. 1 V" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "stepSize", "type": "text", "label": "Step Size", "placeholder": "e.g. 10 mV" },
+            { "name": "sweepRate", "type": "text", "label": "Sweep Rate / Delay", "placeholder": "e.g. 50 ms/point" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "temperature", "type": "text", "label": "Temperature", "placeholder": "e.g. RT, 77 K" },
+            { "name": "illumination", "type": "text", "label": "Illumination", "placeholder": "e.g. dark, AM1.5, 100 mW/cm2" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

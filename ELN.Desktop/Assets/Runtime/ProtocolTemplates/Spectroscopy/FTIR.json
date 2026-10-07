@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "title": "FTIR Protocol",
+  "description": "Fourier-transform infrared spectroscopy measurement protocol",
+  "category": "Spectroscopy",
+  "accentColor": "#6a1b9a",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Bruker Vertex 70, Thermo Nicolet iS50", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Measurement Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "mode", "type": "select", "label": "Measurement Mode", "options": [
+              { "value": "transmission", "label": "Transmission" },
+              { "value": "atr", "label": "ATR" },
+              { "value": "reflection", "label": "Reflection" },
+              { "value": "diffuse", "label": "Diffuse Reflectance (DRIFTS)" }
+            ]},
+            { "name": "accessory", "type": "text", "label": "Accessory / Crystal", "placeholder": "e.g. Diamond ATR, ZnSe, KBr pellet" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "rangeStart", "type": "text", "label": "Range Start (cm-1)", "placeholder": "e.g. 4000" },
+            { "name": "rangeEnd", "type": "text", "label": "Range End (cm-1)", "placeholder": "e.g. 400" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "resolution", "type": "text", "label": "Resolution (cm-1)", "placeholder": "e.g. 4" },
+            { "name": "scans", "type": "text", "label": "Number of Scans", "placeholder": "e.g. 32" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "detector", "type": "select", "label": "Detector", "options": [
+              { "value": "dtgs", "label": "DTGS" },
+              { "value": "mct", "label": "MCT (liquid N2 cooled)" }
+            ]},
+            { "name": "beamsplitter", "type": "text", "label": "Beamsplitter", "placeholder": "e.g. KBr, CaF2" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Sample Preparation",
+      "rows": [
+        {
+          "fields": [
+            { "name": "samplePrep", "type": "select", "label": "Preparation Method", "options": [
+              { "value": "direct", "label": "Direct (film on substrate)" },
+              { "value": "kbr", "label": "KBr Pellet" },
+              { "value": "nujol", "label": "Nujol Mull" },
+              { "value": "solution", "label": "Solution Cell" },
+              { "value": "atr-direct", "label": "ATR (direct contact)" }
+            ]},
+            { "name": "atmosphere", "type": "text", "label": "Atmosphere", "placeholder": "e.g. air, N2 purge, vacuum" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "keyPeaks", "type": "text", "label": "Key Peaks (cm-1)", "placeholder": "e.g. 3400 (O-H), 1720 (C=O), 1100 (C-O)" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

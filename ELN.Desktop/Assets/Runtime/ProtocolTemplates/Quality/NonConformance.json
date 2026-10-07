@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "title": "Non-Conformance Report",
+  "description": "Record of non-conforming material, product, or process",
+  "category": "Quality",
+  "accentColor": "#37474f",
+  "sections": [
+    {
+      "title": "NCR Details",
+      "rows": [
+        {
+          "fields": [
+            { "name": "ncrTitle", "type": "text", "label": "NCR Title", "autoFill": "parent.title" },
+            { "name": "severity", "type": "select", "label": "Severity", "options": [
+              { "value": "critical", "label": "Critical" },
+              { "value": "major", "label": "Major" },
+              { "value": "minor", "label": "Minor" },
+              { "value": "observation", "label": "Observation" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "detectedBy", "type": "text", "label": "Detected By", "autoFill": "user.name" },
+            { "name": "detectedDate", "type": "date", "label": "Date Detected", "autoFill": "date.today" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "relatedBatch", "type": "text", "label": "Related Batch / Lot", "placeholder": "e.g. LOT-2026-0042" },
+            { "name": "area", "type": "text", "label": "Area / Process", "placeholder": "e.g. Sputtering, Characterization, Packaging" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Description",
+      "rows": [
+        {
+          "fields": [
+            { "name": "description", "type": "richtext", "label": "Non-Conformance Description", "rows": 3 }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "specification", "type": "text", "label": "Specification / Requirement", "placeholder": "e.g. thickness 200 +/- 10 nm" },
+            { "name": "actualValue", "type": "text", "label": "Actual Value", "placeholder": "e.g. 165 nm" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Root Cause & Corrective Action",
+      "rows": [
+        {
+          "fields": [
+            { "name": "rootCause", "type": "text", "label": "Root Cause", "placeholder": "e.g. target erosion, contaminated gas line" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "immediateAction", "type": "text", "label": "Immediate / Containment Action", "placeholder": "e.g. quarantined affected samples" },
+            { "name": "correctiveAction", "type": "text", "label": "Corrective Action", "placeholder": "e.g. replaced sputtering target, recalibrated" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Disposition",
+      "rows": [
+        {
+          "fields": [
+            { "name": "disposition", "type": "select", "label": "Disposition", "options": [
+              { "value": "scrap", "label": "Scrap" },
+              { "value": "rework", "label": "Rework" },
+              { "value": "use-as-is", "label": "Use As-Is (concession)" },
+              { "value": "return", "label": "Return to Supplier" }
+            ]},
+            { "name": "closedDate", "type": "date", "label": "Date Closed" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

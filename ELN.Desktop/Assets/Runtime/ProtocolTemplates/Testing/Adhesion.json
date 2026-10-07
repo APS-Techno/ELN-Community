@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "title": "Adhesion Test Protocol",
+  "description": "Coating adhesion testing protocol (scratch test, pull-off, tape test)",
+  "category": "Testing",
+  "accentColor": "#d97b4a",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Anton Paar RST3", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "manufacturer", "type": "text", "label": "Manufacturer", "autoFill": "equipment.manufacturer" },
+            { "name": "location", "type": "text", "label": "Location", "autoFill": "equipment.location" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Test Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "method", "type": "select", "label": "Test Method", "options": [
+              { "value": "scratch", "label": "Scratch Test" },
+              { "value": "pull-off", "label": "Pull-Off (Stud)" },
+              { "value": "tape", "label": "Tape Test (ASTM D3359)" },
+              { "value": "rockwell", "label": "Rockwell Indentation (HF)" }
+            ]},
+            { "name": "standard", "type": "text", "label": "Standard", "placeholder": "e.g. ASTM C1624, ISO 20502" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "indenter", "type": "text", "label": "Indenter / Stylus", "placeholder": "e.g. Rockwell C, 200 um radius" },
+            { "name": "loadRange", "type": "text", "label": "Load Range (N)", "placeholder": "e.g. 0.5 - 30" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "loadingRate", "type": "text", "label": "Loading Rate (N/min)", "placeholder": "e.g. 10" },
+            { "name": "scratchLength", "type": "text", "label": "Scratch Length (mm)", "placeholder": "e.g. 5" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "numberOfTests", "type": "text", "label": "Number of Tests", "placeholder": "e.g. 3" },
+            { "name": "temperature", "type": "text", "label": "Temperature", "placeholder": "e.g. RT" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "criticalLoadLc1", "type": "text", "label": "Lc1 — First Cracking (N)", "placeholder": "e.g. 8.2" },
+            { "name": "criticalLoadLc2", "type": "text", "label": "Lc2 — First Delamination (N)", "placeholder": "e.g. 15.6" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "criticalLoadLc3", "type": "text", "label": "Lc3 — Total Failure (N)", "placeholder": "e.g. 22.4" },
+            { "name": "failureMode", "type": "select", "label": "Failure Mode", "options": [
+              { "value": "adhesive", "label": "Adhesive" },
+              { "value": "cohesive", "label": "Cohesive" },
+              { "value": "mixed", "label": "Mixed" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

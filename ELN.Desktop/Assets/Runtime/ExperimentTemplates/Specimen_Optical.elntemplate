@@ -1,0 +1,37 @@
+{
+  "elnTemplate": {
+    "version": 1,
+    "name": "Specimen — Optical",
+    "description": "Optical characterization of external specimen (Ellipsometry, Transmittance)",
+    "category": "Specimen",
+    "structure": {
+      "item": {
+        "title": "Specimen — Optical",
+        "type": 6,
+        "children": [
+          {
+            "title": "Characterisation",
+            "level": 1,
+            "type": 4,
+            "children": [
+              {
+                "title": "Ellipsometry",
+                "level": 2,
+                "type": 4,
+                "actionTypeName": "Ellipsometry",
+                "children": []
+              },
+              {
+                "title": "Transmittance",
+                "level": 2,
+                "type": 2,
+                "actionTypeName": "Transmittance",
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

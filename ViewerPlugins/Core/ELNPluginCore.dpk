@@ -1,0 +1,45 @@
+package ELNPluginCore;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS ON}
+{$RANGECHECKS ON}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  vcl,
+  vclimg,
+  Tee,
+  TMSVCLPluginFrameworkPkgCoreDXE16;
+
+contains
+  unit_ELNPluginCore in 'unit_ELNPluginCore.pas',
+  unit_ELNPluginTypes in 'unit_ELNPluginTypes.pas',
+  unit_ELNPreviewUtils in 'unit_ELNPreviewUtils.pas',
+  unit_ELNThemeHelper in 'unit_ELNThemeHelper.pas',
+  unit_DepoPairing in 'unit_DepoPairing.pas',
+  unit_LogFile in 'unit_LogFile.pas';
+
+end.

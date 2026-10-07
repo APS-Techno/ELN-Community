@@ -1,0 +1,184 @@
+{
+  "version": 1,
+  "title": "Sputter III — 3 Sources",
+  "description": "Magnetron sputtering on Sputter III with three sputtering sources (ternary co-sputtering / complex multilayer)",
+  "category": "Deposition",
+  "accentColor": "#4a90d9",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Substrate Preparation",
+      "rows": [
+        {
+          "fields": [
+            { "name": "substrate", "type": "text", "label": "Substrate", "placeholder": "e.g. Si (100), glass, steel" },
+            { "name": "substrateSize", "type": "text", "label": "Substrate Size", "placeholder": "e.g. 20x20 mm, 1 inch wafer" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "cleaning", "type": "select", "label": "Cleaning Procedure", "options": [
+              { "value": "ultrasonic", "label": "Ultrasonic (acetone + ethanol)" },
+              { "value": "piranha", "label": "Piranha Etch" },
+              { "value": "plasma", "label": "Plasma Cleaning" },
+              { "value": "none", "label": "As Received" }
+            ]},
+            { "name": "pretreatment", "type": "text", "label": "Pre-treatment", "placeholder": "e.g. ion etching 5 min" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Chamber Conditions",
+      "rows": [
+        {
+          "fields": [
+            { "name": "basePressure", "type": "text", "label": "Base Pressure (mbar)", "placeholder": "e.g. 2e-6" },
+            { "name": "workingPressure", "type": "text", "label": "Working Pressure (mbar)", "placeholder": "e.g. 3e-3", "autoFill": "conditions.P" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "gas", "type": "text", "label": "Working Gas", "placeholder": "e.g. Ar" },
+            { "name": "gasFlow", "type": "text", "label": "Gas Flow (sccm)", "placeholder": "e.g. 50" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "reactiveGas", "type": "text", "label": "Reactive Gas", "placeholder": "e.g. N2, O2 (leave empty if none)" },
+            { "name": "reactiveGasFlow", "type": "text", "label": "Reactive Gas Flow (sccm)", "placeholder": "e.g. 5" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "substrateTemp", "type": "text", "label": "Substrate Temperature (C)", "placeholder": "e.g. RT, 300", "autoFill": "conditions.T" },
+            { "name": "substrateBias", "type": "text", "label": "Substrate Bias (V)", "placeholder": "e.g. -50, floating" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "targetDistance", "type": "text", "label": "Target–Substrate Distance (mm)", "placeholder": "e.g. 60" },
+            { "name": "depositionTime", "type": "text", "label": "Deposition Time (min)", "placeholder": "e.g. 30", "autoFill": "conditions.t" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Source 1",
+      "rows": [
+        {
+          "fields": [
+            { "name": "s1Target", "type": "text", "label": "Target Material", "placeholder": "e.g. Ti, Cr, Mo" },
+            { "name": "s1TargetDiameter", "type": "text", "label": "Target Diameter (mm)", "placeholder": "e.g. 76.2" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "s1PowerMode", "type": "select", "label": "Power Mode", "options": [
+              { "value": "DC", "label": "DC" },
+              { "value": "RF", "label": "RF" },
+              { "value": "HiPIMS", "label": "HiPIMS" }
+            ]},
+            { "name": "s1Power", "type": "text", "label": "Power (W)", "placeholder": "e.g. 200" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "s1Voltage", "type": "text", "label": "Voltage (V)", "placeholder": "e.g. 350" },
+            { "name": "s1Current", "type": "text", "label": "Current (A)", "placeholder": "e.g. 0.85" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Source 2",
+      "rows": [
+        {
+          "fields": [
+            { "name": "s2Target", "type": "text", "label": "Target Material", "placeholder": "e.g. B, Al, C" },
+            { "name": "s2TargetDiameter", "type": "text", "label": "Target Diameter (mm)", "placeholder": "e.g. 76.2" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "s2PowerMode", "type": "select", "label": "Power Mode", "options": [
+              { "value": "DC", "label": "DC" },
+              { "value": "RF", "label": "RF" },
+              { "value": "HiPIMS", "label": "HiPIMS" }
+            ]},
+            { "name": "s2Power", "type": "text", "label": "Power (W)", "placeholder": "e.g. 100" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "s2Voltage", "type": "text", "label": "Voltage (V)", "placeholder": "e.g. 280" },
+            { "name": "s2Current", "type": "text", "label": "Current (A)", "placeholder": "e.g. 0.45" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Source 3",
+      "rows": [
+        {
+          "fields": [
+            { "name": "s3Target", "type": "text", "label": "Target Material", "placeholder": "e.g. Si, Cu, W" },
+            { "name": "s3TargetDiameter", "type": "text", "label": "Target Diameter (mm)", "placeholder": "e.g. 76.2" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "s3PowerMode", "type": "select", "label": "Power Mode", "options": [
+              { "value": "DC", "label": "DC" },
+              { "value": "RF", "label": "RF" },
+              { "value": "HiPIMS", "label": "HiPIMS" }
+            ]},
+            { "name": "s3Power", "type": "text", "label": "Power (W)", "placeholder": "e.g. 150" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "s3Voltage", "type": "text", "label": "Voltage (V)", "placeholder": "e.g. 310" },
+            { "name": "s3Current", "type": "text", "label": "Current (A)", "placeholder": "e.g. 0.60" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

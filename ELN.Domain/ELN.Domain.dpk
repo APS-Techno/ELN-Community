@@ -1,0 +1,79 @@
+package ELN.Domain;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS ON}
+{$RANGECHECKS ON}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  dbrtl,
+  tmsbcl,
+  aurelius;
+
+contains
+  unit_TimeHelper in 'unit_TimeHelper.pas',
+  unit_LabEntry in 'unit_LabEntry.pas',
+  unit_Protocol in 'unit_Protocol.pas',
+  unit_ItemTypes in 'unit_ItemTypes.pas',
+  unit_ActionType in 'unit_ActionType.pas',
+  unit_ELNDB_Dictionary in 'unit_ELNDB_Dictionary.pas',
+  unit_Item in 'unit_Item.pas',
+  unit_Equipment in 'unit_Equipment.pas',
+  unit_EquipmentType in 'unit_EquipmentType.pas',
+  unit_FileType in 'unit_FileType.pas',
+  unit_Project in 'unit_Project.pas',
+  unit_ProjectGroup in 'unit_ProjectGroup.pas',
+  unit_User in 'unit_User.pas',
+  unit_UserDevice in 'unit_UserDevice.pas',
+  unit_UserRole in 'unit_UserRole.pas',
+  unit_UsersHistory in 'unit_UsersHistory.pas',
+  unit_FileTypeLink in 'unit_FileTypeLink.pas',
+  unit_ValueType in 'unit_ValueType.pas',
+  unit_Template in 'unit_Template.pas',
+  unit_ProtocolStatusChange in 'unit_ProtocolStatusChange.pas',
+  unit_Hypothesis in 'unit_Hypothesis.pas',
+  unit_HypothesisRun in 'unit_HypothesisRun.pas',
+  unit_HypothesisEvidence in 'unit_HypothesisEvidence.pas',
+  unit_HypothesisStatusChange in 'unit_HypothesisStatusChange.pas',
+  unit_AuditLog in 'unit_AuditLog.pas',
+  unit_ProjectPermission in 'unit_ProjectPermission.pas',
+  unit_Signature in 'unit_Signature.pas',
+  unit_Favorite in 'unit_Favorite.pas',
+  unit_Tag in 'unit_Tag.pas',
+  unit_Comment in 'unit_Comment.pas',
+  unit_ExperimentTemplate in 'unit_ExperimentTemplate.pas',
+  unit_ItemLink in 'unit_ItemLink.pas',
+  unit_LinkType in 'unit_LinkType.pas',
+  unit_ValueTypeCategories in 'unit_ValueTypeCategories.pas',
+  unit_ViewerState in 'unit_ViewerState.pas',
+  unit_UserTreeState in 'unit_UserTreeState.pas',
+  unit_AuditRule in 'unit_AuditRule.pas',
+  unit_SubmissionIdempotency in 'unit_SubmissionIdempotency.pas',
+  unit_ClientLog in 'unit_ClientLog.pas',
+  unit_DBSetting in 'unit_DBSetting.pas',
+  unit_DomainEntities in 'unit_DomainEntities.pas';
+
+end.

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    margin: 20px;
+    color: #222;
+    font-size: 13px;
+    background: #fff;
+  }
+  h2 {
+    margin: 0 0 4px 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #c62828;
+  }
+  .subtitle {
+    color: #777;
+    font-size: 11px;
+    margin-bottom: 16px;
+    border-bottom: 2px solid #c62828;
+    padding-bottom: 8px;
+  }
+  fieldset {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-bottom: 14px;
+  }
+  legend {
+    font-weight: 600;
+    font-size: 13px;
+    color: #c62828;
+    padding: 0 6px;
+  }
+  label {
+    display: block;
+    margin: 8px 0 3px 0;
+    font-weight: 600;
+    font-size: 12px;
+    color: #555;
+  }
+  input, select, textarea {
+    width: 100%;
+    padding: 5px 8px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    font-size: 13px;
+    box-sizing: border-box;
+    font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: #c62828;
+    outline: none;
+    box-shadow: 0 0 3px rgba(198,40,40,0.2);
+  }
+  .row { display: flex; gap: 12px; }
+  .col { flex: 1; }
+  .checkbox-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin: 8px 0;
+  }
+  .checkbox-row label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: normal;
+    margin: 0;
+  }
+  .checkbox-row input[type="checkbox"] {
+    width: auto;
+  }
+  .warning {
+    background: #fff8e1;
+    border-left: 3px solid #f9a825;
+    padding: 8px 12px;
+    margin: 10px 0;
+    font-size: 12px;
+    color: #6d4c00;
+  }
+</style>
+</head>
+<body>
+
+<h2>Safety Assessment</h2>
+<div class="subtitle">Risk assessment and safety documentation for laboratory work</div>
+
+<fieldset>
+  <legend>Activity Information</legend>
+  <div class="row">
+    <div class="col-2"><label>Activity / Experiment Title</label>
+    <input type="text" name="activityTitle" placeholder="Brief description of the work"></div>
+    <div class="col"><label>Date</label>
+    <input type="date" name="assessmentDate"></div>
+  </div>
+  <div class="row">
+    <div class="col"><label>Assessed By</label>
+    <input type="text" name="assessor" placeholder="Name"></div>
+    <div class="col"><label>Lab Location</label>
+    <input type="text" name="labLocation" placeholder="e.g. Lab 204, Building A"></div>
+    <div class="col"><label>Risk Level</label>
+    <select name="riskLevel">
+      <option value="low">Low</option>
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
+      <option value="critical">Critical</option>
+    </select></div>
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>Hazard Identification</legend>
+  <label>Hazard Types Present</label>
+  <div class="checkbox-row">
+    <label><input type="checkbox" name="hazChemical"> Chemical</label>
+    <label><input type="checkbox" name="hazThermal"> Thermal</label>
+    <label><input type="checkbox" name="hazElectrical"> Electrical</label>
+    <label><input type="checkbox" name="hazMechanical"> Mechanical</label>
+    <label><input type="checkbox" name="hazRadiation"> Radiation</label>
+    <label><input type="checkbox" name="hazBiological"> Biological</label>
+    <label><input type="checkbox" name="hazPressure"> High Pressure</label>
+    <label><input type="checkbox" name="hazNano"> Nanomaterials</label>
+    <label><input type="checkbox" name="hazCryo"> Cryogenic</label>
+    <label><input type="checkbox" name="hazLaser"> Laser</label>
+  </div>
+  <label>Hazardous Materials Used</label>
+  <textarea name="hazMaterials" rows="2" placeholder="List chemicals, gases, or other hazardous materials with CAS numbers if applicable..."></textarea>
+  <label>Describe Potential Hazards</label>
+  <textarea name="hazDescription" rows="3" placeholder="What could go wrong? What are the consequences?"></textarea>
+</fieldset>
+
+<fieldset>
+  <legend>Safety Measures</legend>
+  <label>Required PPE</label>
+  <div class="checkbox-row">
+    <label><input type="checkbox" name="ppeSafetyGlasses"> Safety Glasses</label>
+    <label><input type="checkbox" name="ppeLabCoat"> Lab Coat</label>
+    <label><input type="checkbox" name="ppeGloves"> Gloves</label>
+    <label><input type="checkbox" name="ppeFumeHood"> Fume Hood</label>
+    <label><input type="checkbox" name="ppeFaceShield"> Face Shield</label>
+    <label><input type="checkbox" name="ppeRespirator"> Respirator</label>
+    <label><input type="checkbox" name="ppeHearingProt"> Hearing Protection</label>
+  </div>
+  <label>Control Measures</label>
+  <textarea name="controlMeasures" rows="3" placeholder="Ventilation, shielding, interlocks, safe procedures..."></textarea>
+  <label>Emergency Procedures</label>
+  <textarea name="emergencyProc" rows="2" placeholder="Spill response, first aid, emergency contacts..."></textarea>
+</fieldset>
+
+<div class="warning">
+  All personnel must read and acknowledge this assessment before starting work.
+  Safety data sheets (SDS) must be available at the work location.
+</div>
+
+<fieldset>
+  <legend>Approval</legend>
+  <div class="row">
+    <div class="col"><label>Supervisor Name</label>
+    <input type="text" name="supervisorName" placeholder="Name"></div>
+    <div class="col"><label>Approval Date</label>
+    <input type="date" name="approvalDate"></div>
+    <div class="col"><label>Status</label>
+    <select name="approvalStatus">
+      <option value="pending">Pending Review</option>
+      <option value="approved">Approved</option>
+      <option value="revision">Needs Revision</option>
+      <option value="rejected">Rejected</option>
+    </select></div>
+  </div>
+</fieldset>
+
+</body>
+</html>

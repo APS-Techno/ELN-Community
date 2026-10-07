@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Integrity and completeness — APS ELN Community Help</title><link rel="stylesheet" href="help.css"></head>
+<body><header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
+<main><h1>Integrity and completeness</h1>
+<p>Review states, item signatures, audit events and completeness checks serve different purposes. None replaces a backup of the notebook and attachment directory.</p>
+<h2>Sign an item</h2>
+<div class="warning"><p>Signing permanently locks the item against edits, additions and deletions. The application does not provide an undo for signing. Complete and inspect the record before you sign.</p></div>
+<ol><li>Open an active project and select the item, not an attached file or protocol.</li><li>Right-click it and choose <strong>Signature &gt; Sign Item...</strong>.</li><li>Check <strong>Item Title</strong>. Select a <strong>Meaning</strong>: Authored, Reviewed, Approved or Witnessed.</li><li>Enter a <strong>Comment</strong> when needed and the local scientist profile's <strong>Password</strong>.</li><li>Click <strong>Sign</strong>. Read any password or signing error before you continue.</li></ol>
+<p>The password is checked against the local profile. A signature meaning is a recorded assertion by that local scientist. It does not assign team authority or prove an independent witness. A protocol's Approved state is separate from an item signature.</p>
+<h2>Inspect and verify a signature</h2>
+<ol><li>Right-click the signed item. Choose <strong>Signature &gt; View Signature...</strong>.</li><li>Inspect Signed By, Date, Meaning, Comment and Content Hash.</li><li>Click <strong>Verify Now</strong>. You can also choose <strong>Signature &gt; Verify Integrity</strong> from the item's context menu.</li></ol>
+<p>Verification compares the current item hash with its stored signature hash. It covers selected item fields, attached entry content, stored file titles and hashes, and numeric values and tolerances. It is not a recursive signature of every child item, and it does not reread every attachment's bytes. Do not interpret VERIFIED as a complete storage check or proof that the scientific conclusion is correct.</p>
+<p>If verification reports a mismatch, preserve the notebook and attachments. Do not change records to hide the warning. Check the signature and audit record, then investigate the affected content.</p>
+<h2>Inspect the audit log</h2>
+<ol><li>Choose <strong>Tools &gt; Audit Log...</strong>.</li><li>Set the available <strong>From</strong>, <strong>To</strong>, <strong>Entity</strong>, <strong>Op</strong> and <strong>User</strong> filters.</li><li>Click <strong>Refresh</strong>. Read Timestamp, Entity Type, Entity ID, Operation, User and Description.</li></ol>
+<p>The log records application events. It is not a full historical copy of every field or file, and it is not an external tamper-proof archive.</p>
+<h2>Define completeness rules</h2>
+<ol><li>Choose <strong>Tools &gt; Completeness Rules...</strong>.</li><li>Click <strong>Add</strong>, or select an existing rule.</li><li>Enter <strong>Title</strong> and <strong>Description</strong>. Select <strong>Action Type</strong>, <strong>Equipment</strong> and <strong>Severity</strong> as required.</li><li>Check the <strong>Required File Types</strong> and <strong>Required Value Types</strong>. Set <strong>Active</strong> and click <strong>Save</strong>.</li></ol>
+<p>Use rules to express which record types must be present for the selected scientific work. Error and Warning are completeness severities; they do not automatically judge scientific validity. Use <strong>Delete</strong> only when the rule is no longer required.</p>
+<h2>Run a completeness report</h2>
+<ol><li>Select the project and folder to check.</li><li>Choose <strong>Tools &gt; Data Completeness...</strong>.</li><li>Read the Data Quality Check results: Category, Severity, Item, Location, Rule and Missing.</li><li>Select a result and click <strong>Go To</strong>, or double-click it, to inspect the item.</li><li>Use <strong>Export...</strong> to save a CSV report. Correct the record, then reopen Data Completeness to make a new check.</li></ol>
+<p>A report is a check at its displayed time. No findings does not prove that the experiment, units or interpretation are correct.</p>
+<h2>Recycle safety</h2>
+<p>Inspect <strong>Tools &gt; Recycle Bin...</strong> before you restore or permanently remove deleted content. Signed items and hypothesis-linked evidence have safety restrictions. Do not bypass a refusal to remove a referenced record. Permanent removal is not the same as reversible deletion.</p>
+<p>See <a href="Projects.html">projects and recycle actions</a>, <a href="FilesAndNotes.html">attachment safety</a>, <a href="Hypotheses.html">hypothesis seals and human decisions</a>, and <a href="Protocols.html">protocol review</a>. Community human review is local, not multi-user authorization; MCP cannot execute human gates.</p>
+</main><footer><a href="Index.html">All help topics</a></footer></body></html>

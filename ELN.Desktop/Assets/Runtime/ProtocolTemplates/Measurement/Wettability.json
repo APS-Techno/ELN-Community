@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "title": "Wettability Protocol",
+  "description": "Contact angle and surface wettability measurement protocol",
+  "category": "Measurement",
+  "accentColor": "#00897b",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Kruss DSA100", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "manufacturer", "type": "text", "label": "Manufacturer", "autoFill": "equipment.manufacturer" },
+            { "name": "location", "type": "text", "label": "Location", "autoFill": "equipment.location" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Measurement Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "liquid", "type": "text", "label": "Test Liquid", "placeholder": "e.g. DI Water, Diiodomethane" },
+            { "name": "dropVolume", "type": "text", "label": "Drop Volume (uL)", "placeholder": "e.g. 2" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "method", "type": "select", "label": "Method", "options": [
+              { "value": "sessile", "label": "Sessile Drop" },
+              { "value": "captive", "label": "Captive Bubble" },
+              { "value": "advancing", "label": "Advancing / Receding" },
+              { "value": "wilhelmy", "label": "Wilhelmy Plate" }
+            ]},
+            { "name": "fitMethod", "type": "select", "label": "Fit Method", "options": [
+              { "value": "young-laplace", "label": "Young-Laplace" },
+              { "value": "tangent", "label": "Tangent" },
+              { "value": "circle", "label": "Circle" },
+              { "value": "ellipse", "label": "Ellipse" }
+            ]}
+          ]
+        },
+        {
+          "fields": [
+            { "name": "temperature", "type": "text", "label": "Temperature (C)", "placeholder": "e.g. 22" },
+            { "name": "humidity", "type": "text", "label": "Humidity (%RH)", "placeholder": "e.g. 45" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "numberOfDrops", "type": "text", "label": "Number of Drops", "placeholder": "e.g. 5" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "contactAngle", "type": "text", "label": "Contact Angle (deg)", "placeholder": "e.g. 72.3 +/- 2.1" },
+            { "name": "surfaceEnergy", "type": "text", "label": "Surface Energy (mJ/m2)", "placeholder": "e.g. 42.5" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "All Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

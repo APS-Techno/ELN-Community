@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "title": "Raman Protocol",
+  "description": "Raman spectroscopy measurement protocol",
+  "category": "Characterization",
+  "accentColor": "#3498db",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. Renishaw inVia", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "manufacturer", "type": "text", "label": "Manufacturer", "autoFill": "equipment.manufacturer" },
+            { "name": "location", "type": "text", "label": "Location", "autoFill": "equipment.location" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Measurement Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "laserWavelength", "type": "select", "label": "Laser Wavelength", "options": [
+              { "value": "325", "label": "325 nm (UV)" },
+              { "value": "488", "label": "488 nm (Blue)" },
+              { "value": "532", "label": "532 nm (Green)" },
+              { "value": "633", "label": "633 nm (Red)" },
+              { "value": "785", "label": "785 nm (NIR)" }
+            ]},
+            { "name": "laserPower", "type": "text", "label": "Laser Power (mW)", "placeholder": "e.g. 5" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "objective", "type": "text", "label": "Objective", "placeholder": "e.g. 50x, 100x" },
+            { "name": "grating", "type": "text", "label": "Grating (l/mm)", "placeholder": "e.g. 1800" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "spectralRange", "type": "text", "label": "Spectral Range (cm-1)", "placeholder": "e.g. 100-3500" },
+            { "name": "exposureTime", "type": "text", "label": "Exposure Time (s)", "placeholder": "e.g. 10" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "accumulations", "type": "text", "label": "Accumulations", "placeholder": "e.g. 3" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "title": "SEM Protocol",
+  "description": "Scanning electron microscopy imaging protocol",
+  "category": "Characterization",
+  "accentColor": "#3498db",
+  "sections": [
+    {
+      "title": "Setup",
+      "rows": [
+        {
+          "fields": [
+            { "name": "instrument", "type": "text", "label": "Instrument", "placeholder": "e.g. ZEISS Sigma 300", "autoFill": "equipment.model" },
+            { "name": "sampleId", "type": "text", "label": "Sample ID", "autoFill": "parent.title" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "manufacturer", "type": "text", "label": "Manufacturer", "autoFill": "equipment.manufacturer" },
+            { "name": "location", "type": "text", "label": "Location", "autoFill": "equipment.location" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Imaging Parameters",
+      "rows": [
+        {
+          "fields": [
+            { "name": "acceleratingVoltage", "type": "text", "label": "Accelerating Voltage (kV)", "placeholder": "e.g. 5" },
+            { "name": "workingDistance", "type": "text", "label": "Working Distance (mm)", "placeholder": "e.g. 8.5" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "detector", "type": "select", "label": "Detector", "options": [
+              { "value": "SE2", "label": "SE2 (Secondary Electrons)" },
+              { "value": "InLens", "label": "InLens" },
+              { "value": "BSE", "label": "BSE (Backscattered)" },
+              { "value": "EDS", "label": "EDS" }
+            ]},
+            { "name": "magnification", "type": "text", "label": "Magnification", "placeholder": "e.g. 10kx, 50kx" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "aperture", "type": "text", "label": "Aperture (um)", "placeholder": "e.g. 30" },
+            { "name": "samplePrep", "type": "text", "label": "Sample Preparation", "placeholder": "e.g. Au/Pd sputter coated" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Results",
+      "rows": [
+        {
+          "fields": [
+            { "name": "results", "type": "text", "label": "Results", "autoFill": "results.all" }
+          ]
+        },
+        {
+          "fields": [
+            { "name": "operator", "type": "text", "label": "Operator", "autoFill": "user.name" },
+            { "name": "date", "type": "date", "label": "Date", "autoFill": "date.today" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Notes",
+      "rows": [
+        {
+          "fields": [
+            { "name": "notes", "type": "richtext", "label": "Notes", "rows": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

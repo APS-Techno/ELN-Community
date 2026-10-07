@@ -1,0 +1,8 @@
+Derived file: ViewerPlugins/Editor.Markdown/unit_SynHighlighterMd.pas
+Original Code: SynHighlighterIni.pas, initially authored by Igor P. Zenkov, based on mwEdit/izIniSyn.pas. Original SynEdit and mwEdit attribution remains in the file header and Contributors.txt.
+
+2026-04-27: The available Git author history records the Markdown highlighter introduction. It adapts the Ini highlighter reference into a TSynCustomHighlighter descendant for Markdown headings, fenced/inline code, emphasis, links, quotations and list markers. Four normalized scanner/token routine bodies match the reference; CRProc is not verbatim. This is recorded source history, not independent calendar evidence.
+
+2026-10-07: Restored the original MPL-1.1/GPL-2.0-or-later alternative grant and attribution. Added the full MPL-1.1 grant, contributor list and this change record. Selected MPL-1.1 for this separately licensed file. No scanner, rendering or editor behavior changed.
+
+The APS root Apache-2.0 license does not supersede this file's MPL-1.1/GPL-2.0-or-later alternative grant. This separate derived file is distributed under the MPL-1.1 option.

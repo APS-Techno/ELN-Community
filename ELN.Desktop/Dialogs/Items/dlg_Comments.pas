@@ -46,7 +46,6 @@ uses
 
 {$R *.dfm}
 
-{ TdlgComments }
 
 procedure TdlgComments.lvCommentsCustomDrawItem(Sender: TCustomListView;
   Item: TListItem; State: TCustomDrawState; var DefaultDraw: Boolean);

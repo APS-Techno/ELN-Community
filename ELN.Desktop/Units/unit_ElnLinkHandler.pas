@@ -1,14 +1,5 @@
 unit unit_ElnLinkHandler;
 
-// Host-side IElnLinkHandler implementation. Plugins (Viewer.Markdown) cancel
-// navigation to eln:// URLs and forward them here; this unit resolves the
-// target item and routes the navigation through the existing dashboard
-// callback so projects panel + item tree both follow.
-//
-// URL grammar:
-//   eln://item/<integer-id>
-//   eln://specimen/<title>     (URL-encoded title; matches TItem.Title where
-//                               Type_ = TItemType.Specimen, case-insensitive)
 
 interface
 
@@ -68,7 +59,6 @@ begin
   if not StartsText(PREFIX, Url) then Exit;
   Body := Copy(Url, Length(PREFIX) + 1, MaxInt);
 
-  // Trim trailing fragment / query — we don't honor either right now.
   SlashPos := Pos('#', Body);
   if SlashPos > 0 then SetLength(Body, SlashPos - 1);
   SlashPos := Pos('?', Body);
@@ -132,7 +122,6 @@ begin
   end;
 end;
 
-{ TElnLinkHandler }
 
 constructor TElnLinkHandler.Create(const ANavigate: TItemNavigationProc);
 begin

@@ -45,7 +45,6 @@ implementation
 uses
   unit_ProtocolTemplateModel;
 
-{ TELNPackageExporter }
 
 constructor TELNPackageExporter.Create(Manager: TObjectManager);
 begin
@@ -162,7 +161,6 @@ begin
     ActionTypeTitle := Item.ActionType.Title;
   Result.AddPair('actionTypeTitle', ActionTypeTitle);
 
-  // Entries (protocols/notes)
   JEntries := TJSONArray.Create;
   for Entry in Item.Entries do
   begin
@@ -171,7 +169,6 @@ begin
   end;
   Result.AddPair('entries', JEntries);
 
-  // Files
   JFiles := TJSONArray.Create;
   if FOptions.IncludeFiles then
   begin
@@ -180,7 +177,6 @@ begin
   end;
   Result.AddPair('files', JFiles);
 
-  // Values
   JValues := TJSONArray.Create;
   for Val in Item.Values do
   begin
@@ -197,11 +193,7 @@ begin
   end;
   Result.AddPair('values', JValues);
 
-  // Children (recursive)
   JChildren := TJSONArray.Create;
-  // TItemDictionary.Create previously leaked once per recursive call — one
-  // dictionary per item in the exported tree. Use the shared FItemDic field
-  // (created in the exporter's constructor) instead.
   // Exclude soft-deleted (recycle-bin) descendants — otherwise they are
   // serialized as live items and resurrected on import.
   Children := FManager.Find<TItem>
@@ -249,7 +241,6 @@ begin
     Root.AddPair('exportDate', DateTimeToStr(Now));
     Root.AddPair('exportedBy', ExportedBy);
 
-    // Export items (this also collects referenced template IDs)
     JItems := TJSONArray.Create;
     for Item in Items do
       // Skip a soft-deleted root; its live children (if any) are unreachable
@@ -258,7 +249,6 @@ begin
         JItems.AddElement(ItemToJson(Item));
     Root.AddPair('items', JItems);
 
-    // Export referenced templates
     JTemplates := TJSONArray.Create;
     for TemplateId in FTemplateIds do
     begin
@@ -268,7 +258,6 @@ begin
     end;
     Root.AddPair('templates', JTemplates);
 
-    // Write to file
     ForceDirectories(ExtractFilePath(OutputPath));
     FileStream := TStreamWriter.Create(OutputPath, False, TEncoding.UTF8);
     try

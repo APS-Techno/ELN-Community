@@ -52,9 +52,6 @@ type
     procedure UpdateOKState;
     function IsSelectableNode(Data: PPickerNodeData): Boolean;
   public
-    /// <summary>Picks an item to link to. The relationship itself is chosen
-    /// afterwards in dlg_LinkRelation, so this dialog no longer carries label
-    /// or notes fields.</summary>
     class function Execute(CurrentItemId: Integer;
       out TargetItemId: Integer; out ATargetTitle: string): Boolean;
     class function ExecuteDuplicate(CurrentItemId: Integer;
@@ -72,7 +69,6 @@ uses
 
 {$R *.dfm}
 
-{ TdlgItemPicker }
 
 procedure TdlgItemPicker.ApplyMode;
 begin
@@ -85,14 +81,11 @@ begin
   else
   begin
     Caption := 'Select Item to Link';
-    // The relationship is picked in the next dialog, so this is not the last
-    // step of the flow.
     btnOK.Caption := 'Next...';
     cbLink.Visible := False;
   end;
 end;
 
-// Projects the injected policy allows this scientist to target.
 // Caller owns the returned list.
 function TdlgItemPicker.AccessibleProjects: TList<TProject>;
 var
@@ -133,7 +126,6 @@ begin
       for Proj in Projects do
       begin
         if Proj.IsArchived then Continue;
-        // In duplicate mode, skip destinations the user cannot write to.
         if FDuplicateMode and
            not Model.Access.CanWrite(Model.Manager, Model.User, Proj.Id) then Continue;
 
@@ -200,8 +192,6 @@ begin
       for Proj in Projects do
       begin
         if Proj.IsArchived then Continue;
-        // Duplicate mode (this loader is duplicate-only): skip read-only
-        // destinations the user cannot write to.
         if FDuplicateMode and
            not Model.Access.CanWrite(Model.Manager, Model.User, Proj.Id) then Continue;
 
@@ -314,8 +304,6 @@ begin
   if Assigned(Node) then
   begin
     Data := Tree.GetNodeData(Node);
-    // A selected item is all that is needed now; the relationship is chosen in
-    // the next dialog, so there is no longer a mandatory text field to fill.
     btnOK.Enabled := IsSelectableNode(Data);
   end
   else
@@ -389,13 +377,15 @@ begin
           if Data.Kind = nkProject then
           begin
             Dest.ProjectId := Data.ProjectId;
-            Dest.FolderId := -1;
+            Dest.FolderId := 0;
             Dest.ParentItemId := 0;
           end
           else
           begin
             Dest.ProjectId := Data.ProjectId;
             Dest.FolderId := Data.FolderId;
+            if Dest.FolderId < 0 then
+              Dest.FolderId := 0;
             Dest.ParentItemId := Data.Id;
           end;
           Result := True;

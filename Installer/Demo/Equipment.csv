@@ -1,0 +1,5 @@
+EquipmentType,Model,Manufacturer,Location,BookingUrl,InfoUrl,Description
+Furnace,Demo Furnace,Fictional Demo Instruments,Synthetic demo lab,,,Synthetic example - not a real instrument
+Diffractometer,Demo Diffractometer,Fictional Demo Instruments,Synthetic demo lab,,,Synthetic example - not a real instrument
+Balance,Demo Balance,Fictional Demo Instruments,Synthetic demo lab,,,Synthetic example - not a real instrument
+Deposition System,Demo Deposition System,Fictional Demo Instruments,Synthetic demo lab,,,Synthetic example - not a real instrument

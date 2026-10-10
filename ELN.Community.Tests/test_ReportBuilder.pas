@@ -28,6 +28,8 @@ type
     [Test]
     procedure BuildReport_WithSignature_ContainsSignerName;
     [Test]
+    procedure BuildReport_LegacySignatureNeverClaimsVerification;
+    [Test]
     procedure BuildReport_PaperSizeLetter_UsesLetterCss;
     [Test]
     procedure BuildReport_HtmlEncodes_SpecialChars;
@@ -56,7 +58,7 @@ uses
   unit_Tag,
   unit_Comment,
   unit_Signature,
-  unit_Template,
+  unit_Template, unit_SignatureModel,
   unit_FileType,
   unit_ValueType,
   unit_TimeHelper;
@@ -77,13 +79,12 @@ begin
   Result.Tags := nil;
   Result.Comments := nil;
   Result.Signature := nil;
-  Result.IntegrityOk := True;
+  Result.IntegrityState := sisUnsigned;
   Result.HasSignature := False;
   Result.Templates := nil;
   Result.StorageRoot := '';
 end;
 
-{ TTestReportBuilder }
 
 procedure TTestReportBuilder.BuildReport_SingleItem_ContainsTitle;
 var
@@ -365,7 +366,7 @@ begin
     Data := MakeData(MakeItem('Signature Test'));
     Data.Signature := Sig;
     Data.HasSignature := True;
-    Data.IntegrityOk := True;
+    Data.IntegrityState := sisVerified;
     Items.Add(Data);
 
     Html := TReportBuilder.BuildReport(Items, TReportOptions.Default);
@@ -374,6 +375,38 @@ begin
       'Should contain signer name');
     Assert.IsTrue(Html.Contains('Approval'),
       'Should contain signature meaning');
+  finally
+    Sig.Free;
+    Data.Item.Free;
+    Items.Free;
+  end;
+end;
+
+procedure TTestReportBuilder.BuildReport_LegacySignatureNeverClaimsVerification;
+var
+  Items: TList<TReportItemData>;
+  Sig: TSignature;
+  Data: TReportItemData;
+  Html: string;
+begin
+  Items := TList<TReportItemData>.Create;
+  Sig := TSignature.Create;
+  Data := MakeData(MakeItem('Legacy signature'));
+  try
+    Sig.UserName := 'Historical signer';
+    Sig.SignedDate := UTCNow;
+    Sig.ContentHash := StringOfChar('a', 64);
+    Data.Signature := Sig;
+    Data.HasSignature := True;
+    Data.IntegrityState := sisLegacyUnverifiable;
+    Items.Add(Data);
+    Html := TReportBuilder.BuildReport(Items, TReportOptions.Default);
+    Assert.IsTrue(Html.Contains('Legacy signature'));
+    Assert.IsTrue(Html.Contains('integrity cannot be verified'));
+    Assert.IsFalse(Html.Contains('&#10003; Verified'));
+    Assert.IsFalse(Html.Contains('&#10007; Failed'),
+      'An ambiguous old seal is not proof of changed content');
+    Assert.IsTrue(Html.Contains('Historical signer'));
   finally
     Sig.Free;
     Data.Item.Free;

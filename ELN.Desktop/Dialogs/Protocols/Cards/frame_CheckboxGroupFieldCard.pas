@@ -32,12 +32,14 @@ type
     procedure btnOptRemoveClick(Sender: TObject);
   private
     FUpdating: Boolean;
+    FInitialized: Boolean;
     FOnChanged: TNotifyEvent;
     FOnFieldTypeChanged: TFieldTypeChangedEvent;
     procedure LoadOptions(SN: TSchemaNode);
     procedure SaveOptions(SN: TSchemaNode);
+  protected
+    procedure SetParent(AParent: TWinControl); override;
   public
-    constructor Create(AOwner: TComponent); override;
     procedure LoadFromNode(SN: TSchemaNode);
     procedure SaveToNode(SN: TSchemaNode);
     procedure SetOnChanged(AHandler: TNotifyEvent);
@@ -49,9 +51,11 @@ implementation
 
 {$R *.dfm}
 
-constructor TfrCheckboxGroupFieldCard.Create(AOwner: TComponent);
+procedure TfrCheckboxGroupFieldCard.SetParent(AParent: TWinControl);
 begin
-  inherited Create(AOwner);
+  inherited SetParent(AParent);
+  if (AParent = nil) or FInitialized then Exit;
+  // Populate combos and grid only after attachment to the real card host.
   PopulateFieldTypeCombo(cmbType.Items);
   PopulateAutoFillCombo(cmbAutoFill.Items);
 
@@ -59,6 +63,7 @@ begin
   sgOptions.Cells[1, 0] := 'Label';
   sgOptions.ColWidths[0] := 150;
   sgOptions.ColWidths[1] := 150;
+  FInitialized := True;
 end;
 
 procedure TfrCheckboxGroupFieldCard.LoadFromNode(SN: TSchemaNode);

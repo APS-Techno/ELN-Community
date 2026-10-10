@@ -1,17 +1,5 @@
 unit unit_MarkdownEditorAttachments;
 
-// Pure-function helpers for the markdown editor's drop / paste-image
-// handlers (Tasks 10.2 and 10.3). UI-free and deterministic.
-//
-// IsImageExt              -> classify a server filename as image / non-image.
-// BuildInsertSnippet      -> render the `![](...)` or `[name](...)` markdown
-//                            snippet to insert at the caret. URL-encoding is
-//                            minimal (spaces only); brackets in [ID]-prefixed
-//                            filenames stay literal so the existing
-//                            unit_MarkdownAttachmentResolver continues to do
-//                            its [ID] -> %5B%5D rewrite at render time.
-// ClipboardImageFileName  -> generate a stable 'paste-YYYYMMDD-HHMMSS.png'
-//                            name for clipboard-image uploads.
 
 interface
 
@@ -25,6 +13,9 @@ function ClipboardImageFileName(AAt: TDateTime): string;
 
 implementation
 
+uses
+  unit_MarkdownAttachmentResolver;
+
 function IsImageExt(const AExt: string): Boolean;
 var
   E: string;
@@ -36,34 +27,13 @@ begin
          or (E = 'webp') or (E = 'svg') or (E = 'bmp');
 end;
 
-// Encodes only the characters that would break a markdown URL. We keep the
-// encoding minimal so user-edited source stays readable. Spaces -> %20; the
-// rest of the typical ASCII filename charset stays literal. (Brackets in the
-// name remain literal — the resolver handles its own [ID] prefix at render
-// time, and ElnFileService.UploadAttachment returns a bare server filename
-// that the user can comfortably re-edit by hand.)
-function MinimalUrlEncode(const S: string): string;
-var
-  I: Integer;
-  Ch: Char;
-begin
-  Result := '';
-  for I := 1 to Length(S) do
-  begin
-    Ch := S[I];
-    if Ch = ' ' then
-      Result := Result + '%20'
-    else
-      Result := Result + Ch;
-  end;
-end;
 
 function BuildInsertSnippet(const ServerFilename: string;
   IsImage: Boolean): string;
 var
   Url: string;
 begin
-  Url := MinimalUrlEncode(ServerFilename);
+  Url := EncodeAttachmentFileName(ServerFilename);
   if IsImage then
     Result := '![](' + Url + ')'
   else

@@ -84,7 +84,6 @@ begin
 
   Dlg := TdlgExtractValues.Create(Application);
   try
-    // Populate
     Dlg.FAllValueTypes := Model.ValueTypes.GetTypes;
     SetLength(Dlg.FValues, Length(KeyValues));
 
@@ -92,7 +91,6 @@ begin
     for I := 0 to High(KeyValues) do
     begin
       Dlg.FValues[I].KV := KeyValues[I];
-      // Auto-match by Title+Units
       Dlg.FValues[I].ValueType := Model.ValueTypes.FindByTitleUnits(
         KeyValues[I].Name, KeyValues[I].Units);
       Dlg.clbValues.Items.Add(FormatKV(KeyValues[I]));
@@ -100,7 +98,6 @@ begin
         (Dlg.FValues[I].ValueType <> nil);
     end;
 
-    // Category list
     Dlg.lbCategory.Items.Clear;
     Dlg.lbCategory.Items.Add('(All)');
     for I := 0 to ValueTypeCategories.Count - 1 do
@@ -117,7 +114,6 @@ begin
     if Dlg.ShowModal <> mrOK then
       Exit;
 
-    // Add selected values
     AddedCount := 0;
     for I := 0 to High(Dlg.FValues) do
     begin
@@ -143,7 +139,6 @@ begin
   end;
 end;
 
-{ TdlgExtractValues }
 
 procedure TdlgExtractValues.PopulateValueTypes;
 var
@@ -197,7 +192,6 @@ begin
     Exit;
   end;
 
-  // Find and select in filtered list
   lbValueType.ItemIndex := -1;
   for I := 0 to High(FFilteredIndices) do
     if FAllValueTypes[FFilteredIndices[I]].Id = MappedVT.Id then
@@ -206,7 +200,6 @@ begin
       Break;
     end;
 
-  // If not found in current filter, switch to (All)
   if (lbValueType.ItemIndex < 0) and (lbCategory.ItemIndex > 0) then
   begin
     lbCategory.ItemIndex := 0;
@@ -232,7 +225,6 @@ begin
   VT := GetSelectedValueType;
   FValues[Idx].ValueType := VT;
 
-  // Auto-check if a mapping is assigned
   if VT <> nil then
     clbValues.Checked[Idx] := True;
 end;
@@ -264,10 +256,9 @@ begin
 
   KV := FValues[Idx].KV;
 
-  // Pre-fill from plugin value
-  Values[1] := KV.Name;    // Title
-  Values[2] := KV.Units;   // Units
-  Values[0] := '';          // Symbol
+  Values[1] := KV.Name;    
+  Values[2] := KV.Units;   
+  Values[0] := '';          
   if Length(Values[1]) > 0 then
     Values[0] := UpperCase(Values[1][1]);
 
@@ -279,7 +270,6 @@ begin
   FAllValueTypes := Model.ValueTypes.GetTypes;
   PopulateValueTypes;
 
-  // Select the newly created type
   FValues[Idx].ValueType := Model.ValueTypes.FindByTitleUnits(Values[1], Values[2]);
   SyncMappingToUI;
   clbValues.Checked[Idx] := True;

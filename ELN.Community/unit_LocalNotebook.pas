@@ -13,8 +13,7 @@ uses
 type
   ELocalNotebookError = class(Exception);
 
-  // Independent local composition. Existing notebooks are never migrated here.
-  // Initial format intentionally requires its own marker and one active identity.
+  // Existing notebooks are validated, never migrated here.
   TLocalNotebook = class
   private
     FConnection: IDBConnection;
@@ -69,7 +68,6 @@ uses
 
 const
   LOCAL_FORMAT_KEY = 'COMMUNITY_FORMAT_VERSION';
-  // Version 2 links the complete shared scientific entity catalog.
   LOCAL_FORMAT_VERSION = '2';
 
 class function TLocalNotebook.CheckedDatabasePath(const DatabasePath: string): string;
@@ -192,7 +190,7 @@ begin
   inherited Create;
   if (Trim(FirstName + LastName) = '') or (SigningPassword = '') then
     raise EArgumentException.Create('Local profile and signing password are required');
-  // Validate and hash before reserving a new file. No default password is used.
+  // Validate and hash before reserving a new file.
   Path := CheckedDatabasePath(DatabasePath);
   FStorage := CheckedStorage(Path, StorageRoot);
   CheckEmptyStorageRoot(StorageRoot);
@@ -253,7 +251,6 @@ begin
   // mode before it can change a notebook or create sidecars during validation.
   CheckNoSidecars(Path);
   CheckRollbackHeader(Path);
-  // No BuildDatabase, UpdateDatabase, migrations, account creation or role change.
   Connect(Path);
   FormatSetting := FManager.Find<TDBSetting>(LOCAL_FORMAT_KEY);
   if not Assigned(FormatSetting) or

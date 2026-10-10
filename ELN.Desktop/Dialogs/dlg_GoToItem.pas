@@ -1,8 +1,5 @@
 unit dlg_GoToItem;
 
-// "Go to item..." dialog: accepts a bare item ID or an eln:// URL, delegates
-// to the global IElnLinkHandler. Routes the user to the target item the same
-// way the Viewer.Markdown link handler does.
 
 interface
 
@@ -114,8 +111,6 @@ begin
   if StartsText('eln://', Trimmed) then
     Result := Trimmed
   else
-    // Wrap bare ID or anything else as eln://item/<input>; if it isn't a
-    // valid integer the parser rejects it and we surface "Item not found".
     Result := 'eln://item/' + Trimmed;
 end;
 
@@ -160,7 +155,6 @@ begin
     try
       List.Text := Settings.GoToItemHistory;
 
-      // LRU: remove any prior occurrence (case-insensitive), then prepend.
       ExistingIdx := -1;
       for var I := 0 to List.Count - 1 do
         if SameText(List[I], Entry) then

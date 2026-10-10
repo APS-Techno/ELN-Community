@@ -35,7 +35,6 @@ uses
   unit_DataModel,
   unit_PackageImport;
 
-{ TdlgPackageImport }
 
 class function TdlgPackageImport.Execute(out FilePath: string): Boolean;
 var
@@ -66,7 +65,6 @@ begin
     FFilePath := OpenDialog.FileName;
     edtFile.Text := FFilePath;
 
-    // Show preview
     Importer := TELNPackageImporter.Create(nil);
     try
       Preview := Importer.PreviewPackage(FFilePath);

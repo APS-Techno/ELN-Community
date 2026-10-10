@@ -19,10 +19,10 @@ type
     constructor Create(Manager: TObjectManager);
     destructor Destroy; override;
 
-    function GetState(UserId, FileId: Integer): TViewerState;
-    procedure SaveOrUpdate(UserId, FileId: Integer;
+    function GetState(UserId: Integer; FileId: Int64): TViewerState;
+    procedure SaveOrUpdate(UserId: Integer; FileId: Int64;
       const PluginName, StateData: string);
-    procedure DeleteForFile(FileId: Integer);
+    procedure DeleteForFile(FileId: Int64);
   end;
 
 implementation
@@ -30,7 +30,6 @@ implementation
 uses
   unit_TimeHelper;
 
-{ TViewerStateModel }
 
 constructor TViewerStateModel.Create(Manager: TObjectManager);
 begin
@@ -45,7 +44,7 @@ begin
   inherited;
 end;
 
-function TViewerStateModel.GetState(UserId, FileId: Integer): TViewerState;
+function TViewerStateModel.GetState(UserId: Integer; FileId: Int64): TViewerState;
 var
   List: TList<TViewerState>;
 begin
@@ -64,13 +63,12 @@ begin
   end;
 end;
 
-procedure TViewerStateModel.SaveOrUpdate(UserId, FileId: Integer;
+procedure TViewerStateModel.SaveOrUpdate(UserId: Integer; FileId: Int64;
   const PluginName, StateData: string);
 var
   State: TViewerState;
   List: TList<TViewerState>;
 begin
-  // Query by full unique key (UserId, FileId, PluginName)
   List := FManager.Find<TViewerState>
     .Where(
       (FDic.UserId = UserId) and
@@ -106,7 +104,7 @@ begin
   FManager.Flush;
 end;
 
-procedure TViewerStateModel.DeleteForFile(FileId: Integer);
+procedure TViewerStateModel.DeleteForFile(FileId: Int64);
 var
   List: TList<TViewerState>;
   State: TViewerState;

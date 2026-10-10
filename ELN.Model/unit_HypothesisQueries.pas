@@ -1,25 +1,8 @@
 unit unit_HypothesisQueries;
 
-{
-  Read-only experiment-tree queries shared by the desktop dashboard/item tree
-  and the WebAPI board (Plan 4 Task 2). Two queries:
-
-    * NeedsMyApproval - the Proposed/InReview nodes AUser may pass a gate on,
-      across every project AUser can read, oldest first. SummaryNeedsDecision
-      is THE needs_me rule: THypJsonContext.NeedsMe
-      (ELN.WebAPI/unit_HypothesisJson.pas) delegates to it, so GET
-      /hypotheses?needs_me=1 and this desktop query agree by construction
-      instead of two hand-written copies drifting apart (pre-flight C3).
-    * RunItemIds - of a caller-supplied set of item ids, which are attached to
-      any hypothesis with Role = Run. Queries only the requested ids, chunked
-      the same way THypListFacts.LoadRunsAndEvidence chunks a hypothesis id
-      list (unit_HypothesisModel.pas IN_CHUNK/IdChunks), never the whole
-      HypothesisRuns table (pre-flight C22).
-
-  Desktop and web callers supply the same access policy as their scientific
-  model. Eligibility is read-only. This unit has no gate-execution or team
-  approval-administration dependency and can safely serve MCP reads.
-}
+{ Eligibility reads must remain independent of human gate execution.
+  SummaryNeedsDecision is shared by desktop and web so their needs_me rules
+  agree. Query only requested run IDs, chunked to respect SQL limits. }
 
 interface
 
@@ -30,10 +13,7 @@ uses
   unit_HypothesisModel,
   unit_ProjectAccessPolicy;
 
-/// Does S wait on a decision from AGates.User - a Proposed node whose
-/// proposal gate, or an InReview node whose conclusion gate, the user may
-/// pass? THE needs_me rule (pre-flight C3); THypJsonContext.NeedsMe
-/// delegates to this so the WebAPI and the desktop share one implementation.
+/// Shared needs_me rule for desktop and web; eligibility never executes a gate.
 function SummaryNeedsDecision(AGates: TGateEligibility;
   const S: THypothesisSummary): Boolean;
 
@@ -49,10 +29,9 @@ function RunItemIds(AManager: TObjectManager;
   const AItemIds: TArray<Integer>): TDictionary<Integer, Boolean>;
 
 type
-  /// The desktop project tree's "HYP n" badge for one project.
   THypProjectBadge = record
-    Count: Integer;    // hypotheses in the project, any status
-    Waiting: Integer;  // of those, how many wait on AUser's decision
+    Count: Integer;
+    Waiting: Integer;
   end;
 
 /// Per project id: how many hypotheses it holds and how many of them wait
@@ -161,7 +140,7 @@ begin
   try
     Flt := THypothesisFilter.All;
     Flt.Statuses := [hsProposed, hsInReview];
-    Flt.ProjectIds := AProjectIds;   // [] = every readable project
+    Flt.ProjectIds := AProjectIds;
     All := Model.List(AUser, Flt);
     for S in All do
       if SummaryNeedsDecision(Gates, S) then

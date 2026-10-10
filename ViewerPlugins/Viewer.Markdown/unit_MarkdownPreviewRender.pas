@@ -1,14 +1,7 @@
 unit unit_MarkdownPreviewRender;
 
-{
-  Draws a document-shaped thumbnail straight from markdown source.
-
-  This is the fallback path for IPreviewProvider: the batch preview queue calls
-  LoadFromFile and GetPreview back to back without pumping messages, so the
-  viewer's WebView2 has never rendered anything by then and cannot be captured.
-  Rendering the source text ourselves means .md files get a thumbnail even when
-  the viewer was never opened.
-}
+{ The batch preview queue does not pump messages between loading and capture,
+  so WebView2 has no rendered page. Render source text for that path. }
 
 interface
 
@@ -28,8 +21,7 @@ uses
   unit_ELNPreviewUtils;
 
 const
-  { Drawn large and downsampled by WIC — cheaper than hinting small text and it
-    matches what the other text-based viewers (Viewer.DSC) do. }
+  { Draw large and downsample with WIC to avoid hinting text at thumbnail size. }
   CanvasW    = 800;
   CanvasH    = 600;
   MarginPx   = 28;

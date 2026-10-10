@@ -90,7 +90,6 @@ type
   
 implementation
 
-{ TEquipment }
 
 function TEquipment.GetEquipmenttypeid: TEquipmentType;
 begin

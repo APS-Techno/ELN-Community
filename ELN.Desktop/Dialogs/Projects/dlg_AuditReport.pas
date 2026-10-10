@@ -50,10 +50,9 @@ uses
 {$R *.dfm}
 
 const
-  clSevError   = TColor($2020CC);   // dark red for Error
-  clSevWarning = TColor($0080CC);   // dark orange for Warning
+  clSevError   = TColor($2020CC);   
+  clSevWarning = TColor($0080CC);   
 
-{ TdlgAuditReport }
 
 procedure TdlgAuditReport.FormDestroy(Sender: TObject);
 begin

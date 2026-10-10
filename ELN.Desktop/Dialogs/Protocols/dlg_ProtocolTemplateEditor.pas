@@ -85,7 +85,7 @@ type
     FCards: TDictionary<string, ITemplateCard>;
     FActiveCard: ITemplateCard;
     FCurrentNode: TTreeNode;
-    FClosing: Boolean;
+    FCardUpdateQueued: Boolean;
     procedure RefreshTagsButtonCaption;
     function Validate: Boolean;
     procedure PreviewSchema(const SchemaJson: string);
@@ -100,6 +100,7 @@ type
     function CardKeyForField(const AType: string): string;
     procedure OnCardChanged(Sender: TObject);
     procedure OnCardFieldTypeChanged(Sender: TObject; const NewType: string);
+    procedure ApplyQueuedCardChange;
     procedure SchedulePreviewUpdate;
     procedure PreviewTimerFire(Sender: TObject);
     function FindParentOfKind(Node: TTreeNode; Kind: TSchemaNodeKind): TTreeNode;
@@ -107,10 +108,7 @@ type
   public
     class function Execute(Template: TTemplate;
       const AHtmlViewer: IViewerPlugin): Boolean; overload;
-    /// <summary>Editor overload that surfaces equipment-tag selections.
-    /// Caller supplies the current tag snapshot (loaded externally) and
-    /// receives the updated snapshot back on mrOk. Caller is responsible
-    /// for persisting the tag rows after persisting the Template.</summary>
+    /// The caller must persist the returned tag snapshot after persisting the template.
     class function Execute(Template: TTemplate;
       var Tags: TTemplateTagsSnapshot;
       const AHtmlViewer: IViewerPlugin): Boolean; overload;
@@ -128,7 +126,6 @@ uses
   unit_Equipment, unit_EquipmentType,
   dlg_TemplateEquipmentTags;
 
-{ TdlgTemplateEditor }
 
 class function TdlgTemplateEditor.Execute(Template: TTemplate;
   const AHtmlViewer: IViewerPlugin): Boolean;
@@ -165,7 +162,6 @@ begin
     Dialog.FCurrentDeviceIds := Copy(Tags.EquipmentIds);
     Dialog.RefreshTagsButtonCaption;
 
-    // Load schema into tree (visual mode)
     Dialog.LoadSchemaToTree(Template.FormSchema);
     Dialog.SchedulePreviewUpdate;
 
@@ -190,7 +186,6 @@ begin
       Tags.EquipmentIds := Dialog.FCurrentDeviceIds;
     end;
   finally
-    // Save splitter positions
     var LSettings := TNotebookSettings.Create;
     try
       LSettings.SaveUIValue('dlgTemplateEditor', 'pnlTreeCol', Dialog.pnlTreeCol.Width);
@@ -201,7 +196,6 @@ begin
 
     Dialog.FActiveCard := nil;
 
-    // Restore the frame back to its original parent
     if Assigned(Dialog.FHtmlViewer) and Assigned(Dialog.FSavedParent) then
     begin
       Dialog.FHtmlViewer.Frame.Parent := Dialog.FSavedParent;
@@ -237,11 +231,13 @@ end;
 
 procedure TdlgTemplateEditor.FormDestroy(Sender: TObject);
 begin
-  FClosing := True;
+  // Remove the exact instance method before any controls or cards are freed.
+  TThread.RemoveQueuedEvents(nil, ApplyQueuedCardChange);
+  FCardUpdateQueued := False;
+  FActiveCard := nil;
   FreeAndNil(FCards);
 end;
 
-{ --- Card host helpers --- }
 
 procedure TdlgTemplateEditor.CreateCards;
 var
@@ -386,20 +382,20 @@ end;
 procedure TdlgTemplateEditor.OnCardFieldTypeChanged(Sender: TObject;
   const NewType: string);
 begin
-  // OnChanged fires first (per card contract) so SN.FieldType is already updated.
-  // Re-render the card matching the new type against the same node. Queue the
-  // swap so the firing card's event finishes before we hide it. The FClosing
-  // guard protects against the dialog being freed before the queued proc runs.
-  TThread.ForceQueue(nil,
-    procedure
-    begin
-      if FClosing then Exit;
-      if FCurrentNode <> nil then
-        ShowCardForNode(FCurrentNode);
-    end);
+  // The event must finish before its card is replaced. An instance method
+  // gives destruction an exact queue entry to cancel, without a dangling closure.
+  if FCardUpdateQueued then Exit;
+  FCardUpdateQueued := True;
+  TThread.ForceQueue(nil, ApplyQueuedCardChange);
 end;
 
-{ --- Schema tree loading --- }
+procedure TdlgTemplateEditor.ApplyQueuedCardChange;
+begin
+  FCardUpdateQueued := False;
+  if FCurrentNode <> nil then
+    ShowCardForNode(FCurrentNode);
+end;
+
 
 procedure TdlgTemplateEditor.LoadSchemaToTree(const SchemaJson: string);
 var
@@ -505,7 +501,6 @@ begin
                 else
                   SN.RowCount := 3;
 
-                // Load options for select/checkbox-group
                 if (FieldObj.GetValue('options') <> nil) and
                    (FieldObj.GetValue('options') is TJSONArray) then
                 begin
@@ -553,7 +548,6 @@ begin
   end;
 end;
 
-{ --- Save tree to JSON --- }
 
 function TdlgTemplateEditor.SaveTreeToJSON: string;
 var
@@ -626,7 +620,6 @@ begin
                     FieldObj.AddPair('rows', TJSONNumber.Create(SN.RowCount));
                 end;
 
-                // Options for select / checkbox-group
                 if ((SN.FieldType = 'select') or (SN.FieldType = 'checkbox-group'))
                    and (SN.Options.Count > 0) then
                 begin
@@ -668,7 +661,6 @@ begin
   end;
 end;
 
-{ --- Tree events --- }
 
 procedure TdlgTemplateEditor.tvSchemaChange(Sender: TObject; Node: TTreeNode);
 begin
@@ -692,7 +684,6 @@ begin
   ShowCardForNode(tvSchema.Selected);
 end;
 
-{ --- Tree editing buttons --- }
 
 procedure TdlgTemplateEditor.btnAddSectionClick(Sender: TObject);
 var
@@ -759,7 +750,6 @@ begin
   SN := TSchemaNode(Node.Data);
   if SN = nil then Exit;
 
-  // Confirm deletion of sections (which have children)
   if (SN.Kind = snkSection) and (Node.Count > 0) then
   begin
     if MessageDlg('Delete this section and all its contents?',
@@ -770,7 +760,6 @@ begin
   ParentNode := Node.Parent;
   tvSchema.Items.Delete(Node);
 
-  // Renumber rows if we deleted from within a section
   if (ParentNode <> nil) and (ParentNode.Data <> nil) and
      (TSchemaNode(ParentNode.Data).Kind = snkSection) then
     RenumberRows(ParentNode);
@@ -791,7 +780,6 @@ begin
   Node.MoveTo(Prev, naInsert);
   tvSchema.Selected := Node;
 
-  // Renumber rows if within a section
   if (Node.Parent <> nil) and (Node.Data <> nil) and
      (TSchemaNode(Node.Data).Kind = snkRow) then
     RenumberRows(Node.Parent);
@@ -812,7 +800,6 @@ begin
   Next.MoveTo(Node, naInsert);
   tvSchema.Selected := Node;
 
-  // Renumber rows if within a section
   if (Node.Parent <> nil) and (Node.Data <> nil) and
      (TSchemaNode(Node.Data).Kind = snkRow) then
     RenumberRows(Node.Parent);
@@ -820,7 +807,6 @@ begin
   SchedulePreviewUpdate;
 end;
 
-{ --- JSON toggle --- }
 
 procedure TdlgTemplateEditor.btnJsonToggleClick(Sender: TObject);
 var
@@ -828,7 +814,6 @@ var
 begin
   if not FJsonMode then
   begin
-    // Switch to JSON mode: serialize tree -> synEditor
     Json := SaveTreeToJSON;
     synEditor.Lines.Text := Json;
     tvSchema.Visible := False;
@@ -838,7 +823,6 @@ begin
     btnJsonToggle.Caption := 'Visual';
     FJsonMode := True;
 
-    // Show schema error label for JSON validation
     lblSchemaError.Visible := True;
     Err := TTemplateHtmlGenerator.ValidateSchema(Json);
     if Err = '' then
@@ -854,7 +838,6 @@ begin
   end
   else
   begin
-    // Switch back to Visual mode: parse synEditor -> tree
     Json := synEditor.Lines.Text;
     Err := TTemplateHtmlGenerator.ValidateSchema(Json);
     if Err <> '' then
@@ -877,7 +860,6 @@ begin
   SchedulePreviewUpdate;
 end;
 
-{ --- Preview --- }
 
 procedure TdlgTemplateEditor.SchedulePreviewUpdate;
 begin
@@ -894,7 +876,6 @@ begin
   if FJsonMode then
   begin
     Json := synEditor.Lines.Text;
-    // Live validation in JSON mode
     var Err := TTemplateHtmlGenerator.ValidateSchema(Json);
     if Err = '' then
     begin
@@ -1008,7 +989,6 @@ begin
   Result := True;
 end;
 
-{ --- Helper functions --- }
 
 function TdlgTemplateEditor.FindParentOfKind(Node: TTreeNode;
   Kind: TSchemaNodeKind): TTreeNode;
@@ -1047,7 +1027,6 @@ begin
   end;
 end;
 
-{ --- Equipment tags --- }
 
 procedure TdlgTemplateEditor.RefreshTagsButtonCaption;
 begin

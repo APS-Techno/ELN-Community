@@ -32,17 +32,14 @@ end;
 
 procedure TfrRowCard.SaveToNode(SN: TSchemaNode);
 begin
-  // Row card has nothing to save.
 end;
 
 procedure TfrRowCard.SetOnChanged(AHandler: TNotifyEvent);
 begin
-  // Row card never fires OnChanged.
 end;
 
 procedure TfrRowCard.SetOnFieldTypeChanged(AHandler: TFieldTypeChangedEvent);
 begin
-  // not used
 end;
 
 function TfrRowCard.AsControl: TWinControl;

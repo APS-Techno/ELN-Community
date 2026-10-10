@@ -6,7 +6,7 @@ uses
   System.SysUtils, System.Classes, System.Generics.Collections,
   unit_Item, unit_ItemTypes, unit_Protocol, unit_LabEntry,
   unit_ValueType, unit_Tag, unit_Comment, unit_Signature,
-  unit_Template;
+  unit_Template, unit_SignatureModel;
 
 type
   TPaperSize = (psA4, psLetter);
@@ -29,7 +29,7 @@ type
     Tags: TTags;
     Comments: TComments;
     Signature: TSignature;
-    IntegrityOk: Boolean;
+    IntegrityState: TSignatureIntegrityState;
     HasSignature: Boolean;
     Templates: TDictionary<Integer, TTemplate>;
     StorageRoot: string;
@@ -53,7 +53,7 @@ type
     class procedure BuildTags(SB: TStringBuilder; Tags: TTags);
     class procedure BuildComments(SB: TStringBuilder; Comments: TComments);
     class procedure BuildSignature(SB: TStringBuilder; Sig: TSignature;
-      IntegrityOk: Boolean);
+      IntegrityState: TSignatureIntegrityState);
   public
     class function BuildReport(const Items: TList<TReportItemData>;
       const Options: TReportOptions): string;
@@ -68,7 +68,6 @@ uses
 const
   ACCENT = '#1a5276';
 
-{ TReportOptions }
 
 class function TReportOptions.Default: TReportOptions;
 begin
@@ -83,7 +82,6 @@ begin
   Result.LogoPath := '';
 end;
 
-{ TReportBuilder }
 
 class function TReportBuilder.HtmlEncode(const S: string): string;
 begin
@@ -247,7 +245,6 @@ begin
   if Item.ModifiedDate.HasValue then
     SB.Append('<tr><td>Modified</td><td>').Append(FormatDT(Item.ModifiedDate.Value)).Append('</td></tr>');
 
-  // Parse Properties JSON key-value pairs
   if Item.Properties <> '' then
   begin
     JsonVal := TJSONObject.ParseJSONValue(Item.Properties);
@@ -287,17 +284,14 @@ begin
     SB.Append('<div style="margin-bottom: 14px;">');
     SB.Append('<h3>').Append(HtmlEncode(Protocol.Title)).Append('</h3>');
 
-    // Protocol type badge
     if Protocol.ProtocolType.HasValue then
     begin
       PTypeStr := GetEnumName(TypeInfo(TProtocolType), Ord(Protocol.ProtocolType.Value));
-      // Remove 'pt' prefix
       if PTypeStr.StartsWith('pt') then
         PTypeStr := Copy(PTypeStr, 3, Length(PTypeStr));
       SB.Append('<span class="badge badge-type">').Append(HtmlEncode(PTypeStr)).Append('</span>');
     end;
 
-    // Validation status badge
     case Protocol.ValidationStatus of
       vsDraft:    begin StatusClass := 'badge-draft';    StatusText := 'Draft'; end;
       vsInReview: begin StatusClass := 'badge-inreview'; StatusText := 'In Review'; end;
@@ -306,7 +300,6 @@ begin
     end;
     SB.Append('<span class="badge ').Append(StatusClass).Append('">').Append(StatusText).Append('</span>');
 
-    // Equipment info
     if (Protocol.EquipModel <> '') or (Protocol.EquipManufacturer <> '') or
        (Protocol.EquipLocation <> '') then
     begin
@@ -320,14 +313,12 @@ begin
       SB.Append('</div>');
     end;
 
-    // Dates
     SB.Append('<div style="font-size:11px; color:#999; margin-top:2px;">');
     SB.Append('Created: ').Append(FormatDT(Protocol.CreatedDate));
     if Protocol.ModifiedDate.HasValue then
       SB.Append(' &middot; Modified: ').Append(FormatDT(Protocol.ModifiedDate.Value));
     SB.Append('</div>');
 
-    // Render form data as read-only fields
     if (Protocol.FormData <> '') and Protocol.TemplateId.HasValue then
     begin
       Tmpl := nil;
@@ -337,7 +328,6 @@ begin
         BuildProtocolFormData(SB, Tmpl.FormSchema, Protocol.FormData)
       else
       begin
-        // No template available — show raw form data as pre-formatted text
         SB.Append('<div style="margin-top:8px;">');
         SB.Append('<pre style="background:#f5f5f5; padding:8px; border-radius:3px; font-size:12px; overflow:auto;">');
         SB.Append(HtmlEncode(Protocol.FormData));
@@ -346,7 +336,6 @@ begin
     end
     else if Protocol.FormData <> '' then
     begin
-      // Free-text protocol (note) — FormData is the content
       SB.Append('<div style="margin-top:8px; padding:8px; background:#f9f9f9; border:1px solid #eee; border-radius:3px;">');
       SB.Append(Protocol.FormData); // Notes store HTML content
       SB.Append('</div>');
@@ -432,7 +421,6 @@ begin
           if Field.GetValue('label') <> nil then
             FieldLabel := Field.GetValue('label').Value;
 
-          // Get value from FormData
           FieldValue := '';
           if DataObj.GetValue(FieldName) <> nil then
             FieldValue := DataObj.GetValue(FieldName).Value;
@@ -490,7 +478,6 @@ begin
           begin
             SB.Append('<div class="field-label">').Append(HtmlEncode(FieldLabel)).Append('</div>');
             SB.Append('<div class="field-value">');
-            // Try to find the display label for the selected value
             var DisplayLabel := FieldValue;
             if (Field.GetValue('options') <> nil) and (Field.GetValue('options') is TJSONArray) then
             begin
@@ -515,7 +502,6 @@ begin
           end
           else
           begin
-            // text, number, date, textarea
             SB.Append('<div class="field-label">').Append(HtmlEncode(FieldLabel)).Append('</div>');
             SB.Append('<div class="field-value">').Append(HtmlEncode(FieldValue)).Append('</div>');
           end;
@@ -592,7 +578,6 @@ begin
 
   SB.Append('</table>');
 
-  // Thumbnail grid — embed preview PNGs as base64
   if StorageRoot <> '' then
   begin
     HasThumbnails := False;
@@ -665,7 +650,7 @@ begin
 end;
 
 class procedure TReportBuilder.BuildSignature(SB: TStringBuilder; Sig: TSignature;
-  IntegrityOk: Boolean);
+  IntegrityState: TSignatureIntegrityState);
 begin
   SB.Append('<h2>Electronic Signature</h2>');
   SB.Append('<div class="sig-block">');
@@ -678,10 +663,16 @@ begin
   SB.Append('<tr><td>Content Hash</td><td style="font-family:Consolas,monospace; font-size:11px;">');
   SB.Append(HtmlEncode(Sig.ContentHash)).Append('</td></tr>');
   SB.Append('<tr><td>Integrity</td><td>');
-  if IntegrityOk then
-    SB.Append('<span class="sig-ok">&#10003; Verified</span>')
+  case IntegrityState of
+    sisVerified:
+      SB.Append('<span class="sig-ok">&#10003; Verified</span>');
+    sisMismatch:
+      SB.Append('<span class="sig-fail">&#10007; Failed</span>');
+    sisLegacyUnverifiable:
+      SB.Append('<span>Legacy signature; integrity cannot be verified</span>');
   else
-    SB.Append('<span class="sig-fail">&#10007; Failed</span>');
+    SB.Append('<span>Integrity not verified</span>');
+  end;
   SB.Append('</td></tr>');
   SB.Append('</table>');
   SB.Append('</div>');
@@ -713,10 +704,8 @@ begin
     SB.Append('<style>').Append(GetCss(Options.PaperSize)).Append('</style>');
     SB.Append('</head><body>');
 
-    // Lab logo
     BuildLogo(SB, Options.LogoPath);
 
-    // Table of Contents (only for multi-item reports)
     if Items.Count > 1 then
     begin
       SB.Append('<div class="toc">');
@@ -742,7 +731,6 @@ begin
       Data := Items[I];
       Item := Data.Item;
 
-      // Page break between items (not before the first)
       if I > 0 then
         SB.Append('<div class="page-break"></div>');
 
@@ -785,12 +773,11 @@ begin
         BuildComments(SB, Data.Comments);
 
       if Options.IncludeSignatures and Data.HasSignature and Assigned(Data.Signature) then
-        BuildSignature(SB, Data.Signature, Data.IntegrityOk);
+        BuildSignature(SB, Data.Signature, Data.IntegrityState);
 
-      SB.Append('</div>'); // close item-section from BuildHeader
+      SB.Append('</div>');
     end;
 
-    // Footer
     SB.Append('<div class="report-footer">');
     SB.Append('Generated by E-Lab Notebook &middot; ');
     SB.Append(FormatDateTime('yyyy-mm-dd hh:nn:ss', Now));

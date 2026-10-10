@@ -44,8 +44,6 @@ begin
   end;
 end;
 
-{ Renders the parsed lines as 'style|text' rows joined by ';' — one readable
-  string per document, so a whole fixture is a single assertion. }
 function Flatten(const AMarkdown: string; AMaxLines: Integer = 50): string;
 var
   Lines: TArray<TPreviewLine>;
@@ -77,7 +75,6 @@ begin
 end;
 
 begin
-  { --- StripInlineMarkup --- }
 
   AssertEq('StripsBold', 'hello world',
     StripInlineMarkup('**hello** world'));
@@ -124,7 +121,6 @@ begin
   AssertEq('LeavesPlainTextAlone', 'plain sentence.',
     StripInlineMarkup('plain sentence.'));
 
-  { --- Block classification --- }
 
   AssertEq('ClassifiesAtxHeadings',
     'h1|Title;h2|Section;h3|Sub;h3|Deeper',
@@ -163,7 +159,6 @@ begin
     'body|| a | b |;body|| 1 | 2 |',
     Flatten(LF(['| a | b |', '|---|---|', '| 1 | 2 |'])));
 
-  { --- Whitespace and front matter --- }
 
   AssertEq('CollapsesBlankRuns',
     'h1|Title;blank|;body|body text',
@@ -183,7 +178,6 @@ begin
     'rule|;h1|Title',
     Flatten(LF(['---', '# Title'])));
 
-  { --- Limits --- }
 
   AssertEqI('RespectsMaxLines', 2,
     Length(BuildPreviewLines(LF(['a', 'b', 'c', 'd']), 2)));

@@ -1,27 +1,8 @@
 unit unit_HypothesisHashSelfTest;
 
-{
-  A startup self-check for the hypothesis seal hash (unit_HypothesisHash).
-
-  test_HypothesisHash's known-answer test (DUnitX) never runs on Linux64 --
-  DUnitX cannot run there -- yet Linux64 is exactly where the WebAPI computes
-  the seal for real (ELN.WebAPI is deployed as a Linux Docker container).
-  This unit builds the very same fixture in memory, computes the hash with
-  the production function, and compares it against the known answer, so the
-  running WebAPI can verify its own hash arithmetic once at startup without
-  DUnitX. GET /health then reports the cached result.
-
-  The known-answer INPUTS and the expected hash live here as the single
-  source of truth; test_HypothesisHash.pas's Setup and Hash_KnownAnswer test
-  use these same constants/fixture builder instead of duplicating them.
-
-  Self-contained: RTL + the existing hypothesis domain/hash units only, so
-  ELN.Model still compiles clean into the MCP server and the desktop (no
-  gate-status names, casts or assignments here -- keeps test_HypothesisLinkage
-  green). HypothesisHashSelfTest must never raise: the WebAPI must never
-  refuse to start because of it, so any exception is caught and reported as
-  a plain False.
-}
+{ Linux64 cannot run DUnitX, but computes the production seal. Share this
+  known-answer fixture with the test suite to check platform arithmetic.
+  Failure must return False rather than prevent the host from starting. }
 
 interface
 
@@ -32,7 +13,6 @@ uses
   unit_HypothesisHash;
 
 const
-  // Same fixture as BuildHypothesisContent's known-answer test.
   HYPOTHESIS_HASH_KAT_CONTENT =
     'HYP|7|1:S|1:C|0|4:Done|' +
     'RN|1|11|1|RN|2|10|0|' +

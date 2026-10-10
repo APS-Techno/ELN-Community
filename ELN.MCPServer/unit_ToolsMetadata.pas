@@ -8,8 +8,6 @@ uses
 
 procedure RegisterMetadataTools(Registry: TToolRegistry);
 
-// Exported (the other handlers in this unit stay in the implementation section)
-// so ELN.Tests can drive them directly against a real database.
 function HandleListTags(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 function HandleListUsers(const Params: TJSONObject;
@@ -30,7 +28,7 @@ uses
   unit_ProtocolStatusChange, unit_AuditLog, unit_Comment,
   unit_Signature, unit_User, unit_AuditRule, unit_FileType, unit_ValueType,
   Aurelius.Criteria.Base, Aurelius.Criteria.Projections,
-  unit_ToolScope, unit_Hypothesis, unit_HypothesisModel;
+  unit_ToolScope, unit_Hypothesis, unit_HypothesisModel, unit_ToolsWrite;
 
 const
   // Upper bound on AuditLog rows scanned for a project's recent-activity list.
@@ -39,7 +37,6 @@ const
   // whole table.
   PROJECT_ACTIVITY_SCAN_LIMIT = 500;
 
-{ Helpers - same patterns as unit_ToolsNavigation }
 
 function DateToISO(const DT: TDateTime): string;
 begin
@@ -78,7 +75,6 @@ begin
   Result := Params.GetValue<Integer>(Key);
 end;
 
-{ Enum-to-string helpers }
 
 function ActionKindToStr(AKind: TActionKind): string;
 begin
@@ -100,7 +96,6 @@ begin
   Result := TRttiEnumerationType.GetName<TValidationStatus>(AStatus);
 end;
 
-{ --- Tool 1: list_tags --- }
 
 function HandleListTags(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -149,7 +144,6 @@ begin
   end;
 end;
 
-{ --- Tool 2: get_item_links --- }
 
 function HandleGetItemLinks(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -170,12 +164,10 @@ begin
 
   LinkDic := TItemLinkDictionary.Create;
   try
-    // Outgoing links
     OutLinks := Context.Manager.Find<TItemLink>
       .Where(LinkDic.SourceItemId = ItemId)
       .List;
     try
-      // Incoming links
       InLinks := Context.Manager.Find<TItemLink>
         .Where(LinkDic.TargetItemId = ItemId)
         .List;
@@ -200,9 +192,7 @@ begin
             Obj.AddPair('direction', 'outgoing');
             Obj.AddPair('linked_item_id', TJSONNumber.Create(Link.TargetItemId));
             Obj.AddPair('linked_item_title', LinkedTitle);
-            // Outgoing: this item is the source, so the forward caption reads
-            // correctly. The legacy free-text 'label' key is gone — two names
-            // for one concept is what made the feature confusing.
+            // Read the relation from this item's perspective: source uses forward text.
             if Assigned(Link.LinkType) then
               Obj.AddPair('relation', Link.LinkType.ForwardText)
             else
@@ -216,7 +206,6 @@ begin
           for Link in InLinks do
           begin
             LinkedItem := Context.Manager.Find<TItem>(Link.SourceItemId);
-            // Apply the same policy and scope checks in both directions.
             if not Assigned(LinkedItem) then
               Continue;
             if (LinkedItem.ProjectID = 0) or
@@ -230,9 +219,7 @@ begin
             Obj.AddPair('direction', 'incoming');
             Obj.AddPair('linked_item_id', TJSONNumber.Create(Link.SourceItemId));
             Obj.AddPair('linked_item_title', LinkedTitle);
-            // Incoming: this item is the target, so the REVERSE caption is what
-            // reads correctly from here. Falls back to the legacy label only for
-            // rows the schema migration has not reached.
+            // This item is the target, so use the reverse relation text.
             if Assigned(Link.LinkType) then
               Obj.AddPair('relation', Link.LinkType.ReverseText)
             else
@@ -260,7 +247,6 @@ begin
   end;
 end;
 
-{ --- Tool 3: list_equipment --- }
 
 function HandleListEquipment(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -319,7 +305,6 @@ begin
   end;
 end;
 
-{ --- Tool 4: list_action_types --- }
 
 function HandleListActionTypes(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -395,7 +380,6 @@ begin
   end;
 end;
 
-{ --- Tool 5: get_protocols --- }
 
 function HandleGetProtocols(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -412,8 +396,6 @@ var
   ProtTypeStr: string;
 begin
   ItemId := GetReqInt(Params, 'item_id');
-  // Uniform refusal for out-of-scope and missing-under-scope; inert without
-  // a scope, where the plain "Item not found" below still applies.
   RequireItemRead(Context, ItemId);
 
   Item := Context.Manager.Find<TItem>(ItemId);
@@ -436,7 +418,6 @@ begin
         else
           ProtTypeStr := '';
 
-        // Get status history for this protocol
         StatusChanges := Context.Manager.Find<TProtocolStatusChange>
           .Where(PSCDic.ProtocolId = P.Id)
           .List;
@@ -482,7 +463,6 @@ begin
   end;
 end;
 
-{ --- Tool 6: get_audit_log --- }
 
 // The project an audit row belongs to, or 0 when it cannot be resolved:
 // aetFolder, aetProtocol and aetNote have no queryable FK back to their owner
@@ -542,7 +522,8 @@ var
   EntityTypeStr, OperationStr, DateFromStr, DateToStr: string;
   HasEntityType, HasEntityId, HasOperation, HasUserId: Boolean;
   HasDateFrom, HasDateTo, HasLimit: Boolean;
-  EntityId, UserId, Limit: Integer;
+  EntityId: Int64;
+  UserId, Limit: Integer;
   EntityTypeVal: TAuditEntityType;
   OperationVal: TAuditOperation;
   DateFrom, DateTo: TDateTime;
@@ -567,7 +548,7 @@ begin
   DateTo := 0;
 
   HasEntityType := GetOptStr(Params, 'entity_type', EntityTypeStr);
-  HasEntityId := GetOptInt(Params, 'entity_id', EntityId);
+  HasEntityId := GetOptInt64(Params, 'entity_id', EntityId);
   HasOperation := GetOptStr(Params, 'operation', OperationStr);
   HasUserId := GetOptInt(Params, 'user_id', UserId);
   HasDateFrom := GetOptStr(Params, 'date_from', DateFromStr);
@@ -765,7 +746,6 @@ begin
   end;
 end;
 
-{ --- Tool 7: get_comments --- }
 
 function HandleGetComments(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -778,8 +758,6 @@ var
   Obj: TJSONObject;
 begin
   ItemId := GetReqInt(Params, 'item_id');
-  // Uniform refusal for out-of-scope and missing-under-scope; inert without
-  // a scope.
   RequireItemRead(Context, ItemId);
 
   CommentDic := TCommentDictionary.Create;
@@ -815,7 +793,6 @@ begin
   end;
 end;
 
-{ --- Tool 8: get_signatures --- }
 
 function HandleGetSignatures(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -828,8 +805,6 @@ var
   Obj: TJSONObject;
 begin
   ItemId := GetReqInt(Params, 'item_id');
-  // Uniform refusal for out-of-scope and missing-under-scope; inert without
-  // a scope.
   RequireItemRead(Context, ItemId);
 
   SigDic := TSignatureDictionary.Create;
@@ -876,14 +851,14 @@ var
   Arr: TJSONArray;
   Obj: TJSONObject;
 begin
+  RequireToolPrincipal(Context);
   Users := Context.Manager.Find<TUser>.List;
   try
     Arr := TJSONArray.Create;
     try
       for U in Users do
       begin
-        // Under a scope this session learns nothing about the lab's other
-        // accounts: it sees exactly its own row (2026-08-31 decision).
+        // A confined session must not enumerate other laboratory accounts.
         if (Length(Context.ScopedProjects) > 0) and
            ((Context.User = nil) or (U.Id <> Context.User.Id)) then
           Continue;
@@ -909,7 +884,6 @@ begin
   end;
 end;
 
-{ --- Tool 10: get_project_stats --- }
 
 function HandleGetProjectStats(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -933,7 +907,6 @@ var
   I, Count: Integer;
 begin
   ProjectId := GetReqInt(Params, 'project_id');
-  // Before the existence check, with the uniform refusal.
   RequireProjectRead(Context, ProjectId);
 
   Project := Context.Manager.Find<TProject>(ProjectId);
@@ -961,7 +934,6 @@ begin
         end;
       end;
 
-      // Count unique tags used in this project
       ItemTagDic := TItemTagDictionary.Create;
       try
         TagIds := TList<Integer>.Create;
@@ -989,7 +961,6 @@ begin
         ItemTagDic.Free;
       end;
 
-      // Build list of item IDs belonging to this project
       ItemIds := TList<Integer>.Create;
       try
         for Item in Items do
@@ -1016,15 +987,11 @@ begin
 
               Log := AuditLogs[I];
 
-              // Include project-level entries for this project
               if (Log.EntityType = aetProject) and (Log.EntityId = ProjectId) then
               begin
-                // matches
               end
-              // Include item-level entries for items in this project
               else if (Log.EntityType = aetItem) and ItemIds.Contains(Log.EntityId) then
               begin
-                // matches
               end
               else
                 Continue;
@@ -1069,7 +1036,6 @@ begin
   end;
 end;
 
-{ --- Tool: list_audit_rules --- }
 
 function HandleListAuditRules(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -1124,7 +1090,6 @@ begin
           Obj.AddPair('equipment', TJSONNull.Create);
         end;
 
-        // Required file types
         FilesArr := TJSONArray.Create;
         for RuleFile in Rule.RequiredFiles do
         begin
@@ -1139,7 +1104,6 @@ begin
         end;
         Obj.AddPair('required_files', FilesArr);
 
-        // Required value types
         ValuesArr := TJSONArray.Create;
         for RuleValue in Rule.RequiredValues do
         begin
@@ -1169,7 +1133,6 @@ begin
   end;
 end;
 
-{ --- Schema builders --- }
 
 function MakeEmptySchema: TJSONObject;
 begin
@@ -1292,7 +1255,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ --- Registration --- }
 
 procedure RegisterMetadataTools(Registry: TToolRegistry);
 begin

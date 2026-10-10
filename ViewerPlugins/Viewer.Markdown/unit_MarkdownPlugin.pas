@@ -12,23 +12,22 @@ uses
   unit_MarkdownPreviewRender;
 
 type
-  { PluginID '7026' - 7025 taken by Viewer.TriboViewer }
   TELNMarkdownViewerPlugin = class(TELNBaseViewerPlugin, IPreviewProvider,
     IDetailedInfoProvider, IItemContextAware, IHostToolbarAware)
   private
     FRawMd: string;
     FSourceFile: string;
     FItemId: Integer;
-    FFileId: Integer;
+    FFileId: Int64;
   protected
     function CreateViewerFrame: TFrame; override;
     function GetParams: TPluginParams; override;
   public
     function LoadFromFile(const AFileName: string): Boolean; override;
-    function GetPreview(MaxWidth, MaxHeight: Integer): TBitmap;  // IPreviewProvider
+    function GetPreview(MaxWidth, MaxHeight: Integer): TBitmap;
     function GetDetailedInfo: string;
-    procedure SetItemContext(ItemId, FileId: Integer);  // IItemContextAware
-    function ShowHostToolbar: Boolean;                  // IHostToolbarAware
+    procedure SetItemContext(ItemId: Integer; FileId: Int64);
+    function ShowHostToolbar: Boolean;
   end;
 
 procedure Register;
@@ -85,26 +84,21 @@ begin
   FRawMd := Raw;
   FSourceFile := AFileName;
 
-  // Sibling images aren't downloaded to %TEMP% alongside the .md. Ask the
-  // host to (a) tell us their canonical "[ID]name.ext" names so the resolver
-  // can rewrite refs and (b) ensure they're present in `Dir` so the browser's
-  // file:/// references actually resolve. Falls back to disk enumeration
-  // when no enumerator is registered (e.g. PluginTestApp).
+  // Sibling images may not be downloaded beside the markdown working copy.
+  // The host supplies canonical names and makes the files available for rendering.
   Files := nil;
   if (FItemId > 0) and Assigned(ElnFileEnumerator) then
     Files := ElnFileEnumerator.EnsureItemFilesInDir(FItemId, Dir);
 
   Rendered := RewriteAttachmentRefs(Raw, Dir, Files);
   Rendered := RewriteElnLinks(Rendered);
-  BaseHref := 'file:///' + StringReplace(
-    IncludeTrailingPathDelimiter(Dir),
-    '\', '/', [rfReplaceAll]);
+  BaseHref := MarkdownFileUrl(IncludeTrailingPathDelimiter(Dir));
   TframeMarkdownViewer(FFrame).RenderMarkdown(Rendered, BaseHref);
   TframeMarkdownViewer(FFrame).SetEditContext(FSourceFile, FItemId, FFileId);
   Result := True;
 end;
 
-procedure TELNMarkdownViewerPlugin.SetItemContext(ItemId, FileId: Integer);
+procedure TELNMarkdownViewerPlugin.SetItemContext(ItemId: Integer; FileId: Int64);
 begin
   FItemId := ItemId;
   FFileId := FileId;

@@ -1,22 +1,8 @@
 unit unit_TreeStateModel;
 
-{
-  One user's expanded/collapsed nodes in the desktop trees, kept in the
-  UserTreeState table (spec: 2026-09-30-per-user-tree-state-design).
-
-  Load reads all of the user's rows once; IsExpanded answers from memory.
-  SetExpanded only marks the node pending and (AutoFlush) queues one Flush
-  on the main thread, so a click is one prompt write and an Expand All over
-  a hundred nodes is still one. Flush writes every pending node in one
-  transaction.
-
-  The model owns its TObjectManager: a failed write (a dropped connection;
-  the same user inserting the same row on two PCs) never leaves the shared
-  manager dirty. After a failure it reloads its rows and tries once more;
-  what still fails stays pending for the next Flush, and LastError says why.
-  What is known to be stored (FKnown) survives a failed reload: a lost
-  connection must never make the user's state read as "not seeded".
-}
+{ Own the manager so failed tree-state writes cannot poison shared drafts.
+  Main-thread queued Flush batches expansion changes into one transaction.
+  Preserve FKnown on failed reload: connection loss must not unseed the user. }
 
 interface
 
@@ -65,7 +51,6 @@ type
     procedure Load(AUserId: Integer);
     function IsExpanded(Kind: TTreeNodeKind; NodeId: Integer; Default: Boolean): Boolean;
     procedure SetExpanded(Kind: TTreeNodeKind; NodeId: Integer; Value: Boolean);
-    /// True once this user's state was copied from the shared columns.
     function Seeded: Boolean;
     procedure MarkSeeded;
     /// Writes every pending node. False (see LastError) when it could not;
@@ -85,7 +70,6 @@ uses
   Aurelius.Criteria.Linq,
   Aurelius.Drivers.Interfaces;
 
-{ TTreeStateModel }
 
 constructor TTreeStateModel.Create(AManager: TObjectManager);
 begin
@@ -104,7 +88,7 @@ begin
   FPending.Free;
   FKnown.Free;
   FRows.Free;
-  FManager.Free;   // frees the row entities it owns
+  FManager.Free;
   inherited;
 end;
 
@@ -119,7 +103,7 @@ var
   Row: TUserTreeState;
 begin
   FRows.Clear;
-  FManager.Clear;   // drop (and free) whatever a failed write left behind
+  FManager.Clear;
   FRowsValid := False;
   if FUserId <> 0 then
   begin
@@ -143,12 +127,12 @@ end;
 
 procedure TTreeStateModel.Load(AUserId: Integer);
 begin
-  Flush;   // the previous user's clicks are theirs
+  Flush;
   TThread.RemoveQueuedEvents(QueuedFlush);
   FFlushQueued := False;
   FPending.Clear;
   FUserId := AUserId;
-  FKnown.Clear;   // never answer with the previous user's state
+  FKnown.Clear;
   ReloadRows;
 end;
 
@@ -173,7 +157,7 @@ begin
   K := Key(Ord(Kind), NodeId);
   if FKnown.TryGetValue(K, Stored) and (Stored = Value) then
   begin
-    FPending.Remove(K);   // back to what is stored: nothing to write
+    FPending.Remove(K);
     Exit;
   end;
   if FPending.TryGetValue(K, Old) and (Old = Value) then Exit;
@@ -263,7 +247,7 @@ end;
 
 procedure TTreeStateModel.QueuedFlush;
 begin
-  Flush;   // a failure stays pending; the next change or logout retries
+  Flush;
 end;
 
 function TTreeStateModel.PendingCount: Integer;

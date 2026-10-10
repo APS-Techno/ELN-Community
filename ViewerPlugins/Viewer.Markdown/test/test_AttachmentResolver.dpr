@@ -44,7 +44,7 @@ begin
     Touch(Dir, '[1046]dcpulseg3f.png');
     Touch(Dir, '[1052]D3GF_UserManual.pdf');
     Touch(Dir, '[2000]photo with spaces.png');
-    Touch(Dir, 'no_prefix.png');  // plain file, should NOT be in the map
+    Touch(Dir, 'no_prefix.png');
 
     AssertEq(
       'RewritesPlainImage',
@@ -139,8 +139,6 @@ begin
       RewriteAttachmentRefs('![](dcpulseg3f.png)',
         TPath.Combine(Dir, 'nope_does_not_exist')));
 
-    // --- AFiles override path: host-supplied "[ID]name.ext" list takes ---
-    // --- precedence over (or substitutes for) on-disk enumeration.    ---
 
     AssertEq(
       'AFilesListResolvesWithoutDir',
@@ -150,23 +148,18 @@ begin
 
     AssertEq(
       'AFilesListSupersedesDir',
-      // Dir contains [1046]; AFiles redefines it as [9999] — AFiles wins.
       '![](%5B9999%5Ddcpulseg3f.png)',
       RewriteAttachmentRefs('![](dcpulseg3f.png)', Dir,
         TArray<string>.Create('[9999]dcpulseg3f.png')));
 
     AssertEq(
       'AFilesListAcceptsBareNames',
-      // No directory component on the entries — the resolver treats them as
-      // bare filenames produced by the host enumerator.
       '![alt](%5B1052%5DD3GF_UserManual.pdf)',
       RewriteAttachmentRefs('![alt](D3GF_UserManual.pdf)', '',
         TArray<string>.Create('[1052]D3GF_UserManual.pdf', '[1046]dcpulseg3f.png')));
 
     AssertEq(
       'EmptyAFilesFallsBackToDir',
-      // Empty AFiles -> resolver falls back to ADir enumeration (existing
-      // behaviour), which has [1046]dcpulseg3f.png.
       '![](%5B1046%5Ddcpulseg3f.png)',
       RewriteAttachmentRefs('![](dcpulseg3f.png)', Dir, nil));
   finally

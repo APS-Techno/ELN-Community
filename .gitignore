@@ -39,6 +39,7 @@ __pycache__/
 *.pfx
 *.pem
 build-dependencies.local.psd1
+installer-runtime.local.psd1
 
 # Generated icon inputs/resources remain output-local
 ELN.Desktop/Views/dm_TreeImages.rc

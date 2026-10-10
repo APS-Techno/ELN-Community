@@ -1,13 +1,6 @@
 ﻿unit unit_FileAssociationDetails;
 
-{
-  Created       : 2009-05-07
-  Description   : Class to get file type description and icons.
-                  * Extensions and Descriptions are held in a TStringLists.
-                  * Icons are stored in a TImageList.
-
-                  Assumption is all lists are in same order.
-}
+{ Extensions, descriptions and icons must use the same list order. }
 
 interface
 
@@ -37,15 +30,10 @@ implementation
 
 
 
-{ TFileAssociationDetails }
 
 constructor TFileAssociationDetails.Create;
 begin
   inherited;
-  // No try/except here: Delphi's object instantiation already calls Destroy
-  // on any exception raised in a constructor. The previous bare `except` hid
-  // the root cause (usually OOM from TImageList) and left the object alive
-  // with nil fields, guaranteeing an AV on the next method call.
   FExtensions := TStringList.Create;
   FExtensions.Sorted := True;
   FDescriptions := TStringList.Create;
@@ -93,7 +81,6 @@ begin
   try
       Extension := '*' + Ext;
 
-      // Get description type
       SHGetFileInfo(PChar(Extension),
                     FILE_ATTRIBUTE_NORMAL,
                     FileInfo,
@@ -102,7 +89,6 @@ begin
                     );
       FDescriptions.Add(FileInfo.szTypeName);
 
-      // Get icon and copy into ImageList
       SHGetFileInfo(PChar(Extension),
                     FILE_ATTRIBUTE_NORMAL,
                     FileInfo,
@@ -127,12 +113,10 @@ begin
 
   Icon := TIcon.Create;
   try
-    // Loop through all stored extensions and retrieve relevant info
     for iCount := 0 to FExtensions.Count - 1 do
     begin
       Extension := '*' + FExtensions.Strings[iCount];
 
-      // Get description type
       SHGetFileInfo(PChar(Extension),
                     FILE_ATTRIBUTE_NORMAL,
                     FileInfo,
@@ -141,7 +125,6 @@ begin
                     );
       FDescriptions.Add(FileInfo.szTypeName);
 
-      // Get icon and copy into ImageList
       SHGetFileInfo(PChar(Extension),
                     FILE_ATTRIBUTE_NORMAL,
                     FileInfo,

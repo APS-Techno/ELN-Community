@@ -1,13 +1,8 @@
 unit unit_HypothesisHash;
 
-{
-  The seal stored in Hypotheses.ContentHash when a conclusion is accepted
-  (spec 6.4). Computed by the WebAPI on Linux64 and verified by the desktop
-  on Win32, so it must not depend on locale OR platform float formatting:
-  doubles are hashed as the 16 hex digits of their IEEE-754 bits, and every
-  free-text field is length-prefixed so a '|' typed into a statement cannot
-  move text from one field into another.
-}
+{ The seal is shared by Linux64 and Win32: hash IEEE-754 bits rather than
+  locale/platform float text, and length-prefix fields so delimiters in user
+  text cannot change field boundaries. }
 
 interface
 

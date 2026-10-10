@@ -95,7 +95,6 @@ begin
   FToolbar.BorderOuter := fsNone;
   FToolbar.AlignWithMargins := True;
 
-  // Left side: Copy + Save
   FBtnCopy := TRzBitBtn.Create(Self);
   FBtnCopy.Parent := FToolbar;
   FBtnCopy.Align := alLeft;
@@ -118,7 +117,7 @@ begin
   FBtnZoomOut.Align := alRight;
   FBtnZoomOut.AlignWithMargins := True;
   FBtnZoomOut.Width := S(36);
-  FBtnZoomOut.Caption := #$2212; // minus sign
+  FBtnZoomOut.Caption := #$2212;
   FBtnZoomOut.OnClick := BtnZoomOutClick;
 
   FBtnZoomIn := TRzBitBtn.Create(Self);
@@ -193,10 +192,9 @@ begin
 
   if FFitMode then
   begin
-    // Calculate zoom to fit within scrollbox while maintaining aspect ratio
     FZoom := Min(CW / FOrigW, CH / FOrigH);
     if FZoom > 1.0 then
-      FZoom := 1.0; // don't upscale beyond 100%
+      FZoom := 1.0;
     FLblZoom.Caption := Format('  Fit (%d%%)  ', [Round(FZoom * 100)]);
   end
   else
@@ -208,7 +206,6 @@ begin
   Image.Width := ImgW;
   Image.Height := ImgH;
 
-  // Center when image is smaller than viewport
   if ImgW < CW then
     Image.Left := (CW - ImgW) div 2
   else
@@ -246,9 +243,9 @@ end;
 procedure TframeImageViewer.ImageDblClick(Sender: TObject);
 begin
   if FFitMode then
-    ApplyZoom(1.0) // switch to 100%
+    ApplyZoom(1.0)
   else
-    BtnFitClick(nil); // switch to fit
+    BtnFitClick(nil);
 end;
 
 procedure TframeImageViewer.BtnFitClick(Sender: TObject);

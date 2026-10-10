@@ -45,7 +45,6 @@ implementation
 
 {$R *.dfm}
 
-{ TdlgItemMove }
 
 class function TdlgItemMove.Execute(SourceItem: TItem; AvailableItems: TItems;
   out NewParentId: Integer): Boolean;
@@ -141,7 +140,6 @@ begin
       if Assigned(FSourceItem) then
         CollectExcluded(FSourceItem.Id);
 
-      // (Root) pseudo-node — represents parent_id = 0
       RootNode := Tree.AddChild(nil);
       RootData := Tree.GetNodeData(RootNode);
       RootData.Kind := nkRoot;
@@ -158,8 +156,6 @@ begin
 
     Tree.FullExpand;
 
-    // Default selection = source item's current parent, so the user starts
-    // anchored at where the item lives now and can navigate from there.
     InitialNode := Tree.GetFirst;
     if Assigned(FSourceItem) then
     begin

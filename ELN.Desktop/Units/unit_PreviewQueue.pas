@@ -8,7 +8,7 @@ uses
 
 type
   TPreviewQueueItem = record
-    FileId: Integer;
+    FileId: Int64;
     ItemId: Integer;
     FilePath: string;
     PreviewPath: string;
@@ -16,7 +16,7 @@ type
   end;
 
   TPreviewStatusEvent = procedure(const AText: string) of object;
-  TPreviewUpdateEvent = procedure(FileId: Integer; const PreviewPath: string) of object;
+  TPreviewUpdateEvent = procedure(FileId: Int64; const PreviewPath: string) of object;
   TKeyValuesExtractedEvent = procedure(ItemId: Integer;
     const KeyValues: TArray<TPluginKeyValue>) of object;
 
@@ -51,7 +51,6 @@ uses
   unit_ELNPluginCore,
   unit_DataModel;
 
-{ TPreviewQueue }
 
 constructor TPreviewQueue.Create(AOwner: TComponent; AContentViewer: TframeContentViewer);
 begin
@@ -99,8 +98,10 @@ var
   QItem: TPreviewQueueItem;
   Plugin: IViewerPlugin;
   PreviewProvider: IPreviewProvider;
+  KVProvider: IKeyValueProvider;
   Bmp: TBitmap;
   Png: TPngImage;
+  PreviewOwner: TComponent;
 begin
   // Session guard: if the user has logged out (model torn down / rebuilt),
   // abort rather than write extracted values via a stale session VM.
@@ -130,14 +131,14 @@ begin
 
   if not FileExists(QItem.FilePath) then Exit;
 
-  Plugin := FContentViewer.FindPlugin(QItem.FilePath);
+  PreviewOwner := TComponent.Create(nil);
+  try
+  Plugin := FContentViewer.LoadPreviewPlugin(QItem.FilePath,
+    QItem.ItemId, QItem.FileId, PreviewOwner);
   if not Assigned(Plugin) then Exit;
-
-  if not Plugin.LoadFromFile(QItem.FilePath) then Exit;
 
   if Assigned(FOnKeyValuesExtracted) then
   begin
-    var KVProvider: IKeyValueProvider;
     if Supports(Plugin, IKeyValueProvider, KVProvider) then
     begin
       var KVs := KVProvider.GetKeyValues;
@@ -172,6 +173,12 @@ begin
 
   if Assigned(FOnUpdate) then
     FOnUpdate(QItem.FileId, QItem.PreviewPath);
+  finally
+    KVProvider := nil;
+    PreviewProvider := nil;
+    Plugin := nil;
+    PreviewOwner.Free;
+  end;
 end;
 
 end.

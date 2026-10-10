@@ -91,6 +91,34 @@ object frameContentViewer: TframeContentViewer
         TabOrder = 0
       end
     end
+    object NoteCard: TCard
+      Left = 0
+      Top = 0
+      Width = 599
+      Height = 609
+      Caption = 'Note'
+      CardIndex = 2
+      TabOrder = 2
+      object NoteContent: TRichEdit
+        AlignWithMargins = True
+        Left = 3
+        Top = 3
+        Width = 593
+        Height = 603
+        Align = alClient
+        ReadOnly = True
+        ScrollBars = ssVertical
+        TabOrder = 0
+      end
+    end
+  end
+  object PreviewHost: TPanel
+    Left = 0
+    Top = 0
+    Width = 400
+    Height = 300
+    TabOrder = 2
+    Visible = False
   end
   object ButtonsPanel: TRzPanel
     AlignWithMargins = True

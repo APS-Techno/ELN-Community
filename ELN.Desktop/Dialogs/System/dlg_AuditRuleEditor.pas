@@ -73,7 +73,6 @@ uses
   unit_User,
   unit_TimeHelper;
 
-{ TdlgAuditRuleEditor }
 
 constructor TdlgAuditRuleEditor.Create(AOwner: TComponent);
 begin
@@ -104,7 +103,6 @@ var
   ValueTypes: TList<TValueType>;
   VT: TValueType;
 begin
-  { Action Types }
   cbActionType.Items.Clear;
   FActionTypeIds.Clear;
   ActionTypes := Model.Manager.Find<TActionType>.List;
@@ -118,7 +116,6 @@ begin
     ActionTypes.Free;
   end;
 
-  { Equipments }
   cbEquipment.Items.Clear;
   FEquipmentIds.Clear;
   Equipments := Model.Manager.Find<TEquipment>.List;
@@ -132,7 +129,6 @@ begin
     Equipments.Free;
   end;
 
-  { File Types }
   clbFileTypes.Items.Clear;
   FFileTypeIds.Clear;
   FileTypes := Model.Manager.Find<TFileType>.List;
@@ -146,7 +142,6 @@ begin
     FileTypes.Free;
   end;
 
-  { Value Types }
   clbValueTypes.Items.Clear;
   FValueTypeIds.Clear;
   ValueTypes := Model.Manager.Find<TValueType>.List;
@@ -160,7 +155,6 @@ begin
     ValueTypes.Free;
   end;
 
-  { Severity }
   cbSeverity.Items.Clear;
   cbSeverity.Items.Add('Error');
   cbSeverity.Items.Add('Warning');
@@ -207,19 +201,14 @@ begin
   FCurrentRule := FRules[Index];
   EnableEditor(True);
 
-  { Title }
   edTitle.Text := FCurrentRule.Title;
 
-  { Severity }
   cbSeverity.ItemIndex := Ord(FCurrentRule.Severity);
 
-  { Active }
   chkActive.Checked := FCurrentRule.IsActive;
 
-  { Description }
   memDescription.Text := FCurrentRule.Description;
 
-  { Clear all lookups first }
   cbActionType.ItemIndex := -1;
   cbEquipment.ItemIndex := -1;
   for I := 0 to clbFileTypes.Count - 1 do
@@ -231,7 +220,6 @@ begin
   if FCurrentRule.Id = 0 then
     Exit;
 
-  { Action Type }
   if Assigned(FCurrentRule.ActionType) then
   begin
     IdxFound := FActionTypeIds.IndexOf(FCurrentRule.ActionType.Id);
@@ -239,7 +227,6 @@ begin
       cbActionType.ItemIndex := IdxFound;
   end;
 
-  { Equipment }
   if Assigned(FCurrentRule.Equipment) then
   begin
     IdxFound := FEquipmentIds.IndexOf(FCurrentRule.Equipment.Id);
@@ -247,7 +234,6 @@ begin
       cbEquipment.ItemIndex := IdxFound;
   end;
 
-  { Required File Types }
   for RuleFile in FCurrentRule.RequiredFiles do
   begin
     if Assigned(RuleFile.FileType) then
@@ -258,7 +244,6 @@ begin
     end;
   end;
 
-  { Required Value Types }
   for RuleValue in FCurrentRule.RequiredValues do
   begin
     if Assigned(RuleValue.ValueType) then
@@ -339,7 +324,6 @@ begin
 
   WasNew := FCurrentRule.Id = 0;
 
-  { Read control values into rule }
   FCurrentRule.Title := Trim(edTitle.Text);
   FCurrentRule.Description := memDescription.Text;
   FCurrentRule.IsActive := chkActive.Checked;
@@ -347,25 +331,20 @@ begin
   if cbSeverity.ItemIndex >= 0 then
     FCurrentRule.Severity := TAuditSeverity(cbSeverity.ItemIndex);
 
-  { Action Type }
   ActionTypeId := FActionTypeIds[cbActionType.ItemIndex];
   FCurrentRule.ActionType := Model.Manager.Find<TActionType>(ActionTypeId);
 
-  { Equipment }
   EquipmentId := FEquipmentIds[cbEquipment.ItemIndex];
   FCurrentRule.Equipment := Model.Manager.Find<TEquipment>(EquipmentId);
 
-  { Audit fields }
   FCurrentRule.ModifiedBy := Model.User.Id;
   FCurrentRule.ModifiedDate := UTCNow;
 
-  { Check for duplicate rule }
   if Model.AuditRules.RuleExistsFor(ActionTypeId, EquipmentId, FCurrentRule.Id) then
     MessageDlg('A rule already exists for this Action Type and Equipment combination. ' +
       'The rule will be saved, but you may want to review for duplicates.',
       mtWarning, [mbOK], 0);
 
-  { Save the rule header first }
   Model.AuditRules.SaveRule(FCurrentRule);
   SavedId := FCurrentRule.Id;
 
@@ -379,7 +358,6 @@ begin
       FRules[Idx] := FCurrentRule;
   end;
 
-  { Now proxies are valid — rebuild child collections }
   FCurrentRule.RequiredFiles.Clear;
   for I := 0 to clbFileTypes.Count - 1 do
   begin
@@ -406,7 +384,6 @@ begin
 
   Model.Manager.Flush;
 
-  { Refresh list display }
   Idx := FRules.IndexOf(FCurrentRule);
   LoadRules;
   if (Idx >= 0) and (Idx < lbRules.Items.Count) then
@@ -427,7 +404,6 @@ begin
   Rule.CreatedBy := Model.User.Id;
   Rule.CreatedDate := UTCNow;
 
-  { Add to in-memory list — don't persist until user clicks Save }
   FRules.Add(Rule);
   lbRules.Items.Add(Rule.Title);
   lbRules.ItemIndex := lbRules.Items.Count - 1;
@@ -460,7 +436,6 @@ begin
   SaveCurrentRule;
   if FCurrentRule = nil then Exit;
 
-  { Update list entry to reflect saved title }
   Idx := FRules.IndexOf(FCurrentRule);
   if Idx >= 0 then
   begin

@@ -8,22 +8,39 @@ uses
   Vcl.Edge, Winapi.ActiveX, Winapi.WebView2;
 
 type
+  EProtocolExtractionError = class(Exception);
+
+  // A native callback owns one extraction result, never the viewer or a later
+  // request. WebView2 may retain it after the waiting caller has timed out.
+  TProtocolExtractionCompletion = class(TInterfacedObject,
+    ICoreWebView2ExecuteScriptCompletedHandler)
+  private
+    FDone: Boolean;
+    FData, FError: string;
+  public
+    function Invoke(ErrorCode: HRESULT; AJson: PWideChar): HRESULT; stdcall;
+    function FormData: string;
+    property Done: Boolean read FDone;
+  end;
+
   TframeProtocolViewer = class(TFrame)
   private
     FBrowser: TEdgeBrowser;
     FWebViewReady: Boolean;
+    FDocumentReady: Boolean;
+    FDocumentRevision: UInt64;
     FPendingHtml: string;
     FReadOnly: Boolean;
-    FScriptResult: string;
-    FScriptDone: Boolean;
     FScriptBusy: Boolean;
     FTemplatesPath: string;
     FOnDirty: TNotifyEvent;
     FDirtyFired: Boolean;
     procedure EnsureBrowser;
     procedure HandleWebViewCreated(Sender: TCustomEdgeBrowser; AResult: HRESULT);
-    procedure HandleExecuteScript(Sender: TCustomEdgeBrowser;
-      AResult: HRESULT; const AResultObjectAsJson: string);
+    procedure HandleNavigationStarting(Sender: TCustomEdgeBrowser;
+      Args: TNavigationStartingEventArgs);
+    procedure HandleNavigationCompleted(Sender: TCustomEdgeBrowser;
+      IsSuccess: Boolean; WebErrorStatus: COREWEBVIEW2_WEB_ERROR_STATUS);
     procedure HandleWebMessage(Sender: TCustomEdgeBrowser;
       Args: TWebMessageReceivedEventArgs);
     procedure DisplayHtml(const HtmlCode: string);
@@ -42,14 +59,12 @@ type
     function HtmlEscape(const S: string): string;
     function EscapeJsString(const S: string): string;
   public
-    { Read-only mode: display protocol with metadata header, inputs disabled }
     procedure ShowProtocol(const Title, ProtocolType, Status, CreatedDate,
       ModifiedDate, FormData, EquipModel, EquipManufacturer, EquipLocation: string);
     procedure ShowProtocolWithTemplate(const Title, ProtocolType, Status,
       CreatedDate, ModifiedDate, FormData, TemplateHtml,
       EquipModel, EquipManufacturer, EquipLocation: string);
 
-    { Editor mode: template with editable inputs, no metadata header }
     procedure LoadTemplate(const TemplateHtml: string; const FormData: string = '');
     procedure LoadFreeText(const FormData: string = '');
     function GetFormData: string;
@@ -65,14 +80,53 @@ type
     property OnDirty: TNotifyEvent read FOnDirty write FOnDirty;
   end;
 
+
 implementation
 
 uses
-  System.IOUtils, unit_ELNThemeHelper;
+  System.IOUtils, System.JSON, unit_ELNThemeHelper;
 
 {$R *.dfm}
 
-{ --- Template file loading --- }
+function TProtocolExtractionCompletion.Invoke(ErrorCode: HRESULT;
+  AJson: PWideChar): HRESULT;
+var
+  Root: TJSONValue;
+begin
+  Result := S_OK;
+  if FDone then Exit;
+  try
+    if Failed(ErrorCode) then
+      FError := Format('Protocol extraction failed (HRESULT %.8x).', [ErrorCode])
+    else
+    begin
+      Root := TJSONObject.ParseJSONValue(string(AJson));
+      try
+        if not (Root is TJSONObject) then
+          FError := 'Protocol extraction returned invalid form data.'
+        else
+          FData := Root.ToJSON;
+      finally
+        Root.Free;
+      end;
+    end;
+  except
+    // Do not let a Delphi exception cross the native callback boundary.
+    on E: Exception do
+      FError := E.Message;
+  end;
+  FDone := True;
+end;
+
+function TProtocolExtractionCompletion.FormData: string;
+begin
+  if not FDone then
+    raise EProtocolExtractionError.Create('Protocol extraction has not completed.');
+  if FError <> '' then
+    raise EProtocolExtractionError.Create(FError);
+  Result := FData;
+end;
+
 
 function TframeProtocolViewer.GetTemplatesPath: string;
 begin
@@ -111,7 +165,6 @@ begin
   end;
 end;
 
-{ --- Edge browser management --- }
 
 procedure TframeProtocolViewer.EnsureBrowser;
 var
@@ -128,8 +181,9 @@ begin
     FBrowser.BrowserExecutableFolder := EdgePath;
   FBrowser.UserDataFolder := DataFolder;
   FBrowser.OnCreateWebViewCompleted := HandleWebViewCreated;
-  FBrowser.OnExecuteScript := HandleExecuteScript;
   FBrowser.OnWebMessageReceived := HandleWebMessage;
+  FBrowser.OnNavigationStarting := HandleNavigationStarting;
+  FBrowser.OnNavigationCompleted := HandleNavigationCompleted;
 
   Self.HandleNeeded;
   FBrowser.Parent := Self;
@@ -160,12 +214,19 @@ begin
   end;
 end;
 
-procedure TframeProtocolViewer.HandleExecuteScript(
-  Sender: TCustomEdgeBrowser; AResult: HRESULT;
-  const AResultObjectAsJson: string);
+
+procedure TframeProtocolViewer.HandleNavigationStarting(
+  Sender: TCustomEdgeBrowser; Args: TNavigationStartingEventArgs);
 begin
-  FScriptResult := AResultObjectAsJson;
-  FScriptDone := True;
+  FDocumentReady := False;
+  Inc(FDocumentRevision);
+end;
+
+procedure TframeProtocolViewer.HandleNavigationCompleted(
+  Sender: TCustomEdgeBrowser; IsSuccess: Boolean;
+  WebErrorStatus: COREWEBVIEW2_WEB_ERROR_STATUS);
+begin
+  FDocumentReady := IsSuccess;
 end;
 
 procedure TframeProtocolViewer.HandleWebMessage(Sender: TCustomEdgeBrowser;
@@ -203,13 +264,14 @@ end;
 
 procedure TframeProtocolViewer.DisplayHtml(const HtmlCode: string);
 begin
+  FDocumentReady := False;
+  Inc(FDocumentRevision);
   if FWebViewReady then
     FBrowser.NavigateToString(HtmlCode)
   else
     FPendingHtml := HtmlCode;
 end;
 
-{ --- Shared HTML helpers --- }
 
 function TframeProtocolViewer.HtmlEscape(const S: string): string;
 begin
@@ -252,7 +314,6 @@ begin
   end;
 end;
 
-{ --- Read-only mode (plugin viewer) --- }
 
 function TframeProtocolViewer.BuildViewerHTML(const Title, ProtocolType, Status,
   CreatedDate, ModifiedDate, FormData, EquipModel, EquipManufacturer,
@@ -268,7 +329,6 @@ begin
   Result := StringReplace(Result, '{{CREATED}}', HtmlEscape(CreatedDate), []);
   Result := ApplySection(Result, 'MODIFIED', HtmlEscape(ModifiedDate));
 
-  // Equipment section — show only when at least Model is present
   if EquipModel <> '' then
     HasEquip := 'yes'
   else
@@ -299,7 +359,6 @@ begin
   MetaHeader := StringReplace(MetaHeader, '{{CREATED}}', HtmlEscape(CreatedDate), []);
   MetaHeader := ApplySection(MetaHeader, 'MODIFIED', HtmlEscape(ModifiedDate));
 
-  // Equipment section
   if EquipModel <> '' then
     HasEquip := 'yes'
   else
@@ -355,7 +414,6 @@ begin
     ModifiedDate, FormData, TemplateHtml, EquipModel, EquipManufacturer, EquipLocation));
 end;
 
-{ --- Editor mode --- }
 
 function TframeProtocolViewer.BuildEditorTemplateHTML(
   const TemplateHtml, FormData: string): string;
@@ -387,7 +445,6 @@ begin
   Result := StringReplace(Result, '{{JS}}', LoadFile('protocol.js'), []);
 
   if (FormData <> '') and (FormData[1] = '{') then
-    // JSON from extractFormData() — use setFormData to populate fields
     Result := StringReplace(Result, '{{FORMDATA}}', '', [])
   else if FormData <> '' then
     // Legacy plain text — put directly in textarea (no input/change event,
@@ -396,7 +453,6 @@ begin
   else
     Result := StringReplace(Result, '{{FORMDATA}}', '', []);
 
-  // Arm dirty tracking; restore JSON form data first when applicable.
   OnLoadJs := 'window.onload=function(){';
   if (FormData <> '') and (FormData[1] = '{') then
     OnLoadJs := OnLoadJs + 'setFormData(''' + EscapeJsString(FormData) + ''');';
@@ -431,6 +487,8 @@ end;
 
 procedure TframeProtocolViewer.PrepareForReparent;
 begin
+  FDocumentReady := False;
+  Inc(FDocumentRevision);
   // Close the WebView2 session but keep the TEdgeBrowser control alive.
   // After reparenting, CMShowingChanged will call CreateWebView to
   // reinitialize in the new parent context.
@@ -445,36 +503,45 @@ function TframeProtocolViewer.GetFormData: string;
 const
   SCRIPT_TIMEOUT_MS = 8000;
 var
-  Deadline: UInt64;
+  Deadline, Revision: UInt64;
+  Completion: TProtocolExtractionCompletion;
+  Handler: ICoreWebView2ExecuteScriptCompletedHandler;
+  Status: HRESULT;
 begin
-  Result := '';
-  if not FWebViewReady then
-    Exit;
-
-  // Re-entrancy guard: the wait loop below pumps the message queue, so a second
-  // GetFormData (e.g. a re-triggered save) must not start mid-extraction.
   if FScriptBusy then
-    Exit;
+    raise EProtocolExtractionError.Create('Protocol extraction is already in progress.');
+  if not FWebViewReady or not FDocumentReady or (FBrowser = nil) or
+    (FBrowser.DefaultInterface = nil) then
+    raise EProtocolExtractionError.Create('Protocol editor is not ready. The form was not saved.');
 
+  Completion := TProtocolExtractionCompletion.Create;
+  Handler := Completion;
   FScriptBusy := True;
   try
-    FScriptResult := '';
-    FScriptDone := False;
-    FBrowser.ExecuteScript('extractFormData()');
-    // Bound the wait: if the WebView2 crashed or the callback never fires, abort
-    // with an empty result rather than hanging the UI forever.
+    Revision := FDocumentRevision;
+    // A separate native completion object correlates failures too, including
+    // HRESULT/null results that carry no JavaScript request identifier.
+    try
+      Status := FBrowser.DefaultInterface.ExecuteScript(
+        PWideChar('extractFormData()'), Handler);
+      if Failed(Status) then
+        raise EProtocolExtractionError.CreateFmt(
+          'Protocol extraction could not start (HRESULT %.8x).', [Status]);
+    except
+      on E: Exception do
+        raise EProtocolExtractionError.Create('Protocol extraction failed: ' + E.Message);
+    end;
     Deadline := GetTickCount64 + SCRIPT_TIMEOUT_MS;
-    while not FScriptDone do
+    while not Completion.Done do
     begin
       Application.ProcessMessages;
       if GetTickCount64 > Deadline then
-      begin
-        OutputDebugString(PChar(
-          '[ProtocolViewer] GetFormData timed out waiting for extractFormData()'));
-        Exit;   // Result stays '' — failed/empty
-      end;
+        raise EProtocolExtractionError.Create('Protocol extraction timed out. The form was not saved.');
+      if not FWebViewReady or not FDocumentReady or
+        (Revision <> FDocumentRevision) then
+        raise EProtocolExtractionError.Create('Protocol editor changed during extraction.');
     end;
-    Result := FScriptResult;
+    Result := Completion.FormData;
   finally
     FScriptBusy := False;
   end;

@@ -1,9 +1,7 @@
 unit unit_HypothesisEvidence;
 
-{ One citation the conclusion rests on: an item as a whole, one of its files,
-  or one of its values. FileHash and ValueSnapshot are copied by the server at
-  citation time and never supplied by a caller; they let the dashboard flag
-  evidence that changed afterwards. FileId is Int64 because Files.Id is. }
+{ FileHash and ValueSnapshot are captured by the server at citation time,
+  never supplied by a caller, so later evidence changes can be detected. }
 
 interface
 

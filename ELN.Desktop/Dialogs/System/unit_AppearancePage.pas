@@ -1,12 +1,7 @@
 unit unit_AppearancePage;
 
-{
-  The Settings dialog's Appearance tab: tree scale, row spacing, row tint and
-  row colours. Built at runtime onto a tab sheet, like the dialog's other
-  runtime controls. Every edit goes straight to the live Appearance and calls
-  OnChange, so the real trees change behind the dialog; Cancel puts back the
-  snapshot taken when the page was made. Saving is the caller's (on OK).
-}
+{ Edits apply immediately to the live trees; Cancel restores the initial snapshot.
+  The caller persists changes only on OK. }
 
 interface
 
@@ -30,7 +25,6 @@ type
     function AddButton(AParent: TWinControl; const ACaption: string;
       ATop: Integer): TButton;
     procedure FillColors;
-    /// Catalogue index of a list row, or GROUP_ROW for a heading.
     function ColorAt(Row: Integer): Integer;
     function SelectedColor: Integer;
     procedure Changed;
@@ -43,18 +37,16 @@ type
     procedure ResetClick(Sender: TObject);
     procedure ResetAllClick(Sender: TObject);
   public
-    /// Builds the page on ATab. AOnChange runs after every edit (may be nil).
     constructor Create(AOwner: TComponent; ATab: TTabSheet;
       const AOnChange: TProc); reintroduce;
     destructor Destroy; override;
-    /// Puts back the appearance from when the page was made, and applies it.
     procedure Cancel;
   end;
 
 implementation
 
 const
-  GROUP_ROW = -1;   // ColorAt's answer for a group heading
+  GROUP_ROW = -1;   
 
 // A row's item data is its catalogue index + 1, and 0 for a heading: never
 // -1, which is LB_ERR, and reading it back would raise EListError.

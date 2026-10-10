@@ -66,7 +66,6 @@ begin
   end;
 end;
 
-{ TdlgTemplateSelect }
 
 destructor TdlgTemplateSelect.Destroy;
 begin
@@ -100,7 +99,6 @@ begin
   if not Assigned(FTemplateList) or (FTemplateList.Count = 0) then
     Exit;
 
-  // Sort by category then name
   FTemplateList.Sort(TComparer<TTemplate>.Construct(
     function(const L, R: TTemplate): Integer
     begin
@@ -109,7 +107,6 @@ begin
         Result := CompareText(L.Name, R.Name);
     end));
 
-  // Build category -> templates map and populate category listbox
   for T in FTemplateList do
   begin
     Cat := T.Category;
@@ -140,7 +137,6 @@ begin
   SelIdx := lbCategories.ItemIndex;
   if SelIdx < 0 then Exit;
 
-  // "(No template)" at index 0 — no templates to show, OK is valid
   if SelIdx = 0 then
   begin
     btnOK.Enabled := True;
@@ -160,7 +156,6 @@ begin
     end;
   end;
 
-  // Must select a template from the list before OK is enabled
   btnOK.Enabled := False;
 end;
 

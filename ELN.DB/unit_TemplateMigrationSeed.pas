@@ -8,9 +8,7 @@ uses
 type
   TTemplateMigrationSeed = class
   public
-    /// <summary>Idempotently seeds TemplateEquipmentTypes rows from the
-    /// reversed EQUIPMENT_TYPE_TO_TEMPLATE_CATEGORIES mapping. Safe to re-run.
-    /// Caller is responsible for transaction lifetime.</summary>
+    // Caller owns transaction lifetime.
     class procedure Run(Mgr: TObjectManager); static;
   end;
 

@@ -1,13 +1,7 @@
 unit unit_HypothesisRules;
 
-{
-  Pure transition rules for the experiment tree (spec §6.1). No manager, no
-  database, no policy: callers work out WHO the user is (actors) and WHAT is
-  true (facts), and this unit answers yes or names the reason for no.
-
-  Gate transitions (IsGateTransition) are decided here like any other, but
-  only unit_HypothesisGateModel is allowed to EXECUTE them.
-}
+{ Pure transition eligibility does not authorize execution:
+  only unit_HypothesisGateModel may execute human gates. }
 
 interface
 
@@ -36,7 +30,6 @@ type
 
 const
   FinalStatuses: set of THypothesisStatus = [hsRejected, hsAccepted, hsAbandoned];
-  /// <summary>Items cited by a hypothesis in these states cannot be deleted.</summary>
   LockedStatuses: set of THypothesisStatus = [hsInReview, hsAccepted];
 
   HypRefusalNames: array[THypRefusal] of string = ('ok', 'not_allowed',
@@ -44,8 +37,6 @@ const
     'needs_evidence', 'locked', 'needs_title', 'needs_statement',
     'needs_change', 'comment_too_long');
 
-  /// <summary>A status-change comment (gate or abandon) holds at most this
-  /// many characters, counted as HypCommentLength counts them.</summary>
   MAX_HYP_COMMENT = 500;
 
 function IsGateTransition(AFrom, ATo: THypothesisStatus): Boolean;
@@ -58,9 +49,6 @@ function CheckProposal(const ATitle, AStatement, AChange: string;
 function EditableFields(AStatus: THypothesisStatus;
   AActors: THypActors): THypFields;
 function CanChangeRunsOrEvidence(AStatus: THypothesisStatus): Boolean;
-/// <summary>Reference items are context for a proposal: the author may add
-/// them while Proposed; anyone who may change runs may change them while
-/// Approved.</summary>
 function CanChangeReferences(AStatus: THypothesisStatus;
   AActors: THypActors): Boolean;
 function RefusalText(ARefusal: THypRefusal): string;

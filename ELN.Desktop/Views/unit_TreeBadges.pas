@@ -1,20 +1,6 @@
 unit unit_TreeBadges;
 
-{
-  The one badge look for the desktop trees ("soft badge"): an anti-aliased
-  rounded rectangle whose fill is a light tint of the badge's base colour
-  over the row background, with the label in a deeper shade of the same hue
-  (a lighter one on a dark background). Used by the item tree (comment and
-  link counts, tags, SIGNED, HYP) and the project tree (HYP n).
-
-  Colours adapt to the background the caller passes (row background, or the
-  selection colour on a selected row), so the light and Carbon themes need
-  no separate palette. Sizes scale by the caller's PPI - the tree's own
-  monitor DPI (Sender.CurrentPPI), never Screen.PixelsPerInch.
-
-  The pure colour maths (MixColor, RelativeLuminance, ContrastRatio,
-  BadgeColors) is exposed for the unit tests.
-}
+{ Use the tree monitor DPI, not Screen.PixelsPerInch, for badge sizes. }
 
 interface
 
@@ -22,13 +8,12 @@ uses
   Winapi.Windows, System.Types, Vcl.Graphics, VirtualTrees, VirtualTrees.Types;
 
 const
-  // Base colours (TColor, i.e. $00BBGGRR - written with RGB() below).
-  BADGE_TEAL    = TColor($008D8B0F);   // RGB(15,139,141)  HYP
-  BADGE_PLUM    = TColor($00A34F8E);   // RGB(142,79,163)  waiting for you
-  BADGE_RED     = TColor($001823B4);   // RGB(180,35,24)   SIGNED
-  BADGE_SLATE   = TColor($007C6B5B);   // RGB(91,107,124)  comment count
-  BADGE_VIOLET  = TColor($00955B6B);   // RGB(107,91,149)  link count
-  BADGE_BLUE    = TColor($00D96F1E);   // RGB(30,111,217)  tag without colour
+  BADGE_TEAL    = TColor($008D8B0F);   
+  BADGE_PLUM    = TColor($00A34F8E);   
+  BADGE_RED     = TColor($001823B4);   
+  BADGE_SLATE   = TColor($007C6B5B);   
+  BADGE_VIOLET  = TColor($00955B6B);   
+  BADGE_BLUE    = TColor($00D96F1E);   
 
 type
   TBadgeColors = record
@@ -36,8 +21,6 @@ type
     Text: TColor;
   end;
 
-/// Linear blend in RGB: T = 0 gives A, T = 1 gives B. System colours are
-/// resolved with ColorToRGB first.
 function MixColor(A, B: TColor; T: Double): TColor;
 /// WCAG relative luminance, 0 (black) .. 1 (white).
 function RelativeLuminance(C: TColor): Double;
@@ -48,8 +31,6 @@ function ContrastRatio(A, B: TColor): Double;
 /// 4.5:1 contrast against the fill, or as far as it can go.
 function BadgeColors(ABase, ABackground: TColor): TBadgeColors;
 
-/// What a node's cells are painted on: the (focused or unfocused) selection
-/// colour for a selected node, else the tree background - VCL-style aware.
 function TreeRowBackground(ATree: TBaseVirtualTree; ANode: PVirtualNode): TColor;
 
 /// True when a node the user can see is expanded. Expanded nodes hidden under
@@ -57,20 +38,13 @@ function TreeRowBackground(ATree: TBaseVirtualTree; ANode: PVirtualNode): TColor
 function TreeHasVisibleExpanded(ATree: TBaseVirtualTree): Boolean;
 
 const
-  /// Hover row actions, left to right: collapse subtree, expand subtree,
-  /// focus (collapse everything else).
   TREE_ACTION_COLLAPSE = 0;
   TREE_ACTION_EXPAND   = 1;
   TREE_ACTION_FOCUS    = 2;
   TREE_ACTION_COUNT    = 3;
 
-/// Button AIndex of the hover action pill, right-aligned and vertically
-/// centred in ACell (the hovered row's Title cell).
 function TreeActionButtonRect(const ACell: TRect; APPI, AIndex: Integer): TRect;
-/// The hover action under P, or -1.
 function TreeActionAt(const ACell: TRect; APPI: Integer; const P: TPoint): Integer;
-/// Paints the hover action pill in the badge look; AHot is the button under
-/// the mouse (-1 for none).
 procedure DrawTreeActions(ACanvas: TCanvas; const ACell: TRect; APPI: Integer;
   ABackground: TColor; AHot: Integer);
 
@@ -91,20 +65,15 @@ type
     function PillHeight: Integer;
     procedure Paint(const R: TRect; const AText: string; ABase: TColor);
   public
-    /// ABaseFont: the tree font (the badge is a semibold step smaller).
-    /// ABackground: what the pill sits on (row or selection colour).
     constructor Create(ACanvas: TCanvas; ABaseFont: TFont; APPI: Integer;
       ABackground: TColor);
     destructor Destroy; override;
-    /// Width of the pill for AText (never narrower than it is tall).
     function Width(const AText: string): Integer;
-    /// Space to leave between neighbouring badges.
     property Gap: Integer read FGap;
     /// Draws at X, vertically centred in ACell; returns the pill's right
     /// edge. Draws nothing and returns X when the pill would pass ALimit.
     function DrawAt(X: Integer; const ACell: TRect; const AText: string;
       ABase: TColor; ALimit: Integer = MaxInt): Integer;
-    /// Draws with its right edge at ARight; returns the pill's left edge.
     function DrawRightAligned(ARight: Integer; const ACell: TRect;
       const AText: string; ABase: TColor): Integer;
   end;
@@ -267,7 +236,6 @@ var
 begin
   if APPI <= 0 then
     APPI := 96;
-  // Rows can be as short as ~20 px: let the pill take nearly the full height.
   Pad := Max(1, MulDiv(1, APPI, 96));
   S := Min(MulDiv(26, APPI, 96), ACell.Height - 2 * Pad);
   Y := ACell.Top + (ACell.Height - S) div 2;
@@ -321,7 +289,6 @@ begin
         if I = AHot then
           FillRoundRect(G, B, B.Height, MixColor(Colors.Fill, Colors.Text, 0.22));
 
-        // Glyph box: the middle ~56% of the button.
         W := B.Width * 0.56;
         L := B.Left + (B.Width - W) / 2;
         T := B.Top + (B.Height - W) / 2;
@@ -330,7 +297,6 @@ begin
         case I of
           TREE_ACTION_COLLAPSE, TREE_ACTION_EXPAND:
             begin
-              // Rounded square with a minus (collapse) or plus (expand).
               Path := RoundRectPath(L, T, W, W, W * 0.3);
               try
                 G.DrawPath(Pen, Path);
@@ -343,7 +309,6 @@ begin
             end;
           TREE_ACTION_FOCUS:
             begin
-              // Target: ring with a centre dot.
               G.DrawEllipse(Pen, L, T, W, W);
               G.FillEllipse(Brush, L + Mid - Arm * 0.8, T + Mid - Arm * 0.8,
                 Arm * 1.6, Arm * 1.6);
@@ -359,7 +324,6 @@ begin
   end;
 end;
 
-{ TBadgePainter }
 
 constructor TBadgePainter.Create(ACanvas: TCanvas; ABaseFont: TFont;
   APPI: Integer; ABackground: TColor);
@@ -422,7 +386,7 @@ function TBadgePainter.Width(const AText: string): Integer;
 var
   H: Integer;
 begin
-  H := PillHeight;   // also applies the badge font
+  H := PillHeight;   
   Result := Max(FCanvas.TextWidth(AText) + 2 * FPadX, H);
 end;
 
@@ -438,7 +402,6 @@ begin
   try
     G.SetSmoothingMode(SmoothingModeAntiAlias);
     G.SetPixelOffsetMode(PixelOffsetModeHalf);
-    // Rounded rectangle: corner radius 4 px at 96 dpi, never past half height.
     FillRoundRect(G, R, 2 * MulDiv(4, FPPI, 96), Colors.Fill);
   finally
     G.Free;   // flushes to the DC before the GDI text below

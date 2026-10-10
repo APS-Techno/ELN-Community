@@ -37,6 +37,8 @@ type
       Version: Integer): Integer;
     function ImportProtocol(JEntry: TJSONObject; UserId: Integer): TProtocol;
     procedure ImportStatusHistory(JHistory: TJSONArray; ProtocolId, UserId: Integer);
+    function ImportPackageCore(const PackagePath: string;
+      ProjectId, FolderId, UserId: Integer): TELNPackageImportResult;
 
   public
     constructor Create(Manager: TObjectManager);
@@ -58,7 +60,6 @@ uses
   unit_ValueType,
   unit_TimeHelper;
 
-{ TELNPackageImporter }
 
 constructor TELNPackageImporter.Create(Manager: TObjectManager);
 begin
@@ -155,11 +156,9 @@ var
   Existing: TTemplates;
   T, Match: TTemplate;
 begin
-  // Check if we already mapped this original ID
   if FTemplateMap.ContainsKey(OriginalId) then
     Exit(FTemplateMap[OriginalId]);
 
-  // Search for existing template with same name and schema
   Existing := FManager.Find<TTemplate>
     .Where(FTemplateDic.Name = Name)
     .Where(FTemplateDic.IsActive = True)
@@ -177,13 +176,10 @@ begin
 
     if Assigned(Match) then
     begin
-      // Exact match — reuse existing template
       Result := Match.Id;
     end
     else
     begin
-      // Same name but different schema → create new version
-      // Or no matching name → create new template
       T := TTemplate.Create;
       T.Name := Name;
       T.FormSchema := Schema;
@@ -257,7 +253,6 @@ begin
   // TProtocolStatusModel workflow post-import to reach any non-draft state.
   Result.ValidationStatus := vsDraft;
 
-  // Map template ID
   JTemplateId := JEntry.GetValue('templateOriginalId');
   if Assigned(JTemplateId) and not (JTemplateId is TJSONNull) then
   begin
@@ -265,7 +260,7 @@ begin
     if FTemplateMap.TryGetValue(OriginalTemplateId, NewTemplateId) then
       Result.TemplateId := NewTemplateId
     else
-      Result.TemplateId := OriginalTemplateId; // fallback — use original ID
+      Result.TemplateId := OriginalTemplateId;
   end;
 end;
 
@@ -323,7 +318,6 @@ begin
 
     FManager.Save(Item);
 
-    // Import entries (protocols/notes)
     if JItem.GetValue('entries') <> nil then
     begin
       JEntries := JItem.GetValue('entries') as TJSONArray;
@@ -338,7 +332,6 @@ begin
     FManager.Update(Item);
     FManager.Flush;
 
-    // Import status history for protocols that have been saved
     if JItem.GetValue('entries') <> nil then
     begin
       JEntries := JItem.GetValue('entries') as TJSONArray;
@@ -351,7 +344,6 @@ begin
 
         if Assigned(JStatusHistory) and (JStatusHistory.Count > 0) then
         begin
-          // Get the protocol that was just saved (entry index matches)
           if J < Item.Entries.Count then
           begin
             Protocol := Item.Entries[J] as TProtocol;
@@ -367,6 +359,28 @@ begin
 end;
 
 function TELNPackageImporter.ImportPackage(const PackagePath: string;
+  ProjectId, FolderId, UserId: Integer): TELNPackageImportResult;
+var
+  OperationManager: TObjectManager;
+  Importer: TELNPackageImporter;
+begin
+  if FolderId < 0 then FolderId := 0;
+  // Neither successful imports nor failed flushes may modify the host's
+  // identity map or flush its unrelated pending edits.
+  OperationManager := TObjectManager.Create(FManager.Connection);
+  try
+    Importer := TELNPackageImporter.Create(OperationManager);
+    try
+      Result := Importer.ImportPackageCore(PackagePath, ProjectId, FolderId, UserId);
+    finally
+      Importer.Free;
+    end;
+  finally
+    OperationManager.Free;
+  end;
+end;
+
+function TELNPackageImporter.ImportPackageCore(const PackagePath: string;
   ProjectId, FolderId, UserId: Integer): TELNPackageImportResult;
 var
   Root: TJSONObject;
@@ -386,18 +400,13 @@ begin
   end;
 
   try
-    // Wrap the entire import in a single transaction so any exception rolls
-    // the partial state back. Previously ImportTemplates/ImportItems each
-    // called Flush inline and a failure mid-way left orphan templates,
-    // half-linked items, or dangling ref IDs in the database.
+    // One transaction prevents partial imports with orphaned or half-linked rows.
     Trans := FManager.Connection.BeginTransaction;
     try
-      // Import templates first
       JTemplates := Root.GetValue('templates') as TJSONArray;
       if Assigned(JTemplates) then
         ImportTemplates(JTemplates, Result.TemplateCount);
 
-      // Import items
       JItems := Root.GetValue('items') as TJSONArray;
       if Assigned(JItems) then
         ImportItems(JItems, ProjectId, FolderId, UserId, Result.ItemCount);

@@ -39,7 +39,6 @@ const
     #$03A4, #$03A5, #$03A6, #$03A7, #$03A8, #$03A9
   );
 
-{ TdlgGreekPicker }
 
 class function TdlgGreekPicker.Pick(AnchorControl: TControl): string;
 var
@@ -54,12 +53,10 @@ begin
     Dlg.KeyPreview := True;
     Dlg.BuildGrid;
 
-    // Position below the anchor control
     Pt := AnchorControl.ClientToScreen(Point(0, AnchorControl.Height));
     Dlg.Left := Pt.X;
     Dlg.Top := Pt.Y;
 
-    // Keep on screen
     Mon := Screen.MonitorFromPoint(Pt);
     R := Mon.WorkareaRect;
     if Dlg.Left + Dlg.Width > R.Right then
@@ -143,26 +140,23 @@ begin
   X := Gap;
   Y := Gap;
 
-  // Lowercase Greek
   for I := 0 to High(LowerGreek) do
     AddButton(LowerGreek[I]);
 
   AddSeparator;
 
-  // Uppercase Greek
   for I := 0 to High(UpperGreek) do
     AddButton(UpperGreek[I]);
 
   AddSeparator;
 
-  // Common scientific symbols
-  AddButton(#$00B5);        // µ
-  AddButton(#$00B0);        // °
-  AddButton(#$00B1);        // ±
-  AddButton(#$00C5);        // Å
-  AddButton(#$00B2);        // ²
-  AddButton(#$00B3);        // ³
-  AddButton(#$207B#$00B9);  // ⁻¹
+  AddButton(#$00B5);        
+  AddButton(#$00B0);        
+  AddButton(#$00B1);        
+  AddButton(#$00C5);        
+  AddButton(#$00B2);        
+  AddButton(#$00B3);        
+  AddButton(#$207B#$00B9);  
 
   if X > Gap then
     Y := Y + BtnSize + Gap;

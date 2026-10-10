@@ -1,8 +1,5 @@
 unit form_MarkdownEditorWindow;
 
-// Markdown editor window. Layout is fully DFM-driven; runtime code only
-// instantiates the markdown highlighter, the debounce timer, and the
-// preview frame (lazy on first switch into Preview/Split mode).
 
 interface
 
@@ -65,7 +62,8 @@ type
     procedure DoModeChange(Sender: TObject);
   private
     FLocalPath: string;
-    FItemId, FFileId: Integer;
+    FItemId: Integer;
+    FFileId: Int64;
     FOnSaved: TProc<string>;
     FSaving: Boolean;
 
@@ -91,18 +89,13 @@ type
     procedure SaveWindowState;
   public
     procedure OpenFile(const ALocalPath: string;
-                       AItemId, AFileId: Integer;
+                       AItemId: Integer; AFileId: Int64;
                        AOnSaved: TProc<string>);
     procedure SetOnSaved(AOnSaved: TProc<string>);
 
     property LocalPath: string read FLocalPath;
     property ItemId: Integer read FItemId;
-    property FileId: Integer read FFileId;
-    // Other UI children (edSrc, sbStatus, rgMode, pneFile/Chars/State) are
-    // already exposed as published fields via the DFM and can be accessed
-    // directly. The legacy F-prefixed property accessors (Src/Status/
-    // RgMode/PaneFile/PaneChars/PaneState) had no callers outside the
-    // form and were dropped in the DFM-driven rewrite.
+    property FileId: Int64 read FFileId;
   end;
 
 implementation
@@ -111,17 +104,11 @@ implementation
 
 procedure TformMarkdownEditor.FormCreate(Sender: TObject);
 begin
-  // SynEdit options not expressed in the DFM (kept here so we don't have
-  // to register every TSynEditorOptions value as a published property).
   edSrc.Options := edSrc.Options + [eoSmartTabs, eoTabsToSpaces, eoTrimTrailingSpaces];
 
-  // Markdown highlighter (runtime so the form's DFM doesn't need to know
-  // about the TSynMarkdownSyn class).
   FHighlighter := TSynMarkdownSyn.Create(Self);
   edSrc.Highlighter := FHighlighter;
 
-  // Debounce timer for preview re-render (Task 9.2). Restarted on every
-  // SynEdit change while preview is visible; fires once after 250 ms idle.
   FRefreshTimer := TTimer.Create(Self);
   FRefreshTimer.Interval := 250;
   FRefreshTimer.Enabled  := False;
@@ -131,12 +118,9 @@ begin
   // edits (and not whatever empty content the form streamed).
   edSrc.OnChange := SrcChange;
 
-  // Restore last-session window bounds + mode + splitter (Task 11.1).
   LoadWindowState;
 
-  // Register the form's window to receive WM_DROPFILES for Explorer drops
-  // (Task 10.2). HandleNeeded forces handle allocation so DragAcceptFiles
-  // has a real HWND to register against.
+  // HandleNeeded gives DragAcceptFiles a real HWND to register.
   HandleNeeded;
   Winapi.ShellAPI.DragAcceptFiles(Handle, True);
 end;
@@ -155,7 +139,6 @@ begin
       T := IfThen(Reg.ValueExists('T'), Reg.ReadInteger('T'), Self.Top);
       W := IfThen(Reg.ValueExists('W'), Reg.ReadInteger('W'), Self.Width);
       H := IfThen(Reg.ValueExists('H'), Reg.ReadInteger('H'), Self.Height);
-      // Sanity: clamp to a sensible minimum and on-screen position
       if W < 600 then W := 600;
       if H < 400 then H := 400;
       Self.SetBounds(L, T, W, H);
@@ -173,7 +156,6 @@ begin
       if Reg.ValueExists('SplitWidth') then
       begin
         SplitW := Reg.ReadInteger('SplitWidth');
-        // Apply only if Split mode is active (preview host visible).
         if pnlPreview.Visible and (rgMode.ItemIndex = 2) then
           if (SplitW > 100) and (SplitW < Self.ClientWidth - 200) then
             pnlPreview.Width := SplitW;
@@ -251,8 +233,6 @@ end;
 
 procedure TformMarkdownEditor.DoHeadingClick(Sender: TObject);
 begin
-  // Always sets to H2; thanks to MakeHeading idempotency, clicking again
-  // on an existing H2 line toggles it back to body text.
   ApplyResult(MakeHeading(edSrc.Text, edSrc.SelStart + 1, 2));
 end;
 
@@ -260,8 +240,6 @@ procedure TformMarkdownEditor.DoLinkClick(Sender: TObject);
 var
   Sel: string;
 begin
-  // Wrap selected text as the link label, leave URL slot empty for typing.
-  // If selection is empty, insert '[](url)' with caret between brackets.
   if edSrc.SelLength > 0 then
   begin
     Sel := edSrc.SelText;
@@ -278,8 +256,6 @@ procedure TformMarkdownEditor.DoImageClick(Sender: TObject);
 var
   Sel: string;
 begin
-  // Same shape as link, with leading '!'. Real image insertion via paste/drop
-  // is Task 10. This button is a manual placeholder.
   if edSrc.SelLength > 0 then
   begin
     Sel := edSrc.SelText;
@@ -296,8 +272,6 @@ procedure TformMarkdownEditor.EnsurePreview;
 begin
   if Assigned(FPreview) then Exit;
 
-  // pnlPreview / splPreview already exist via DFM; just instantiate the
-  // viewer frame inside the host panel.
   FPreview := TframeMarkdownViewer.Create(pnlPreview);
   FPreview.Parent := pnlPreview;
   FPreview.Align  := alClient;
@@ -347,40 +321,26 @@ begin
   RenderPreview;
 end;
 
-// Build a file:/// URL from a local path, encoding the characters a browser
-// would otherwise misparse: '%' (escape introducer, encoded first), '#'
-// (fragment — filenames carry '#N' auto-suffixes), and '?' (query).
-function ToFileUrl(const APath: string): string;
-begin
-  Result := StringReplace(APath, '\', '/', [rfReplaceAll]);
-  Result := StringReplace(Result, '%', '%25', [rfReplaceAll]);
-  Result := StringReplace(Result, '#', '%23', [rfReplaceAll]);
-  Result := StringReplace(Result, '?', '%3F', [rfReplaceAll]);
-  Result := 'file:///' + Result;
-end;
 
 procedure TformMarkdownEditor.RenderPreview;
 var
   Rendered, BaseHref, Dir: string;
 begin
   if not Assigned(FPreview) then Exit;
-  if not (rgMode.ItemIndex in [1, 2]) then Exit;  // not visible
+  if not (rgMode.ItemIndex in [1, 2]) then Exit;
 
-  // Mirror the click-edit lambda in TframeMarkdownViewer / unit_MarkdownPlugin:
-  // attachment-ref rewrite first (uses on-disk enumeration for [ID] prefix),
-  // then eln://link rewrite, then render with file:// base for relative refs.
   Dir := ExtractFilePath(FLocalPath);
   Rendered := RewriteAttachmentRefs(edSrc.Text, Dir);
   Rendered := RewriteElnLinks(Rendered);
   if Dir <> '' then
-    BaseHref := ToFileUrl(IncludeTrailingPathDelimiter(Dir))
+    BaseHref := MarkdownFileUrl(IncludeTrailingPathDelimiter(Dir))
   else
     BaseHref := '';
   FPreview.RenderMarkdown(Rendered, BaseHref);
 end;
 
 procedure TformMarkdownEditor.OpenFile(const ALocalPath: string;
-  AItemId, AFileId: Integer; AOnSaved: TProc<string>);
+  AItemId: Integer; AFileId: Int64; AOnSaved: TProc<string>);
 var
   Body: string;
 begin
@@ -465,7 +425,6 @@ begin
     mrYes:
       begin
         DoSave(False);
-        // Close iff save succeeded (Modified cleared on srOk).
         CanClose := not edSrc.Modified;
       end;
     mrNo:     CanClose := True;
@@ -484,9 +443,7 @@ begin
   if FSaving then Exit;
   FSaving := True;
   try
-    // Write current buffer to local file (UTF-8, no BOM).
-    // GetBytes does NOT emit a preamble; TFile.WriteAllText with
-    // TEncoding.UTF8 would prepend one — mirror the wiki MCP fix.
+    // GetBytes omits the BOM that TFile.WriteAllText with UTF8 would prepend.
     Bytes := TEncoding.UTF8.GetBytes(edSrc.Text);
     try
       TFile.WriteAllBytes(FLocalPath, Bytes);
@@ -501,7 +458,6 @@ begin
 
     if not Assigned(ElnFileService) then
     begin
-      // Headless / PluginTestApp — local-only save, useful for dev.
       edSrc.Modified := False;
       UpdateTitleAndStatus;
       SetSaveStatus('Saved locally ' + FormatDateTime('hh:nn:ss', Now) +
@@ -577,7 +533,6 @@ begin
         DoReload
       else if TD.ModalResult = ButtonSaveAnyway.ModalResult then
         Result := True;
-      // Cancel: no-op, user keeps editing.
     end;
   finally
     TD.Free;
@@ -601,7 +556,6 @@ begin
     Exit;
   end;
 
-  // Re-read the (now-fresh) local file into SynEdit.
   if FileExists(FLocalPath) then
     Body := TFile.ReadAllText(FLocalPath, TEncoding.UTF8)
   else
@@ -654,7 +608,7 @@ begin
         if Assigned(ElnFileService) then
           Server := ElnFileService.UploadAttachment(FItemId, LocalPath, '')
         else
-          Server := ExtractFileName(LocalPath);  // headless fallback
+          Server := ExtractFileName(LocalPath);
         Snippet := BuildInsertSnippet(Server, IsImg);
         // Newline-prefix when the cursor is mid-line so the snippet doesn't
         // get glued to existing text.
@@ -721,7 +675,7 @@ begin
 
   Bmp := TBitmap.Create;
   try
-    Bmp.Assign(Clipboard);  // pulls from CF_BITMAP / CF_DIB
+    Bmp.Assign(Clipboard);
     if (Bmp.Width = 0) or (Bmp.Height = 0) then Exit;
 
     Png := TPngImage.Create;
@@ -735,12 +689,11 @@ begin
     Bmp.Free;
   end;
 
-  // Upload + insert (mirror the drop handler's exception handling).
   try
     if Assigned(ElnFileService) then
       Server := ElnFileService.UploadAttachment(FItemId, TempPath, TempName)
     else
-      Server := TempName;  // headless fallback - just insert the bare name
+      Server := TempName;
     Snippet := BuildInsertSnippet(Server, True);
     edSrc.SelText := Snippet;
     Result := True;
@@ -760,8 +713,6 @@ begin
     end;
   end;
 
-  // Best-effort cleanup. If the upload succeeded the host may have moved
-  // the file; if it raised, the temp file is harmless and Windows will GC.
   try TFile.Delete(TempPath); except end;
 end;
 

@@ -1,43 +1,8 @@
 unit unit_ToolsHypotheses;
 
-{
-  MCP tools for the experiment tree (spec section 7). Agents can propose
-  hypotheses, attach runs, cite evidence and submit conclusions.
-
-  NONE of these tools can approve, reject, accept or return a hypothesis.
-  Those four gates are executed by a unit this server never compiles
-  (spec D6); test_HypothesisLinkage and test_ToolRegistryGates enforce it.
-  Tool descriptions say so, so an agent tells its human where to go instead
-  of looking for a tool.
-
-  Every error leaves as a plain Exception: unit_MCPDiag.ClientErrorMessage
-  passes only exact-class Exception messages to the client and replaces every
-  descendant with a generic "internal error", which would hide the refusal
-  reasons. RunHypTool does the translation, ONCE, for every handler in this
-  unit (controller ruling for Plan 2 Task 2):
-
-    function HandleXxx(const Params: TJSONObject;
-      const Context: TToolContext): TJSONObject;
-    begin
-      Result := RunHypTool(
-        function: TJSONObject
-        begin
-          Result := DoXxx(Params, Context);
-        end);
-    end;
-
-  Contract of RunHypTool: it runs Body and returns whatever Body returns. If
-  Body raises EHypothesisError, EHypothesisConflict or EHypothesisAccess (or
-  any descendant), the exception is replaced by an equivalent plain Exception
-  carrying the same message (EHypothesisError/EHypothesisConflict also append
-  a machine-readable "[refusal_code]" / "[version_conflict; ...]" suffix), so
-  ClientErrorMessage always shows the refusal to the caller. Any OTHER
-  exception (a missing parameter, an infrastructure error) passes through
-  unchanged - RunHypTool only ever narrows what MapModelError recognises, it
-  never invents new errors. Tasks 3-5 reuse this same helper for
-  update_hypothesis, attach_run, detach_run, cite_evidence, remove_evidence,
-  submit_conclusion and abandon_hypothesis.
-}
+{ Human approval, rejection, acceptance and return gates must stay outside MCP.
+  Model refusals become plain Exception messages so ClientErrorMessage does not
+  hide them as infrastructure failures. }
 
 interface
 
@@ -57,15 +22,9 @@ const
 
 procedure RegisterHypothesisTools(Registry: TToolRegistry);
 
-/// <summary>Runs Body and maps a model refusal (EHypothesisError /
-/// EHypothesisConflict / EHypothesisAccess) to a plain Exception so the
-/// refusal reason reaches the MCP client instead of being replaced by
-/// unit_MCPDiag's generic "internal error". Every exported Handle* below is
-/// a one-line wrapper around this. Exposed so Tasks 3-5 reuse it rather than
-/// repeating the try/except.</summary>
+// Translate model refusals to exact-class Exception so the client receives the reason.
 function RunHypTool(const Body: TFunc<TJSONObject>): TJSONObject;
 
-// Exposed for ELN.Tests\test_ToolsHypotheses.
 function HandleListHypotheses(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 function HandleGetHypothesis(const Params: TJSONObject;
@@ -106,10 +65,7 @@ const
   GATE_JSON: array[THypothesisGate] of string =
     ('approve_proposal', 'accept_conclusion');
 
-{ ---- error translation ---- }
 
-/// A plain Exception for a model error, or nil for anything else (which the
-/// caller re-raises unchanged).
 function MapModelError(E: Exception): Exception;
 begin
   // Before EHypothesisError (its parent): another record's lost lock is
@@ -144,7 +100,6 @@ begin
   end;
 end;
 
-{ ---- parameters ---- }
 
 procedure RaiseUnknownName(const S: string; const ANames: array of string;
   const AWhat: string);
@@ -178,12 +133,8 @@ end;
 type
   THypStatusFilter = set of THypothesisStatus;
 
-/// <summary>The list_hypotheses status filter as a SET, built by walking
-/// HypothesisStatusNames. Agent input never becomes a scalar status value, and
-/// no gate status is named in this unit: test_HypothesisLinkage forbids MCP
-/// code to name hsApproved/hsRejected/hsAccepted, to cast to
-/// THypothesisStatus, or to assign a .Status at all (final review I3).
-/// </summary>
+// Parse names into a filter set only; MCP must not cast input to a writable
+// gate status or assign a hypothesis status.
 function ParseStatusFilter(const S: string): THypStatusFilter;
 var
   St: THypothesisStatus;
@@ -226,7 +177,6 @@ begin
   RequireProjectRead(Context, Result.ProjectId);
 end;
 
-{ ---- JSON ---- }
 
 function IntOrNull(AValue: Int64): TJSONValue;
 begin
@@ -290,7 +240,6 @@ begin
   end;
 end;
 
-{ ---- schemas ---- }
 
 function Prop(const AType, ADesc: string): TJSONObject;
 begin
@@ -332,7 +281,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- list_hypotheses ---- }
 
 function DoListHypotheses(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -359,8 +307,7 @@ begin
     Flt.RootId := I;
   if GetOptInt(Params, 'author_id', I) then
     Flt.AuthorId := I;
-  // A scoped key lists its own projects only: the model never reads the
-  // rest of the installation just to have the rows dropped below (Task 5b).
+  // Restrict the model query before loading rows from other projects.
   if IsScopeActive(Context) then
     Flt.ProjectIds := Context.ScopedProjects;
 
@@ -390,7 +337,6 @@ begin
     end);
 end;
 
-{ ---- get_hypothesis ---- }
 
 function DoGetHypothesis(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -417,9 +363,7 @@ begin
   end;
 
   Result := SummaryJSON(D.Summary);
-  // Everything below builds on Result; if any of it raises (CanPassGate
-  // reads the database), free the tree instead of leaking it (final review
-  // Minor 5).
+  // CanPassGate reads the database and can raise; protect the partial JSON tree.
   try
     Result.AddPair('statement', D.Statement);
     Result.AddPair('change', D.Change);
@@ -430,10 +374,7 @@ begin
     Result.AddPair('conclusion', D.Conclusion);
     Result.AddPair('content_hash', D.ContentHash);
     Result.AddPair('created_device_id', IntOrNull(D.CreatedDeviceId));
-    // Hypothesis CreatedDate/ChangedDate are always UTCNow (unit_TimeHelper,
-    // unit_HypothesisModel.Propose/WriteStatus) - the DateToISO8601(_, False)
-    // this used to call mislabels a UTC instant with the host's local offset
-    // (Task H item 5).
+    // Hypothesis timestamps are UTC; a local-offset conversion would mislabel them.
     Result.AddPair('created_date', DateToISO8601(D.CreatedDate, True));
 
     Arr := TJSONArray.Create;
@@ -452,9 +393,7 @@ begin
       end
       else
       begin
-        // Out-of-scope item: null every item-derived field. A scoped key must
-        // learn nothing about project O just because a hypothesis in its own
-        // project references an item there (final review 3).
+        // A local hypothesis may reference a foreign item; redact all item-derived fields.
         O.AddPair('item_id', TJSONNull.Create);
         O.AddPair('item_title', TJSONNull.Create);
         O.AddPair('item_project_id', TJSONNull.Create);
@@ -463,9 +402,7 @@ begin
       if Visible then
         O.AddPair('missing', TJSONBool.Create(R.Missing))
       else
-        // Out-of-scope item: whether a foreign item is missing would reveal
-        // that it was deleted, so redact it like the other item-derived
-        // fields (final review 3, controller re-review).
+        // Even a missing flag would reveal deletion of an inaccessible item.
         O.AddPair('missing', TJSONNull.Create);
       O.AddPair('outside_scope', TJSONBool.Create(not Visible));
     end;
@@ -495,12 +432,8 @@ begin
       end
       else
       begin
-        // Out-of-scope item: null every item-derived field (id, title, file,
-        // value, note, hash, snapshot, changed/missing flags) - a citation
-        // from another project must not leak that project's ids, free-text
-        // notes, file hashes or measured values to a scoped key. evidence_id
-        // and outside_scope are the only fields kept, so the agent can still
-        // name this evidence (e.g. to remove_evidence, if the model allows).
+        // Redact foreign evidence, including hashes, snapshots and missing flags.
+        // Keep evidence_id so permitted removal can still identify the citation.
         O.AddPair('item_id', TJSONNull.Create);
         O.AddPair('item_title', TJSONNull.Create);
         O.AddPair('file_id', TJSONNull.Create);
@@ -563,7 +496,6 @@ begin
     end);
 end;
 
-{ ---- get_hypothesis_tree ---- }
 
 function DoGetHypothesisTree(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -603,7 +535,6 @@ begin
     end);
 end;
 
-{ ---- propose_hypothesis ---- }
 
 function DoProposeHypothesis(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -617,9 +548,7 @@ begin
   CheckProjectWriteAccess(Context, Pid);   // scope + write rule, MCP wording
   Parent := 0;
   GetOptInt(Params, 'parent_id', Parent);
-  // Through LoadVisible BEFORE the model sees it: under a scope, a missing
-  // parent and one in another project must read the same, or parent_id is an
-  // existence oracle for hypotheses outside the scope (final review I1).
+  // Check visibility before the model can distinguish a missing parent from a foreign one.
   if Parent <> 0 then
     LoadVisible(Context, Parent);
   KV := 0;
@@ -648,7 +577,6 @@ begin
     end);
 end;
 
-{ ---- update_hypothesis ---- }
 
 function DoUpdateHypothesis(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -694,7 +622,6 @@ begin
     end);
 end;
 
-{ ---- attach_run / detach_run ---- }
 
 function DoAttachRun(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -710,10 +637,7 @@ begin
   CheckProjectWriteAccess(Context, H.ProjectId);
   ItemId := GetReqInt(Params, 'item_id');
   RequireItemRead(Context, ItemId);          // a Reference in another project must be in scope too
-  // GetOptStr's Value is an `out` parameter: Delphi clears it on entry
-  // regardless of whether the key is present (the Task 3 trap), so RoleStr
-  // must not be passed directly - route through a temp and only overwrite
-  // the 'Run' default on a real hit.
+  // GetOptStr clears its out parameter even for absent keys; preserve the Run default.
   RoleStr := 'Run';
   if GetOptStr(Params, 'role', S) then
     RoleStr := S;
@@ -751,10 +675,7 @@ begin
   H := LoadVisible(Context, GetReqInt(Params, 'hypothesis_id'));
   CheckProjectWriteAccess(Context, H.ProjectId);
   ItemId := GetReqInt(Params, 'item_id');
-  // get_hypothesis redacts an out-of-scope Reference's item_id; without this
-  // a scoped key could recover it by probing detach_run(h, 1..N) - and the
-  // first hit would destroy a link it can never re-attach (final review
-  // Minor 1). Same uniform message as a missing item.
+  // Prevent probing redacted Reference ids through detach_run and destroying hidden links.
   RequireItemRead(Context, ItemId);
   M := THypothesisModel.Create(Context.Manager, Context.AccessPolicy);
   try
@@ -778,7 +699,6 @@ begin
     end);
 end;
 
-{ ---- cite_evidence / remove_evidence ---- }
 
 function DoCiteEvidence(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -869,7 +789,6 @@ begin
     end);
 end;
 
-{ ---- submit_conclusion ---- }
 
 function DoSubmitConclusion(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -901,7 +820,6 @@ begin
     end);
 end;
 
-{ ---- abandon_hypothesis ---- }
 
 function DoAbandonHypothesis(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -937,7 +855,6 @@ begin
     end);
 end;
 
-{ ---- registration ---- }
 
 procedure RegisterHypothesisTools(Registry: TToolRegistry);
 begin

@@ -1,17 +1,6 @@
 unit unit_TreeAppearance;
 
-{
-  How the desktop trees look for this user (item tree, projects panel,
-  hypotheses): scale, row spacing, tint strength and row colours.
-
-  The row colours live here, in one catalogue, so the trees, the item info
-  panel and the Settings page share them. Only colours the user changed are
-  stored (TNotebookSettings.TreeColors, "Key=#RRGGBB;..."), so a default changed here
-  still reaches everyone who never touched it.
-
-  Appearance is the one live instance: frmMain loads it at startup, the
-  Settings page edits it, and TTreeLook reads it whenever it applies.
-}
+{ Store only colour overrides so changed defaults still reach users who did not override them. }
 
 interface
 
@@ -42,9 +31,6 @@ const
   TREE_COLOR_GROUP_NAMES: array[TTreeColorGroup] of string =
     ('Items', 'Projects', 'Hypotheses');
 
-  // Catalogue layout: item types at Ord(TItemType), then the rest. A new
-  // TItemType or THypothesisStatus changes TREE_COLOR_COUNT, and the
-  // TREE_COLORS literal below stops compiling until it gets its colour.
   TC_PROTOCOL = Ord(High(TItemType)) + 1;
   TC_NOTE = TC_PROTOCOL + 1;
   TC_FILE = TC_NOTE + 1;
@@ -52,7 +38,6 @@ const
   TC_HYP_FIRST = TC_PROJECT_FIRST + Ord(High(TProjectRowKind)) + 1;
   TREE_COLOR_COUNT = TC_HYP_FIRST + Ord(High(THypothesisStatus)) + 1;
 
-  // Defaults ($00BBGGRR) are the colours the trees always had.
   TREE_COLORS: array[0..TREE_COLOR_COUNT - 1] of TTreeColorEntry = (
     (Key: 'Item.Synthesis';        Group: tcgItems; Caption: 'Synthesis';        Default: $003C8E38),
     (Key: 'Item.Treatment';        Group: tcgItems; Caption: 'Treatment';        Default: $000051E6),
@@ -91,35 +76,24 @@ type
     procedure SetScale(Value: Integer);
   public
     constructor Create;
-    /// Copies everything, overrides included (a snapshot for Cancel).
     procedure Assign(Source: TTreeAppearance);
-    /// Out-of-range stored values read as their defaults.
     procedure Load(S: TNotebookSettings);
     procedure Save(S: TNotebookSettings);
-    /// Catalogue index -> the user's colour, or the default.
     function Color(Index: Integer): TColor;
     function IsCustom(Index: Integer): Boolean;
-    /// Setting the default colour clears the override.
     procedure SetColor(Index: Integer; Value: TColor);
     procedure ResetColor(Index: Integer);
     procedure ResetAllColors;
-    /// "Key=#RRGGBB;..." in catalogue order, overrides only.
     function OverridesText: string;
-    /// Replaces all overrides; unknown keys and malformed entries are skipped.
     procedure SetOverridesText(const Text: string);
-    /// Base (a font height or indent) times the scale.
     function Scaled(Base: Integer): Integer;
-    /// A natural row height (already at the scaled font) times the spacing.
     function Spaced(Base: Integer): Integer;
-    /// How much of the row colour is mixed into the tree background.
     function TintFactor(Dark: Boolean): Double;
-    /// One of TREE_SCALES; anything else becomes 100.
     property Scale: Integer read FScale write SetScale;
     property Spacing: TTreeSpacing read FSpacing write FSpacing;
     property Tint: TTreeTint read FTint write FTint;
   end;
 
-/// The live appearance of this session's trees.
 function Appearance: TTreeAppearance;
 
 function ItemTypeColor(T: TItemType): TColor;
@@ -133,7 +107,6 @@ implementation
 
 const
   SPACING_FACTORS: array[TTreeSpacing] of Double = (0.8, 1.0, 1.25);
-  // [Tint, Dark]
   TINT_FACTORS: array[TTreeTint, Boolean] of Double = (
     (0, 0), (0.06, 0.12), (0.12, 0.24), (0.20, 0.36));
 
@@ -187,7 +160,6 @@ begin
   Result := -1;
 end;
 
-// '#RRGGBB' -> TColor ($00BBGGRR).
 function TryParseHexColor(const S: string; out C: TColor): Boolean;
 var
   I, N: Integer;
@@ -206,7 +178,6 @@ begin
   Result := Format('#%.2X%.2X%.2X', [C and $FF, (C shr 8) and $FF, (C shr 16) and $FF]);
 end;
 
-{ TTreeAppearance }
 
 constructor TTreeAppearance.Create;
 begin
@@ -222,7 +193,7 @@ begin
   FScale := Source.FScale;
   FSpacing := Source.FSpacing;
   FTint := Source.FTint;
-  FOverrides := Source.FOverrides;   // static array: copied by value
+  FOverrides := Source.FOverrides;   
 end;
 
 // Each read on its own: a value of the wrong registry type (hand-edited)

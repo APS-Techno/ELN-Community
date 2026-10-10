@@ -10,7 +10,7 @@ uses
   unit_Item, unit_ItemTypes, unit_ActionType, unit_Equipment, unit_Protocol,
   unit_LabEntry, unit_FileType, unit_ValueType, unit_Tag, unit_Comment,
   unit_User, unit_Types, unit_HypothesisQueries, unit_TreeStateModel,
-  unit_ProjectAccessPolicy;
+  unit_ProjectAccessPolicy, unit_NotebookStorage, Aurelius.Types.Nullable;
 
 type
   TItemTreeVM = class
@@ -58,7 +58,6 @@ type
     function IsItemExpanded(ItemId: Integer): Boolean;
     procedure SetItemExpanded(ItemId: Integer; Value: Boolean);
 
-    // State
     property FilterText: string read FFilterText write FFilterText;
     property ProjectId: Integer read FProjectId;
     property FolderId: Integer read FFolderId;
@@ -67,12 +66,9 @@ type
     function CanEdit: Boolean;
     function UserId: Integer;
 
-    /// Optional: without it no HYP badges are shown (tests that build the VM
-    /// without a manager keep working).
     procedure SetHypothesisManager(AManager: TObjectManager);
     function IsItemRun(ItemId: Integer): Boolean;
 
-    // Data retrieval
     procedure SetLocation(AProjectId, AFolderId: Integer; AAccess: TProjectAccess);
     procedure LoadItemData;
     function Items: TItems;
@@ -81,13 +77,9 @@ type
     function GetCommentCount(ItemId: Integer): Integer;
     function GetTagsForItem(ItemId: Integer): TTags;
     function GetLinkCount(ItemId: Integer): Integer;
-    /// <summary>Drops the cached link counts for the given items, so the tree
-    /// badge refreshes after a link is added or removed without paying for a
-    /// full reload.</summary>
     procedure InvalidateLinkCount(const AItemIds: array of Integer);
     function GetLatestComment(ItemId: Integer): TComment;
 
-    // CRUD
     function AddItem(IType: TItemType; const Title: string; Level: TItemLevel;
       ParentId: Integer; const Description: string; AType: TActionType;
       AEquipment: TEquipment = nil; const Properties: string = ''): TItem;
@@ -95,30 +87,26 @@ type
       var ParentItem: TItem; Tol: double; const Description: string);
     function AddFile(FileType: TFileType; const Title: string;
       var ParentItem: TItem): TFile;
-    procedure AddNote(Protocol: TProtocol; var ParentItem: TItem);
-    procedure AddProtocol(Protocol: TProtocol; var ParentItem: TItem);
+    function AddNote(Protocol: TProtocol; var ParentItem: TItem): Boolean;
+    function AddProtocol(Protocol: TProtocol; var ParentItem: TItem): Boolean;
     function DeleteItem(Item: TItem): Boolean;
     procedure DeleteFile(AFile: TFile; var ParentItem: TItem);
     procedure DeleteEntry(Entry: TLabEntry; var ParentItem: TItem);
-    function UpdateItem(Item: TItem): Boolean;
-    function UpdateEntry(Entry: TLabEntry): Boolean;
+    function UpdateItem(Item: TItem; const Relocator: IFileRelocator): Boolean;
+    function ReparentItem(Item: TItem; NewParentId: Integer): Boolean;
+    function UpdateNote(Protocol: TProtocol; const Title, FormData: string): Boolean;
     function DuplicateItem(Source: TItem; DstProjectId, DstFolderId,
       DstParentId: Integer; const NewTitle: string;
       LinkToOriginal: Boolean): TItem;
     function MoveItem(Item: TItem; NewProjectId, NewFolderId: Integer): Boolean;
 
-    // Selection
-    procedure SelectItem(ItemId, ChildId: Integer);
+    procedure SelectItem(ItemId: Integer; ChildId: Int64);
     function LastItemId: Integer;
-    function LastChildId: Integer;
+    function LastChildId: Int64;
 
-    // Cache
     procedure EvictCache;
-    // Re-reads one item's tags after an assign/unassign so the tree repaints
-    // current badges without a full LoadItemData rebuild.
     procedure RefreshTagsForItem(ItemId: Integer);
 
-    // Events
     property OnChanged: TNotifyEvent read FOnChanged write FOnChanged;
   end;
 
@@ -127,7 +115,6 @@ implementation
 uses
   System.StrUtils;
 
-{ TItemTreeVM }
 
 constructor TItemTreeVM.Create(
   AItemModel: TItemModel;
@@ -229,7 +216,6 @@ begin
   FProjectAccess := AAccess;
 end;
 
-{ Data retrieval }
 
 procedure TItemTreeVM.LoadItemData;
 var
@@ -242,7 +228,6 @@ begin
   ClearCaches;
   FItemModel.AssignProject(FProjectId, FFolderId);
 
-  // Signed items cache
   FSignedItems := TDictionary<Integer, Boolean>.Create;
   SignedIds := FSignatureModel.GetSignedItemIds(FProjectId, FFolderId);
   try
@@ -252,7 +237,6 @@ begin
     SignedIds.Free;
   end;
 
-  // Commented items + tags + link counts
   AllItemIds := TList<Integer>.Create;
   try
     // FItemModel.List returns a fresh caller-owned list each call; free the LIST
@@ -362,7 +346,6 @@ begin
   Result := FCommentModel.GetLatestComment(ItemId);
 end;
 
-{ CRUD }
 
 function TItemTreeVM.AddItem(IType: TItemType; const Title: string;
   Level: TItemLevel; ParentId: Integer; const Description: string;
@@ -389,18 +372,31 @@ begin
   DoChanged;
 end;
 
-procedure TItemTreeVM.AddNote(Protocol: TProtocol; var ParentItem: TItem);
+function TItemTreeVM.AddNote(Protocol: TProtocol; var ParentItem: TItem): Boolean;
 begin
-  ParentItem.Entries.Add(Protocol);
-  FItemModel.UpdateItem(ParentItem, UserId);
-  DoChanged;
+  Result := AddProtocol(Protocol, ParentItem);
 end;
 
-procedure TItemTreeVM.AddProtocol(Protocol: TProtocol; var ParentItem: TItem);
+function TItemTreeVM.AddProtocol(Protocol: TProtocol; var ParentItem: TItem): Boolean;
 begin
+  Result := False;
+  if not Assigned(Protocol) or not Assigned(ParentItem) then Exit;
+  if not FAccess.CanWrite(FItemModel.Manager, FUserModel.CurrentUser,
+    ParentItem.ProjectID) then Exit;
+  // Do not use the tree's cached signature state at a write boundary.
+  if IsItemSignedCheck(FItemModel.Manager, ParentItem.Id) then Exit;
   ParentItem.Entries.Add(Protocol);
-  FItemModel.UpdateItem(ParentItem, UserId);
-  DoChanged;
+  try
+    Result := FItemModel.UpdateItem(ParentItem, UserId);
+  finally
+    if not Result then
+    begin
+      ParentItem.Entries.Extract(Protocol);
+      FItemModel.Manager.Evict(Protocol);
+    end;
+  end;
+  if Result then
+    DoChanged;
 end;
 
 function TItemTreeVM.DeleteItem(Item: TItem): Boolean;
@@ -422,24 +418,88 @@ begin
   DoChanged;
 end;
 
-function TItemTreeVM.UpdateItem(Item: TItem): Boolean;
+function TItemTreeVM.UpdateItem(Item: TItem;
+  const Relocator: IFileRelocator): Boolean;
 begin
-  Result := FItemModel.UpdateItem(Item, UserId);
-  DoChanged;
+  if not Assigned(Item) then
+    raise EArgumentNilException.Create('Item');
+  if not Assigned(Relocator) then
+  begin
+    FItemModel.Manager.Refresh(Item);
+    raise EArgumentNilException.Create('Relocator');
+  end;
+  if not FAccess.CanWrite(FItemModel.Manager, FUserModel.CurrentUser,
+    Item.ProjectID) then
+  begin
+    FItemModel.Manager.Refresh(Item);
+    Exit(False);
+  end;
+  Result := FItemModel.UpdateItemDurable(Item, UserId, Relocator);
+  if Result then
+    DoChanged;
 end;
 
-function TItemTreeVM.UpdateEntry(Entry: TLabEntry): Boolean;
+function TItemTreeVM.ReparentItem(Item: TItem; NewParentId: Integer): Boolean;
+var
+  OldParent, OldVersion: Integer;
+  OldModifiedDate: Nullable<TDateTime>;
+  OldModifiedBy: Nullable<Integer>;
 begin
-  Result := FItemModel.UpdateEntry(Entry, UserId);
-  DoChanged;
+  Result := False;
+  if not Assigned(Item) then
+    raise EArgumentNilException.Create('Item');
+  if Item.Parent = NewParentId then Exit;
+  if not FAccess.CanWrite(FItemModel.Manager, FUserModel.CurrentUser,
+    Item.ProjectID) then Exit;
+  if IsItemSignedCheck(FItemModel.Manager, Item.Id) then Exit;
+  OldParent := Item.Parent;
+  OldVersion := Item.Version;
+  OldModifiedDate := Item.ModifiedDate;
+  OldModifiedBy := Item.ModifiedBy;
+  Item.Parent := NewParentId;
+  try
+    Result := FItemModel.UpdateItem(Item, UserId);
+  finally
+    // SafeFlush refreshes a version-conflicted item before returning False (or
+    // re-raising without a callback). Do not dirty that winning state again.
+    if not Result and (Item.Version = OldVersion) then
+    begin
+      Item.Parent := OldParent;
+      Item.ModifiedDate := OldModifiedDate;
+      Item.ModifiedBy := OldModifiedBy;
+    end;
+  end;
+  if Result then
+    DoChanged;
+end;
+
+function TItemTreeVM.UpdateNote(Protocol: TProtocol;
+  const Title, FormData: string): Boolean;
+var
+  ParentItem: TItem;
+begin
+  Result := False;
+  ParentItem := FItemModel.GetItemForEntry(Protocol.Id);
+  if not Assigned(ParentItem) then Exit;
+  if not FAccess.CanWrite(FItemModel.Manager, FUserModel.CurrentUser,
+    ParentItem.ProjectID) then Exit;
+  if IsItemSignedCheck(FItemModel.Manager, ParentItem.Id) then Exit;
+  Protocol.Title := Title;
+  Protocol.FormData := FormData;
+  try
+    Result := FItemModel.UpdateEntry(Protocol, UserId);
+  finally
+    if not Result then
+      FItemModel.Manager.Refresh(Protocol);
+  end;
+  if Result then
+    DoChanged;
 end;
 
 function TItemTreeVM.DuplicateItem(Source: TItem; DstProjectId, DstFolderId,
   DstParentId: Integer; const NewTitle: string;
   LinkToOriginal: Boolean): TItem;
 begin
-  // Enforce write access on the destination: a user must not be able to
-  // duplicate into a project they only have read-only access to.
   if not FAccess.CanWrite(FItemModel.Manager, FUserModel.CurrentUser, DstProjectId) then
     Exit(nil);
 
@@ -453,8 +513,6 @@ begin
   end;
 
   if LinkToOriginal and Assigned(Result) then
-    // The copy is derived from the original, so the copy is the source. The old
-    // call had these reversed, which read "original taken from copy".
     FItemLinkModel.AddLinkByForwardText(Result.Id, Source.Id, 'derived from', '',
       UserId);
   DoChanged;
@@ -469,9 +527,8 @@ begin
     DoChanged;
 end;
 
-{ Selection }
 
-procedure TItemTreeVM.SelectItem(ItemId, ChildId: Integer);
+procedure TItemTreeVM.SelectItem(ItemId: Integer; ChildId: Int64);
 begin
   FHistoryModel.UserRecord.LastItem := ItemId;
   FHistoryModel.UserRecord.LastChild := ChildId;
@@ -482,7 +539,7 @@ begin
   Result := FHistoryModel.UserRecord.LastItem;
 end;
 
-function TItemTreeVM.LastChildId: Integer;
+function TItemTreeVM.LastChildId: Int64;
 begin
   Result := FHistoryModel.UserRecord.LastChild;
 end;
@@ -496,7 +553,6 @@ procedure TItemTreeVM.RefreshTagsForItem(ItemId: Integer);
 var
   Old: TTags;
 begin
-  // Nothing painted yet (no LoadItemData) - nothing to refresh.
   if not Assigned(FTagsCache) then
     Exit;
 

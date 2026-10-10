@@ -68,7 +68,6 @@ uses
 
 {$R *.dfm}
 
-{ TdlgNewFromTemplate }
 
 procedure TdlgNewFromTemplate.LoadTemplates;
 var
@@ -93,7 +92,6 @@ begin
   Templates := Model.ExperimentTemplates.GetAllTemplates;
   Groups := TDictionary<string, TGroupBox>.Create;
   try
-    // First pass: create group boxes
     for Template in Templates do
     begin
       Category := Trim(Template.Category);
@@ -112,7 +110,6 @@ begin
       end;
     end;
 
-    // Sort categories, put (Uncategorized) last
     SortedKeys := TList<string>.Create;
     try
       for Key in Groups.Keys do
@@ -129,7 +126,6 @@ begin
       SortedKeys.Free;
     end;
 
-    // Second pass: add template panels to their groups
     for Template in Templates do
     begin
       Category := Trim(Template.Category);
@@ -147,7 +143,7 @@ begin
       Panel.Tag := Template.Id;
       Panel.OnClick := TemplatePanelClick;
       Panel.OnDblClick := TemplatePanelDblClick;
-      Panel.Top := GroupBox.Height; // stack at bottom within group
+      Panel.Top := GroupBox.Height; 
 
       lblName := TLabel.Create(Panel);
       lblName.Parent := Panel;
@@ -325,7 +321,6 @@ procedure TdlgNewFromTemplate.TemplatePanelClick(Sender: TObject);
 var
   Panel: TRzPanel;
 begin
-  // Resolve to parent panel if sender is a child label
   if Sender is TRzPanel then
     Panel := TRzPanel(Sender)
   else if (Sender is TControl) and (TControl(Sender).Parent is TRzPanel) then
@@ -333,17 +328,14 @@ begin
   else
     Exit;
 
-  // Deselect previous
   if Assigned(FSelectedPanel) then
     FSelectedPanel.Color := clWindow;
 
-  // Select new
   FSelectedPanel := Panel;
-  FSelectedPanel.Color := $00FFE0C0; // light highlight
+  FSelectedPanel.Color := $00FFE0C0; 
   FSelectedTemplateId := Panel.Tag;
   LoadPreview(FSelectedTemplateId);
 
-  // Set default title from template's root proc title
   if vstPreview.RootNodeCount > 0 then
   begin
     var Data := PPreviewNodeData(vstPreview.GetNodeData(vstPreview.GetFirst));

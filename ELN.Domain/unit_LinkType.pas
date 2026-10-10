@@ -53,13 +53,11 @@ type
     property ModifiedDate: Nullable<TDateTime> read FModifiedDate write FModifiedDate;
     property CreatedBy: Nullable<Integer> read FCreatedBy write FCreatedBy;
     property ModifiedBy: Nullable<Integer> read FModifiedBy write FModifiedBy;
-    /// <summary>True when the relation reads the same from both ends.</summary>
     function IsSymmetric: Boolean;
   end;
 
 implementation
 
-{ TLinkType }
 
 function TLinkType.IsSymmetric: Boolean;
 begin

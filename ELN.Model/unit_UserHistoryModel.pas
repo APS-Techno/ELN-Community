@@ -18,7 +18,6 @@ type
 
   TUserHistoryModel = class(TELNModel)
     private
-      { Private declarations }
       FRec : TUsersHistory;
       FOwnsRec : Boolean;
 
@@ -40,7 +39,6 @@ implementation
 uses
   System.Generics.Collections;
 
-{ TUserModel }
 
 constructor TUserHistoryModel.Create(Manager: TObjectManager);
 begin

@@ -1,6 +1,7 @@
 param(
   [ValidateSet('StorageTests', 'StorageSmoke', 'NotebookTests', 'GateTests',
-    'AuthorizationTests', 'LocalFileTests', 'ScientificTests', 'ViewerPackages',
+    'AuthorizationTests', 'LocalFileTests', 'ScientificTests', 'DesktopRegressionTests',
+    'MarkdownEditorAttachmentTests', 'MarkdownLauncherTests', 'ViewerPackages',
     'CommunityDesktop', 'CommunityMCP')]
   [string]$Target = 'StorageTests',
   [ValidateSet('Debug', 'Release')]
@@ -59,7 +60,7 @@ foreach ($dependency in $externalPaths) {
     throw "Configured external dependency missing or not absolute: $dependency"
   }
 }
-if ($Target -notin @('StorageTests', 'StorageSmoke')) {
+if ($Target -notin @('StorageTests', 'StorageSmoke', 'MarkdownEditorAttachmentTests')) {
   foreach ($product in @('tms.biz.aurelius', 'tms.biz.bcl')) {
     $dependency = "$tmsRoot\$product\packages\d13\$Platform\$Configuration"
     if ($dependency -notmatch '^(?:[A-Za-z]:[\\/]|\\\\[^\\]+\\[^\\]+)' -or
@@ -70,8 +71,8 @@ if ($Target -notin @('StorageTests', 'StorageSmoke')) {
   }
 }
 $desktopTarget = $Target -eq 'CommunityDesktop'
-$viewerTarget = $Target -in @('AuthorizationTests', 'LocalFileTests', 'CommunityDesktop', 'CommunityMCP', 'ViewerPackages')
-# Build products and generated assets stay beneath the selected product tree.
+$viewerTarget = $Target -in @('AuthorizationTests', 'LocalFileTests', 'DesktopRegressionTests',
+  'MarkdownLauncherTests', 'CommunityDesktop', 'CommunityMCP', 'ViewerPackages')
 $outputRoot = Join-Path $sourceRoot "_OUT\$Target\$Platform\$Configuration"
 $packageRoot = Join-Path $outputRoot 'Packages'
 $sourceName = switch ($Target) {
@@ -82,12 +83,16 @@ $sourceName = switch ($Target) {
   'AuthorizationTests' { 'AuthorizationTests.dpr' }
   'LocalFileTests' { 'LocalFileTests.dpr' }
   'ScientificTests' { 'CommunityScientificTests.dpr' }
+  'DesktopRegressionTests' { 'DesktopRegressionTests.dpr' }
+  'MarkdownEditorAttachmentTests' { 'test_MarkdownEditorAttachments.dpr' }
+  'MarkdownLauncherTests' { 'MarkdownLauncherTests.dpr' }
   'CommunityDesktop' { 'ELNCommunity.dpr' }
   'CommunityMCP' { 'ELNCommunityMCP.dpr' }
 }
 $project = switch ($Target) {
   'CommunityDesktop' { Join-Path $sourceRoot 'ELN.Community.Desktop\ELNCommunity.dproj' }
   'CommunityMCP' { Join-Path $sourceRoot 'ELN.Community.MCP\ELNCommunityMCP.dproj' }
+  'MarkdownEditorAttachmentTests' { Join-Path $viewerRoot 'Editor.Markdown\test\test_MarkdownEditorAttachments.dproj' }
   default { Join-Path $sourceRoot 'ELN.Community.Tests\CommunityStorageTests.dproj' }
 }
 $unitPaths = @(
@@ -96,9 +101,15 @@ $unitPaths = @(
   "$sourceRoot\ELN.Model\ViewModels", "$sourceRoot\ELN.Community.Tests",
   "$sourceRoot\ELN.Desktop\Units"
 )
+if ($Target -in @('DesktopRegressionTests', 'MarkdownLauncherTests')) {
+  $unitPaths += @("$viewerRoot\Viewer.ColumnarData", "$viewerRoot\Viewer.Markdown",
+    "$viewerRoot\Editor.Markdown")
+}
+if ($Target -eq 'MarkdownEditorAttachmentTests') {
+  $unitPaths += @("$viewerRoot\Editor.Markdown", "$viewerRoot\Viewer.Markdown")
+}
 $viewerPackages = @('Core\ELNPluginCore', 'Core.Protocol\ELNProtocolCore')
 if ($Target -eq 'ViewerPackages') {
-  # The editor requires the Markdown viewer; Protocol requires Core.Protocol.
   $viewerPackages += @('Viewer.Image\ELNImageViewer', 'Viewer.HTML\ELNHTMLViewer',
     'Viewer.Markdown\ELNMarkdownViewer', 'Viewer.ColumnarData\ELNColumnarDataViewer',
     'Viewer.PDF\ELNPDFViewer', 'Viewer.Protocol\ELNProtocolViewer',
@@ -176,6 +187,9 @@ $arguments = @(
   "`"/p:DCC_HppOutput=$outputRoot\Hpp`"", "`"/p:DCC_ResourceOutput=$outputRoot`"",
   '/p:DCC_MapFile=3', '/p:PreBuildEvent=', '/p:PostBuildEvent=', '/p:PreLinkEvent=', '/v:normal', '/nologo'
 )
+if ($Target -in @('DesktopRegressionTests', 'MarkdownLauncherTests')) {
+  $arguments += '"/p:DCC_Namespace=Winapi%3BSystem.Win%3BSystem%3BXml%3BData%3BVcl%3BVcl.Imaging%3BVcl.Samples%3BVcl.Shell"'
+}
 if ($viewerTarget) {
   # upfManager belongs to the externally installed manager package, not Core.
   $packages = @(
@@ -193,6 +207,8 @@ if ($desktopTarget) {
   $iconGenerator = Join-Path $sourceRoot 'ELN.Desktop\Assets\DevTools\ToolBars\generate_icon_resources.py'
   & python $iconGenerator --output-dir (Join-Path $outputRoot 'Icons') --dcc32 $dcc32Path
   if ($LASTEXITCODE -ne 0) { throw "Icon resource build failed with exit code $LASTEXITCODE" }
+  $catalogSource = Join-Path $sourceRoot 'ELN.Desktop\Assets\Runtime\CSV'
+  Copy-Item -LiteralPath $catalogSource -Destination $outputRoot -Recurse -Force
   $helpSource = Join-Path $sourceRoot 'ELN.Desktop\Assets\Runtime\Help'
   Copy-Item -LiteralPath $helpSource -Destination $outputRoot -Recurse -Force
 }

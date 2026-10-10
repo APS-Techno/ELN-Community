@@ -1,27 +1,7 @@
 unit frame_Hypotheses;
 
-{
-  Desktop Hypotheses view (spec 10): the project's hypotheses as a tree on the
-  left, the selected one on the right, and the decision panel (the two human
-  gates) at the bottom for the people the approval policy names.
-
-  All decisions and all user-visible wording are in THypothesesVM (tested);
-  this frame only renders it and forwards clicks. The wording follows the
-  web's decision page (ELN.WebApp/src/screens/experimentParts.ts): a plain
-  status line, "We expected" / "What changes", one sentence per decision
-  button, and a plain history (pre-flight C9).
-
-  Unreadable runs and evidence (another project the user cannot read) show
-  "Not readable", no warning and no navigation (C7): rows are addressed by
-  index through the VM (RunNavigateItemId, EvidenceNavigateItemId,
-  DetachRunAt) - never Detail.Runs[i].ItemId, which the VM zeroes for them.
-
-  Embedded inline in frame_ContentViewer.dfm (HypothesesCard). The VM is
-  created lazily on first OpenProject, because the frame exists before
-  login, and freed by ResetSession before logout frees Model.
-
-  Source is ASCII only: non-ASCII characters are #$ escapes.
-}
+{ Create the VM only after login and release it before Model.
+  Address unreadable rows through VM indices, never their redacted item IDs. }
 
 interface
 
@@ -36,16 +16,13 @@ uses
   unit_Hypothesis, unit_HypothesisModel, unit_HypothesesVM, unit_TreeLook;
 
 type
-  /// <summary>Same signature as the dashboard's navigation event
-  /// (frame_Dashboard), declared here to avoid depending on it.</summary>
   THypNavigateItemEvent = procedure(Sender: TObject; ProjectId, FolderId,
     ItemId: Integer) of object;
-  /// <summary>The item selected in the item tree now; 0 = none.</summary>
   THypSelectedItemFunc = function: Integer of object;
 
   PHypNodeData = ^THypNodeData;
   THypNodeData = record
-    NodeIndex: Integer;   // index into VM.Nodes
+    NodeIndex: Integer;   
   end;
 
   TframeHypotheses = class(TFrame)
@@ -140,11 +117,11 @@ type
     procedure btnGateClick(Sender: TObject);
   private
     FVM: THypothesesVM;
-    FLook: TTreeLook;             // shared tree look (unit_TreeLook): rows by status
+    FLook: TTreeLook;             
     FFilling: Boolean;            // programmatic control updates: ignore change events
-    FSelecting: Boolean;          // a tree click is selecting: the node list is unchanged
-    FShownId: Integer;            // the hypothesis the detail currently shows
-    FDraftCopied: Boolean;        // FVM.DiscardedDraftText went to the clipboard
+    FSelecting: Boolean;          
+    FShownId: Integer;            
+    FDraftCopied: Boolean;        
     FOnNavigateItem: THypNavigateItemEvent;
     FOnGetSelectedItemId: THypSelectedItemFunc;
     FOnRunsChanged: TNotifyEvent;
@@ -171,18 +148,16 @@ type
     procedure OpenProject(AProjectId: Integer; AHypothesisId: Integer = 0);
     procedure ResetSession;
     property OnNavigateItem: THypNavigateItemEvent read FOnNavigateItem write FOnNavigateItem;
-    /// <summary>"Attach selected item..." attaches what this returns: the
-    /// host wires it to the item tree's current selection.</summary>
     property OnGetSelectedItemId: THypSelectedItemFunc read FOnGetSelectedItemId
       write FOnGetSelectedItemId;
     /// <summary>Raised after a Run was attached or removed, so the host can
-    /// refresh the item tree's HYP badges (pre-flight C20). References never
+    /// refresh the item tree badges. References never
     /// carry the badge, so attaching or removing one does not raise it.</summary>
     property OnRunsChanged: TNotifyEvent read FOnRunsChanged write FOnRunsChanged;
     /// <summary>Raised after a step that can change who a hypothesis waits
     /// on - a gate (Approve/Reject/Accept/Return), Submit, a proposal, or
     /// Abandon - so the host can refresh the dashboard's "Waiting for You"
-    /// list (Task 10). Never reloads the item tree.</summary>
+    /// list. Never reloads the item tree.</summary>
     property OnDecisionsChanged: TNotifyEvent read FOnDecisionsChanged
       write FOnDecisionsChanged;
   end;
@@ -203,11 +178,9 @@ uses
   dlg_EvidencePick;
 
 const
-  SEP = '  ' + #$00B7 + '  ';     // "  .  " with a middle dot, as the web's status line
+  SEP = '  ' + #$00B7 + '  ';     
   EMDASH = #$2014;
-  AMBER = $000080D0;              // BGR, as the dashboard's "changed" colour
-  // TListItem.Data of a run / evidence row: how to colour it (from the VM's
-  // row flags, never from the badge text).
+  AMBER = $000080D0;              
   ROW_OK = 0;
   ROW_NOT_READABLE = 1;
   ROW_MISSING = 2;
@@ -225,18 +198,15 @@ begin
   end;
 end;
 
-{ TframeHypotheses }
 
 constructor TframeHypotheses.Create(AOwner: TComponent);
 begin
-  inherited Create(AOwner);   // TFrame has no OnCreate in Delphi 13: set up here
+  inherited Create(AOwner);   
   pcDetail.ActivePage := tsOverview;
-  cbOutcome.ItemIndex := -1;    // no outcome chosen until the user picks one
+  cbOutcome.ItemIndex := -1;    
   memGateComment.MaxLength := MAX_HYP_COMMENT;   // UTF-16 units: never more than the model allows
   pnlDetail.Visible := False;
   lblEmpty.Visible := True;
-  // Every hypothesis can hold children; Focus selects the row, and the
-  // focus-change event already shows it.
   FLook := TTreeLook.Create(vstHypotheses, RowColor,
     function(Node: PVirtualNode): Boolean
     begin
@@ -381,8 +351,6 @@ begin
         'Click "New hypothesis..." to propose one.'
     else
       S := 'This project has no hypotheses yet.';
-    // A draft whose node vanished (access removed, deleted): say so here,
-    // and show the text itself if it could not go to the clipboard.
     if DraftKept then
       S := DRAFT_DISCARDED_TEXT + ' ' + DRAFT_NOT_COPIED_TEXT + sLineBreak +
         sLineBreak + FVM.DiscardedDraftText + sLineBreak + sLineBreak + S
@@ -401,9 +369,6 @@ begin
   try
     lblTitle.Caption := Format('%s  (#%d)', [D.Summary.Title, D.Summary.Id]);
 
-    // Status line: the plain status word, the outcome of a submitted or
-    // accepted conclusion, the seal, and - when this user has nothing to
-    // decide - what the hypothesis is waiting for.
     S := THypothesesVM.StatusCaption(D.Summary);
     Outcome := THypothesesVM.OutcomeCaption(D);
     if Outcome <> '' then
@@ -438,7 +403,6 @@ begin
     else
       ShowAtTop(lblNotice, lblNotice.Caption <> '', lblStatus);
 
-    // Proposal
     KeyValue := FVM.KeyValueText(D.Summary);
     lblKeyValue.Caption := 'Key value: ' + KeyValue;
     ShowAtTop(lblKeyValue, KeyValue <> '', nil);
@@ -461,7 +425,7 @@ begin
         if D.HasOutcome then
           cbOutcome.ItemIndex := Ord(D.Outcome)
         else
-          cbOutcome.ItemIndex := -1;    // no outcome stored: force a real choice
+          cbOutcome.ItemIndex := -1;    
       end;
     memConclusion.ReadOnly := not FVM.CanSubmit;
     cbOutcome.Enabled := FVM.CanSubmit;
@@ -490,7 +454,7 @@ begin
   end;
   Result := '';
   if (FVM.DiscardedDraftText <> '') and not FDraftCopied then
-    Result := DRAFT_DISCARDED_TEXT + ' ' + DRAFT_KEPT_TEXT  // until the user edits it or moves on
+    Result := DRAFT_DISCARDED_TEXT + ' ' + DRAFT_KEPT_TEXT  
   else if FVM.DraftDiscarded then
   begin
     Result := DRAFT_DISCARDED_TEXT;
@@ -604,8 +568,6 @@ var
   end;
 
 begin
-  // The step that moves the work forward first (Approve, Accept), then the
-  // one that stops or sends it back (Reject, Return), as the web's buttons.
   From := FVM.Detail.Summary.Status;
   Src := FVM.GateTargets;
   SetLength(Result, Length(Src));
@@ -637,8 +599,6 @@ var
   end;
 
 begin
-  // Only the people the approval policy names for this gate get the panel;
-  // everyone else reads what the hypothesis waits for in the status line.
   Targets := OrderedGateTargets;
   From := FVM.Detail.Summary.Status;
   pnlGate.Visible := Length(Targets) > 0;
@@ -689,18 +649,18 @@ procedure TframeHypotheses.ProposeOutcome(const O: TVMOutcome);
 begin
   ShowOutcome(O);
   if O.Ok then
-    DecisionsChanged;   // a new proposal waits on an approver
+    DecisionsChanged;   
 end;
 
 procedure TframeHypotheses.NavigateTo(AItemId: Integer);
 var
   Item: TItem;
 begin
-  // 0 = the row is not readable or its item is gone: no navigation (C7).
+  // Unreadable or missing items return 0: do not navigate.
   if (AItemId <= 0) or not Assigned(FOnNavigateItem) then
     Exit;
   // The item's own project and folder, as the eln:// link handler passes
-  // them, so an item in a subfolder is found (pre-flight C18).
+  // them, so an item in a subfolder is found.
   Item := Model.Manager.Find<TItem>(AItemId);
   if (Item = nil) or Item.IsDeleted then
   begin
@@ -710,11 +670,8 @@ begin
   FOnNavigateItem(Self, Item.ProjectID, Item.FolderID, Item.Id);
 end;
 
-{ Tree }
 
-{ Tree look }
 
-// Row colours by status (unit_TreeAppearance).
 function TframeHypotheses.RowColor(Node: PVirtualNode): TColor;
 var
   Data: PHypNodeData;
@@ -788,7 +745,6 @@ begin
   end;
 end;
 
-{ Toolbar }
 
 procedure TframeHypotheses.btnNewRootClick(Sender: TObject);
 var
@@ -853,7 +809,7 @@ begin
   O := FVM.Abandon(Reason[0]);
   ShowOutcome(O);
   if O.Ok then
-    DecisionsChanged;   // it no longer waits on anyone
+    DecisionsChanged;   
 end;
 
 procedure TframeHypotheses.btnRefreshClick(Sender: TObject);
@@ -862,7 +818,6 @@ begin
     FVM.Reload;
 end;
 
-{ Runs }
 
 procedure TframeHypotheses.lvRunsCustomDrawItem(Sender: TCustomListView;
   Item: TListItem; State: TCustomDrawState; var DefaultDraw: Boolean);
@@ -890,10 +845,6 @@ var
 begin
   if (FVM = nil) or not FVM.HasDetail then
     Exit;
-  // The item selected in the item tree right now (a left click there closes
-  // this view, so it is usually a keyboard or right-click selection) - what
-  // the dialog below names. Drag-and-drop from the item tree is deliberately
-  // not used (Plan 4 Task 3).
   ItemId := 0;
   if Assigned(FOnGetSelectedItemId) then
     ItemId := FOnGetSelectedItemId();
@@ -905,8 +856,6 @@ begin
     MessageDlg('Select an item in the item tree first.', mtInformation, [mbOK], 0);
     Exit;
   end;
-  // The pick dialog offers only this hypothesis and asks Run or Reference;
-  // while it waits for approval only Reference is possible (C21).
   if not TdlgHypothesisPick.Execute([FVM.Detail.Summary], HypId, Role,
     Format('Attach "%s" (selected in the item tree) to:', [Item.Title])) then
     Exit;
@@ -916,7 +865,7 @@ begin
   begin
     pcDetail.ActivePage := tsRuns;
     if Role = hrrRun then
-      RunsChanged;      // only a Run carries the HYP badge
+      RunsChanged;      
   end;
 end;
 
@@ -930,7 +879,7 @@ begin
   if (FVM = nil) or (lvRuns.Selected = nil) then
     Exit;
   Idx := lvRuns.Selected.Index;
-  // Never quote "Not readable" as if it were the item's name (C7).
+  // Do not use the redaction marker as an item name.
   if FVM.RunReadable(Idx) then
     Question := Format('Remove "%s" from this hypothesis?', [FVM.RunCaption(Idx)])
   else
@@ -943,10 +892,9 @@ begin
   O := FVM.DetachRunAt(Idx);
   ShowOutcome(O);
   if O.Ok and WasRun then
-    RunsChanged;        // only a Run carries the HYP badge
+    RunsChanged;        
 end;
 
-{ Evidence }
 
 procedure TframeHypotheses.lvEvidenceCustomDrawItem(Sender: TCustomListView;
   Item: TListItem; State: TCustomDrawState; var DefaultDraw: Boolean);
@@ -988,11 +936,10 @@ begin
   if MessageDlg('Remove this evidence from the hypothesis?', mtConfirmation,
     [mbYes, mbNo], 0) <> mrYes then
     Exit;
-  // EvidenceId survives redaction (C7), so an unreadable row can be removed.
+  // EvidenceId survives redaction, so an unreadable row can be removed.
   ShowOutcome(FVM.RemoveEvidence(FVM.Detail.Evidence[Idx].EvidenceId));
 end;
 
-{ Conclusion }
 
 procedure TframeHypotheses.memConclusionChange(Sender: TObject);
 begin
@@ -1017,15 +964,12 @@ begin
   // VM refuses with the needs-outcome message instead of guessing.
   if cbOutcome.ItemIndex >= 0 then
     Outcome := THypothesisOutcome(cbOutcome.ItemIndex);
-  // A successful Submit ends the draft in the VM before its reload repaints
-  // the detail, so the stored conclusion shows from now on.
   O := FVM.Submit(memConclusion.Text, Outcome);
   ShowOutcome(O);
   if O.Ok then
-    DecisionsChanged;   // now waits on an acceptor
+    DecisionsChanged;   
 end;
 
-{ Decision }
 
 procedure TframeHypotheses.memGateCommentChange(Sender: TObject);
 begin
@@ -1041,11 +985,10 @@ var
 begin
   if FVM = nil then
     Exit;
-  // On a conflict the view reloaded and the comment was kept.
   O := FVM.Gate(THypothesisStatus((Sender as TButton).Tag), memGateComment.Text);
   ShowOutcome(O);
   if O.Ok then
-    DecisionsChanged;   // the dashboard's "Waiting for You" list may have changed
+    DecisionsChanged;   
 end;
 
 end.

@@ -103,7 +103,6 @@ begin
   finally
     UploadValidator.Free;
   end;
-  // Open validates the local format; it never creates or migrates a notebook.
   Notebook := TLocalNotebook.Open(NotebookPath, StoragePath);
   try
     PrincipalId := Notebook.Principal.Id;

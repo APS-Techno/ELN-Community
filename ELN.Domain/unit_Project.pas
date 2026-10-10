@@ -32,9 +32,8 @@ type
     [Description('Primary key')]
     FId: Integer;
 
-    // Explicit 255 = Aurelius' existing default, so no DDL changes. Spelled out
-    // because STRICT-mode MySQL rejects rather than truncates; callers check
-    // against MAX_TITLE_LEN / MAX_DESC_LEN in unit_ToolHelpers.pas.
+    // STRICT-mode MySQL rejects overlong values rather than truncating them;
+    // callers must check the stored width before saving.
     [Column('Title', [TColumnProp.Required, TColumnProp.Lazy], 255)]
     [Description('Project name displayed in the navigation tree')]
     FTitle: string;
@@ -96,11 +95,8 @@ type
     [ForeignJoinColumn('ProjectID', [TColumnProp.Required])]
     FFolders: Proxy<TFoldersList>;
 
-    // No cascade: this is a reference to a row owned elsewhere, not a child of
-    // this entity. CascadeTypeAll carries TCascadeType.Evict, so cascading here
-    // detaches the referenced row whenever this one is evicted, leaving a stale
-    // instance alive while the next Find maps a fresh one -- two live instances
-    // of one Id, and the next Save/Update cascade raises EObjectAlreadyPersistent.
+    // This reference is not owned here. Cascading Evict would leave a stale
+    // shared instance and cause EObjectAlreadyPersistent on a later save.
     [Association([TAssociationProp.Required], [])]
     [JoinColumn('OwnerId', [])]
     [Description('The user who owns this project')]
@@ -204,7 +200,6 @@ type
 
 implementation
 
-{ TProject }
 
 constructor TProject.Create;
 begin
@@ -252,7 +247,6 @@ begin
   FOwner.Value := Value;
 end;
 
-{ TFolder }
 
 function TFolder.Path(const ProjectName: string): string;
 var

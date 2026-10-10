@@ -72,7 +72,6 @@ uses
   unit_Project,
   unit_LabEntry;
 
-{ TSearchModel }
 
 constructor TSearchModel.Create(Manager: TObjectManager;
   const Access: IProjectAccessPolicy);
@@ -113,10 +112,7 @@ end;
 
 function UnescapeLikePattern(const Pattern: string): string;
 begin
-  // Reverse of EscapeLikeTerm applied to a `%term%` pattern, producing the
-  // original user term. Used by post-filters that pick which entity field
-  // matched (plain .Contains, not LIKE) — callers previously stripped only
-  // the outer `%` which became incorrect once escapes were introduced.
+  // Post-filters use Contains, not LIKE; restore escaped metacharacters too.
   Result := Pattern;
   if Result.StartsWith('%') then
     Delete(Result, 1, 1);
@@ -143,7 +139,7 @@ var
   I: Integer;
 begin
   if Allowed = nil then
-    Exit; // unrestricted
+    Exit;
   for I := Results.Count - 1 downto 0 do
     if not Allowed.ContainsKey(Results[I].ProjectId) then
       Results.Delete(I);
@@ -428,7 +424,6 @@ begin
 
   Allowed := BuildAccessibleProjectIds;
   try
-  // Try exact phrase match first
   Pattern := '%' + EscapeLikeTerm(Term) + '%';
   Seen := TDictionary<string, Boolean>.Create;
   try
@@ -445,12 +440,10 @@ begin
   // the phrase search already satisfied the query.
   ApplyAccessFilter(Result, Allowed);
 
-  // If phrase matched or single token, we're done
   Tokens := Term.Split([' '], TStringSplitOptions.ExcludeEmpty);
   if (Result.Count > 0) or (Length(Tokens) <= 1) then
     Exit;
 
-  // Multi-token fallback: search each token, intersect by ItemId
   TokenResults := TObjectList<TSearchResults>.Create(True);
   try
     for Token in Tokens do
@@ -475,7 +468,6 @@ begin
     if TokenResults.Count = 0 then
       Exit;
 
-    // Count how many tokens each ItemId matches
     ItemIdCounts := TDictionary<Integer, Integer>.Create;
     try
       for I := 0 to TokenResults.Count - 1 do
@@ -499,7 +491,6 @@ begin
         end;
       end;
 
-      // Collect one result per item, combining matched fields
       ItemFields := TDictionary<Integer, string>.Create;
       try
         for I := 0 to TokenResults.Count - 1 do
@@ -549,7 +540,6 @@ begin
     TokenResults.Free;
   end;
 
-  // Filter the multi-token combined results as well.
   ApplyAccessFilter(Result, Allowed);
   finally
     Allowed.Free;

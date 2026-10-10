@@ -15,9 +15,7 @@ type
     [Column('Id', [TColumnProp.Required, TColumnProp.NoInsert, TColumnProp.NoUpdate])]
     FId: Int64;
 
-    // Matches TUser.FId (Integer) so the FK to Users(Id) lines up at the
-    // MySQL level; mirrors TAuditLog.FUserId (Integer) with TAuditLog.FId
-    // still Int64 for the high-volume PK.
+    // Keep the FK width compatible with Users.Id even though this row's Id is Int64.
     [Column('UserId', [TColumnProp.Required])]
     FUserId: Integer;
 

@@ -59,7 +59,6 @@ type
   
 implementation
 
-{ TEquipmentType }
 
 initialization
   RegisterEntity(TEquipmentType);

@@ -42,7 +42,7 @@ type
 
     [Column('LastItemChildren', [TColumnProp.Required])]
     [Description('')]
-    FLastChildren: Integer;
+    FLastChildren: Int64;
     
   public
     property Id: Integer read FId write FId;
@@ -50,12 +50,11 @@ type
     property LastProject: Integer read FLastProject write FLastProject;
     property LastFolder: Integer read FLastFolder write FLastFolder;
     property LastItem: Integer read FLastItem write FLastItem;
-    property LastChild: Integer read FLastChildren write FLastChildren;
+    property LastChild: Int64 read FLastChildren write FLastChildren;
   end;
 
 implementation
 
-{ TUsersHistory }
 
 initialization
   RegisterEntity(TUsersHistory);

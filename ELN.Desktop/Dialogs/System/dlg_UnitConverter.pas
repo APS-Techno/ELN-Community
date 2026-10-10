@@ -46,7 +46,6 @@ implementation
 
 {$R *.dfm}
 
-{ TdlgUnitConverter }
 
 procedure TdlgUnitConverter.PopulateCategories;
 var
@@ -156,7 +155,7 @@ begin
     Exit;
   end;
 
-  FromUnit := cmbTo.Items[cmbTo.ItemIndex];   // reverse: To becomes the source
+  FromUnit := cmbTo.Items[cmbTo.ItemIndex];   
   ToUnit   := cmbFrom.Items[cmbFrom.ItemIndex];
 
   FUpdating := True;
@@ -170,7 +169,6 @@ begin
   FUpdating := False;
 end;
 
-{ Event handlers }
 
 procedure TdlgUnitConverter.cmbCategoryChange(Sender: TObject);
 begin
@@ -205,7 +203,6 @@ begin
   ModalResult  := mrOk;
 end;
 
-{ Public class methods }
 
 class procedure TdlgUnitConverter.ShowConverter;
 var
@@ -237,7 +234,6 @@ begin
   try
     Dialog.PopulateCategories;
 
-    // Pre-select the category that matches CurrentUnit
     Cat := TUnitConverter.GetCategoryForUnit(CurrentUnit);
     if Cat <> '' then
     begin
@@ -251,7 +247,6 @@ begin
 
     Dialog.PopulateUnits;
 
-    // Pre-select CurrentUnit in cmbFrom
     if CurrentUnit <> '' then
     begin
       for I := 0 to Dialog.cmbFrom.Items.Count - 1 do
@@ -262,11 +257,9 @@ begin
         end;
     end;
 
-    // Pre-fill the From value and run an initial conversion
     Dialog.edFrom.Text := FloatToStrF(CurrentValue, ffGeneral, 10, 6);
     Dialog.ConvertForward;
 
-    // Show Apply button in apply mode
     Dialog.FApplyMode := True;
     Dialog.btnApply.Visible := True;
 

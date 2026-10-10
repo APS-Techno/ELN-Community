@@ -8,7 +8,7 @@
     <ELN_TmsRoot Condition="'$(ELN_TmsRoot)'==''">$(ELN_TMS_ROOT)</ELN_TmsRoot>
     <ELN_ExternalUnitPaths Condition="'$(ELN_ExternalUnitPaths)'==''">$(ELN_EXTERNAL_UNIT_PATHS)</ELN_ExternalUnitPaths>
     <ELN_ExternalUnitPaths Condition="'$(ELN_TmsRoot)'!=''">$(ELN_ExternalUnitPaths);$(ELN_TmsRoot)\tms.biz.aurelius\packages\d13\$(Platform)\$(Config);$(ELN_TmsRoot)\tms.biz.bcl\packages\d13\$(Platform)\$(Config)</ELN_ExternalUnitPaths>
-    <DCC_UnitSearchPath>$(ELN_OutputRoot)\Packages;$(ELN_ProductRoot)\ViewerPlugins\Core;$(ELN_ProductRoot)\ViewerPlugins\Core.Protocol;$(MSBuildProjectDirectory);..;$(ELN_ExternalUnitPaths)</DCC_UnitSearchPath>
+    <DCC_UnitSearchPath>$(ELN_OutputRoot)\Packages;$(ELN_ProductRoot)\ViewerPlugins\Core;$(ELN_ProductRoot)\ViewerPlugins\Core.Protocol;$(MSBuildProjectDirectory);..;..\..\Viewer.Markdown;$(ELN_ExternalUnitPaths)</DCC_UnitSearchPath>
     <DCC_DcpOutput>$(ELN_OutputRoot)\Packages</DCC_DcpOutput>
     <DCC_BplOutput>$(ELN_OutputRoot)</DCC_BplOutput>
     <DCC_HppOutput>$(ELN_OutputRoot)\Hpp</DCC_HppOutput>
@@ -42,6 +42,7 @@
       <MainSource>MainSource</MainSource>
     </DelphiCompile>
     <DCCReference Include="..\unit_MarkdownEditorAttachments.pas"/>
+    <DCCReference Include="..\..\Viewer.Markdown\unit_MarkdownAttachmentResolver.pas"/>
     <BuildConfiguration Include="Base">
       <Key>Base</Key>
     </BuildConfiguration>
@@ -53,6 +54,5 @@
   <ProjectExtensions>
     <Borland.Personality>Delphi.Personality.12</Borland.Personality>
   </ProjectExtensions>
-  <Import Project="$(BDS)\Bin\CodeGear.Common.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Common.Targets')"/>
   <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')"/>
 </Project>

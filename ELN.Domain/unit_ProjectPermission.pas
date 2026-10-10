@@ -23,11 +23,7 @@ type
   TProjectPermission = class;
   TProjectPermissions = TList<TProjectPermission>;
 
-  /// <summary>The two approver-flag columns exactly as loaded, NULL
-  /// included (a pre-Plan-4 grant has NULL in both). Opaque: only
-  /// TProjectPermission reads or writes the fields. Used by
-  /// unit_ApproverGrants to put a grant back to its loaded state when a
-  /// flag change could not be saved.</summary>
+  // Preserve NULL exactly so failed flag writes can restore the loaded state.
   TApproverFlagsSnapshot = record
   private
     FApproveProposals: Nullable<Boolean>;
@@ -42,11 +38,8 @@ type
     [Column('Id', [TColumnProp.Required, TColumnProp.NoInsert, TColumnProp.NoUpdate])]
     FId: Integer;
 
-    // No cascade: this is a reference to a row owned elsewhere, not a child of
-    // this entity. CascadeTypeAll carries TCascadeType.Evict, so cascading here
-    // detaches the referenced row whenever this one is evicted, leaving a stale
-    // instance alive while the next Find maps a fresh one -- two live instances
-    // of one Id, and the next Save/Update cascade raises EObjectAlreadyPersistent.
+    // This reference is not owned here. Cascading Evict would leave a stale
+    // shared instance and cause EObjectAlreadyPersistent on a later save.
     [Association([TAssociationProp.Lazy], [])]
     [JoinColumn('ProjectID', [TColumnProp.Required], 'Id')]
     FProject: Proxy<TProject>;
@@ -64,10 +57,7 @@ type
     [Column('GrantedDate', [TColumnProp.Required])]
     FGrantedDate: TDateTime;
 
-    // Per-project named approvers (experiment tree, spec 6.2). Null = false.
-    // Written ONLY through SetApproverFlags (and RestoreApproverFlags, its
-    // failure rollback), which only unit_ApproverGrants
-    // calls; test_HypothesisLinkage enforces that.
+    // NULL means false. Only unit_ApproverGrants may call the flag setters.
     [Column('CanApproveProposals', [])]
     FCanApproveProposals: Nullable<Boolean>;
 
@@ -91,18 +81,14 @@ type
     property CanApproveProposals: Boolean read GetCanApproveProposals;
     property CanAcceptConclusions: Boolean read GetCanAcceptConclusions;
     procedure SetApproverFlags(AApproveProposals, AAcceptConclusions: Boolean);
-    /// <summary>The raw flag values (NULL stays NULL).</summary>
     function ApproverFlagsSnapshot: TApproverFlagsSnapshot;
-    /// <summary>Writes back a snapshot taken by ApproverFlagsSnapshot,
-    /// NULL as NULL, so the entity again equals what was loaded and a later
-    /// Flush issues no UPDATE. Like SetApproverFlags, called only by
-    /// unit_ApproverGrants (test_HypothesisLinkage).</summary>
+    // Restore NULL as NULL so a later Flush does not persist a failed change.
+    // Like SetApproverFlags, called only by unit_ApproverGrants.
     procedure RestoreApproverFlags(const ASnapshot: TApproverFlagsSnapshot);
   end;
 
 implementation
 
-{ TProjectPermission }
 
 function TProjectPermission.GetProject: TProject;
 begin

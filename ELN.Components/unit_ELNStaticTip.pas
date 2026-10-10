@@ -62,7 +62,6 @@ begin
   RegisterComponents('ELN.Components', [TELNStaticTip]);
 end;
 
-{ TELNStaticTip }
 
 constructor TELNStaticTip.Create(AOwner: TComponent);
 begin

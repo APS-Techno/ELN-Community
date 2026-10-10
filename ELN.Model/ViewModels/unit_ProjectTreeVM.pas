@@ -42,14 +42,12 @@ type
       AGroupsModel: TProjectGroupModel);
     destructor Destroy; override;
 
-    // State
     property ShowArchived: Boolean read FShowArchived write FShowArchived;
     property FilterText: string read FFilterText write FFilterText;
     function IsSupervisorMode: Boolean;
     function IsReadOnly: Boolean;
     function UserId: Integer;
 
-    // Data retrieval
     function GetUsers: TList<TUser>;
     function GetProjects(AUserId: Integer): TList<TProject>;
     function GetSortedFolders(Project: TProject): TList<TFolder>;
@@ -63,7 +61,6 @@ type
     function HypothesisCount(ProjectId: Integer): Integer;
     function HypothesisWaiting(ProjectId: Integer): Integer;
 
-    // Access queries
     function GetProjectAccess(ProjectId: Integer): TProjectAccess;
     function GetProject(ProjectId: Integer): TProject;
     function CanDeleteProject(ProjectId: Integer): TDeleteCheck;
@@ -71,7 +68,6 @@ type
     function CanEditProject(ProjectId: Integer): Boolean;
     function CanAddFolder(ProjectId: Integer): Boolean;
 
-    // CRUD
     function AddProject(const Title, Comment: string; Owner: TUser): TProject;
     procedure AddFolder(const Title, Comment: string; ProjectId, ParentFolderId: Integer);
     procedure UpdateProject(Project: TProject; const Title, Comment: string; IsArchived: Boolean);
@@ -80,7 +76,6 @@ type
     procedure DeleteFolder(FolderId, ProjectId: Integer);
     procedure ToggleArchive(Project: TProject);
 
-    // DnD / Reorder
     procedure MoveFolder(Folder: TFolder; SrcProjectId, DstProjectId, DstParentFolderId: Integer;
       const Relocator: IFileRelocator = nil);
     procedure MoveProc(Proc: TItem; NewProjectId, NewFolderId: Integer;
@@ -89,12 +84,10 @@ type
     procedure ReorderProjects(const OrderedIds: TArray<Integer>);
     procedure ReorderFolders(const OrderedIds: TArray<Integer>);
 
-    // Favorites
     procedure ToggleFavorite(FavType: TFavoriteType; ProjectId, FolderId: Integer; const Title: string);
     procedure RemoveFavorite(FavId: Integer);
     function IsFavorite(FavType: TFavoriteType; ProjectId, FolderId: Integer): Boolean;
 
-    // Selection / Expanded
     procedure SelectNode(ProjectId, FolderId: Integer);
     // Expanded state, per user (unit_TreeStateModel). Until the user's state
     // has been seeded from the old shared columns, Shared decides; after that
@@ -109,10 +102,8 @@ type
     function LastFolderId: Integer;
     function CurrentUser: TUser;
 
-    // Cache
     procedure EvictCache;
 
-    // Project groups
     function GetGroups(AUserId: Integer): TProjectGroupList;
     function AddGroup(const Title: string; OwnerId: Integer): TProjectGroup;
     function RenameGroup(Group: TProjectGroup; const Title: string): Boolean;
@@ -120,16 +111,14 @@ type
     procedure ReorderGroups(const OrderedIds: TArray<Integer>);
     function MoveProjectToGroup(ProjectId, GroupId: Integer): Boolean;
 
-    // Events
     property OnChanged: TNotifyEvent read FOnChanged write FOnChanged;
   end;
 
 implementation
 
 uses
-  System.StrUtils, System.Generics.Defaults;
+  System.StrUtils, System.Generics.Defaults, Aurelius.Criteria.Linq;
 
-{ TProjectTreeVM }
 
 constructor TProjectTreeVM.Create(
   AProjectsModel: TProjectsModel;
@@ -183,22 +172,22 @@ begin
     Result := FUsersModel.CurrentUser.Id;
 end;
 
-{ Data retrieval }
 
 function TProjectTreeVM.GetUsers: TList<TUser>;
 begin
   if not IsSupervisorMode then
     Exit(TList<TUser>.Create);
 
-  if FShowArchived then
-    Exit(FUsersModel.List);
-
+  // Admin accounts are system accounts, often a second login of a person who
+  // is also listed as a Super; only the signed-in Admin sees its own node.
   // Active users, plus any archived owner of a project with hypotheses: a
   // hypothesis seen on the web must be reachable here, and its project would
   // otherwise vanish with its owner (GetProjects shows only those projects).
   Result := FUsersModel.List;
   for var I := Result.Count - 1 downto 0 do
-    if Result[I].IsArchived and not OwnsHypothesisProject(Result[I].Id) then
+    if ((Result[I].Role = dbAdmin) and (Result[I].Id <> UserId)) or
+       ((not FShowArchived) and Result[I].IsArchived and
+        not OwnsHypothesisProject(Result[I].Id)) then
       Result.Delete(I);
 end;
 
@@ -260,23 +249,22 @@ var
   Proj: TProject;
   Folder: TFolder;
   AnyFolderMatches: Boolean;
-  SavedUser: TUser;
+  Viewer: TUser;
   Source: TList<TProject>;
 begin
   Result := TList<TProject>.Create;
 
-  // Supervisor-mode FillTree calls this once per user to build each subtree.
-  // Re-scoping the shared projects model is intentional, but it MUST be undone:
-  // otherwise the model is left scoped to whichever user happened to be last,
-  // and every later query (AddProject, access checks) runs as that user.
-  SavedUser := FUsersModel.GetUser(FProjectsModel.AssignedUserID);
+  // AUserId selects an owner group, never an acting principal. In particular,
+  // an active supervisor may browse archived owners, while a revoked viewer
+  // must not gain the selected owner's authority.
+  Viewer := FUsersModel.CurrentUser;
   try
-    if AUserId > 0 then
-      FProjectsModel.AssignUser(FUsersModel.GetUser(AUserId));
-
-    // The model returns a freshly allocated list each call and the caller owns
-    // it; the TProject entities themselves belong to the object manager.
-    Source := FProjectsModel.List;
+    if (AUserId > 0) and IsSupervisorMode then
+      Source := FProjectsModel.Access.ProjectDataSetCriteria(
+        FProjectsModel.Manager, Viewer).Where(Linq['Owner.Id'] = AUserId)
+        .OrderBy('SortOrder').OrderBy('ID').List
+    else
+      Source := FProjectsModel.Access.ProjectList(FProjectsModel.Manager, Viewer);
     try
       for Proj in Source do
       begin
@@ -315,9 +303,9 @@ begin
     finally
       Source.Free;
     end;
-  finally
-    if AUserId > 0 then
-      FProjectsModel.AssignUser(SavedUser);
+  except
+    Result.Free;
+    raise;
   end;
 end;
 
@@ -346,7 +334,6 @@ begin
   Result := FFavoritesModel.GetFavorites(UserId);
 end;
 
-{ Access queries }
 
 function TProjectTreeVM.GetProjectAccess(ProjectId: Integer): TProjectAccess;
 begin
@@ -393,7 +380,6 @@ begin
     FUsersModel.CurrentUser, ProjectId);
 end;
 
-{ CRUD }
 
 function TProjectTreeVM.AddProject(const Title, Comment: string; Owner: TUser): TProject;
 begin
@@ -446,7 +432,6 @@ begin
   DoChanged;
 end;
 
-{ DnD / Reorder }
 
 procedure TProjectTreeVM.MoveFolder(Folder: TFolder;
   SrcProjectId, DstProjectId, DstParentFolderId: Integer;
@@ -483,7 +468,6 @@ begin
   DoChanged;
 end;
 
-{ Favorites }
 
 procedure TProjectTreeVM.ToggleFavorite(FavType: TFavoriteType;
   ProjectId, FolderId: Integer; const Title: string);
@@ -504,7 +488,6 @@ begin
   Result := FFavoritesModel.IsFavorite(UserId, FavType, ProjectId, FolderId, 0);
 end;
 
-{ Selection / Expanded }
 
 procedure TProjectTreeVM.SelectNode(ProjectId, FolderId: Integer);
 begin
@@ -559,7 +542,6 @@ begin
   FProjectsModel.EvictCache;
 end;
 
-{ Project groups }
 
 function TProjectTreeVM.GetGroups(AUserId: Integer): TProjectGroupList;
 begin

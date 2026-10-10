@@ -1,12 +1,5 @@
 unit dlg_LinkRelation;
 
-// Picks the relationship for a link between two items.
-//
-// The combo lists BOTH directions of every relation type as separate entries
-// ("derived from" and "precursor of"), deduped where a type reads the same both
-// ways. That removes direction as something the user has to think about: they
-// pick the phrase that makes their sentence true, and a reverse pick is handled
-// by swapping which item is stored as the source.
 
 interface
 
@@ -42,11 +35,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
 
-    /// <summary>Shows the dialog for a link between AThisTitle (the item acted
-    /// on) and AOtherTitle. Pass AResult with a non-zero LinkTypeId to open in
-    /// edit mode, preselecting that type and direction. Returns False on
-    /// cancel; on OK, AResult carries the chosen type, direction and notes.
-    /// </summary>
+    /// A non-zero LinkTypeId in AResult selects edit mode and its stored direction.
     class function Execute(const AThisTitle, AOtherTitle: string;
       var AResult: TLinkRelationResult): Boolean;
   end;
@@ -59,7 +48,6 @@ uses
 
 {$R *.dfm}
 
-{ TdlgLinkRelation }
 
 constructor TdlgLinkRelation.Create(AOwner: TComponent);
 begin
@@ -94,8 +82,6 @@ begin
         FEntries.Add(Entry);
         cbRelation.Items.Add(LT.ForwardText);
 
-        // A symmetric relation reads identically both ways — one entry only,
-        // or the list would show the same phrase twice.
         if LT.IsSymmetric then
           Continue;
 
@@ -124,9 +110,6 @@ begin
     Exit;
   end;
 
-  // Always "<this item> <chosen phrase> <other item>". No direction branch is
-  // needed: the caption the user picked already encodes the direction, and a
-  // reverse pick is handled by swapping source/target at save time.
   lblSentence.Caption := Format('%s   %s   %s',
     [FThisTitle, cbRelation.Text, FOtherTitle]);
   btnOK.Enabled := True;

@@ -21,9 +21,10 @@ type
     FHasPendingRender: Boolean;
     FToolBar:        TRzToolbar;
     FBtnEdit:        TRzToolButton;
+    FToolBarHidden: Boolean;
     FContextLocal:   string;
     FContextItemId:  Integer;
-    FContextFileId:  Integer;
+    FContextFileId:  Int64;
     // The file:/// base href of the current attachment directory (with trailing
     // slash). Persisted so HandleNavigationStarting can confine file: clicks to
     // this folder. Unlike FPendingBaseHref, it is NOT cleared after InjectRender.
@@ -48,10 +49,11 @@ type
     procedure CMShowingChanged(var Message: TMessage); message CM_SHOWINGCHANGED;
     function ShellUrl: string;
     procedure InjectRender;
+  protected
+    procedure SetParent(AParent: TWinControl); override;
   public
-    constructor Create(AOwner: TComponent); override;
     procedure RenderMarkdown(const AMarkdown, ABaseHrefUrl: string);
-    procedure SetEditContext(const ALocalPath: string; AItemId, AFileId: Integer);
+    procedure SetEditContext(const ALocalPath: string; AItemId: Integer; AFileId: Int64);
     procedure HideToolBar;
     function CaptureBitmap(MaxW, MaxH: Integer): TBitmap;
     // True only once the shell has loaded AND the pending markdown has been
@@ -80,25 +82,19 @@ uses
 function NormalizeFileUrl(const AUrl: string): string;
 begin
   Result := LowerCase(TNetEncoding.URL.Decode(
-    StringReplace(AUrl, '\', '/', [rfReplaceAll])));
+    StringReplace(StringReplace(AUrl, '\', '/', [rfReplaceAll]),
+      '+', '%2B', [rfReplaceAll])));
 end;
 
-// Build a file:/// URL from a local path, encoding the characters a browser
-// would otherwise misparse: '%' (escape introducer, encoded first), '#'
-// (fragment — filenames carry '#N' auto-suffixes), and '?' (query).
-function ToFileUrl(const APath: string): string;
-begin
-  Result := StringReplace(APath, '\', '/', [rfReplaceAll]);
-  Result := StringReplace(Result, '%', '%25', [rfReplaceAll]);
-  Result := StringReplace(Result, '#', '%23', [rfReplaceAll]);
-  Result := StringReplace(Result, '?', '%3F', [rfReplaceAll]);
-  Result := 'file:///' + Result;
-end;
 
-constructor TframeMarkdownViewer.Create(AOwner: TComponent);
+procedure TframeMarkdownViewer.SetParent(AParent: TWinControl);
 begin
-  inherited Create(AOwner);
-  BuildToolBar;
+  inherited SetParent(AParent);
+  // Raize toolbar layout needs an actual parent chain. A frame is constructed
+  // before its host assigns Parent, so do not build these controls in Create.
+  if (AParent <> nil) and (FToolBar = nil) and
+    not (csDestroying in ComponentState) then
+    BuildToolBar;
 end;
 
 procedure TframeMarkdownViewer.BuildToolBar;
@@ -118,10 +114,11 @@ begin
   FBtnEdit.Hint                := 'Open this file in the markdown editor';
   FBtnEdit.OnClick             := DoEditClick;
   FBtnEdit.Visible             := Assigned(MarkdownEditorLauncher);
+  FToolBar.Visible := not FToolBarHidden;
 end;
 
 procedure TframeMarkdownViewer.SetEditContext(const ALocalPath: string;
-  AItemId, AFileId: Integer);
+  AItemId: Integer; AFileId: Int64);
 begin
   FContextLocal  := ALocalPath;
   FContextItemId := AItemId;
@@ -134,31 +131,43 @@ end;
 
 procedure TframeMarkdownViewer.HideToolBar;
 begin
+  FToolBarHidden := True;
   if Assigned(FToolBar) then
     FToolBar.Visible := False;
 end;
 
 procedure TframeMarkdownViewer.DoEditClick(Sender: TObject);
+var
+  SourcePath: string;
+  SourceItemId: Integer;
+  SourceFileId: Int64;
 begin
   if not Assigned(MarkdownEditorLauncher) then Exit;
   if FContextLocal = '' then Exit;
+  SourcePath := FContextLocal;
+  SourceItemId := FContextItemId;
+  SourceFileId := FContextFileId;
   MarkdownEditorLauncher.LaunchEditor(
-    FContextLocal,
-    FContextItemId,
-    FContextFileId,
+    SourcePath,
+    SourceItemId,
+    SourceFileId,
     procedure(NewBody: string)
     var
       Rendered, BaseHref, Dir: string;
       Files: TArray<string>;
     begin
-      // Same render chain as TELNMarkdownViewerPlugin.LoadFromFile.
-      Dir := ExtractFilePath(FContextLocal);
+      if (FContextLocal <> SourcePath) or (FContextItemId <> SourceItemId) or
+        (FContextFileId <> SourceFileId) then Exit;
+      Dir := ExtractFilePath(SourcePath);
       Files := nil;
-      if (FContextItemId > 0) and Assigned(ElnFileEnumerator) then
-        Files := ElnFileEnumerator.EnsureItemFilesInDir(FContextItemId, Dir);
+      if (SourceItemId > 0) and Assigned(ElnFileEnumerator) then
+        Files := ElnFileEnumerator.EnsureItemFilesInDir(SourceItemId, Dir);
       Rendered := RewriteAttachmentRefs(NewBody, Dir, Files);
       Rendered := RewriteElnLinks(Rendered);
-      BaseHref := ToFileUrl(IncludeTrailingPathDelimiter(Dir));
+      BaseHref := MarkdownFileUrl(IncludeTrailingPathDelimiter(Dir));
+      // Enumeration can pump messages in a remote host.
+      if (FContextLocal <> SourcePath) or (FContextItemId <> SourceItemId) or
+        (FContextFileId <> SourceFileId) then Exit;
       RenderMarkdown(Rendered, BaseHref);
     end);
 end;
@@ -179,7 +188,6 @@ function TframeMarkdownViewer.ShellUrl: string;
 var
   Dir, ShellPath: string;
 begin
-  // Primary: assets live next to the BPL under <host exe dir>\Plugins\MarkdownViewer
   Dir := TPath.Combine(ExtractFilePath(ParamStr(0)), 'Plugins\MarkdownViewer');
   ShellPath := TPath.Combine(Dir, 'shell.html');
   if not TFile.Exists(ShellPath) then
@@ -187,7 +195,7 @@ begin
     OutputDebugString(PChar('[MarkdownViewer] shell.html not found: ' + ShellPath));
     raise EFileNotFoundException.Create('Markdown viewer asset missing: ' + ShellPath);
   end;
-  Result := ToFileUrl(ShellPath);
+  Result := MarkdownFileUrl(ShellPath);
 end;
 
 procedure TframeMarkdownViewer.EnsureBrowser;
@@ -238,17 +246,23 @@ end;
 procedure TframeMarkdownViewer.HandleNavigationCompleted(
   Sender: TCustomEdgeBrowser; IsSuccess: Boolean;
   WebErrorStatus: COREWEBVIEW2_WEB_ERROR_STATUS);
+var
+  Source: PWideChar;
+  CurrentUrl: string;
 begin
-  // NOTE: this handler fires for EVERY navigation (including eln:// clicks
-  // that HandleNavigationStarting cancels). The IsSuccess guard is load-bearing:
-  // a cancelled nav reports IsSuccess = False, so FShellLoaded remains True
-  // after the shell has been loaded and subsequent InjectRender calls still work.
-  if IsSuccess then
-  begin
-    FShellLoaded := True;
-    if FHasPendingRender then
-      InjectRender;
+  if not IsSuccess then Exit;
+  Source := nil;
+  if (FBrowser.DefaultInterface = nil) or
+    Failed(FBrowser.DefaultInterface.Get_Source(Source)) then Exit;
+  try
+    CurrentUrl := string(Source);
+  finally
+    CoTaskMemFree(Source);
   end;
+  // An attachment document is not our rendering shell.
+  FShellLoaded := IsMarkdownShellUrl(CurrentUrl, ShellUrl);
+  if FShellLoaded and FHasPendingRender then
+    InjectRender;
 end;
 
 procedure TframeMarkdownViewer.HandleNavigationStarting(
@@ -280,8 +294,6 @@ begin
         ShowToast('Could not resolve: ' + Uri);
     end
     else
-      // No host registered (e.g. PluginTestApp) — fall back to the toast so
-      // the interception pipeline is still visible.
       ShowToast('Clicked: ' + Uri);
   end
   else if StartsText('http://', Uri) or StartsText('https://', Uri) or
@@ -292,24 +304,23 @@ begin
     Args.ArgsInterface.Set_Cancel(1);
     ShellExecute(0, 'open', PChar(Uri), nil, nil, SW_SHOWNORMAL);
   end
-  else if FShellLoaded and StartsText('file:', Uri) then
+  else if StartsText('file:', Uri) then
   begin
-    // Only user-initiated file: clicks reach here: the initial shell load happens
-    // while FShellLoaded is still False (and is skipped by the gate above), and
-    // re-renders reuse the loaded shell via ExecuteScript, never Navigate. Such a
-    // click is a relative attachment link (or explicit file: link) already
-    // resolved+canonicalized by WebView2 ('..' collapsed). Permit only targets
-    // that resolve INSIDE the current attachment directory; cancel anything else
-    // (e.g. a crafted '../../../secret.txt') so it can't render an arbitrary local
-    // file in-app.
-    if (FBaseHrefUrl <> '') and
+    if IsMarkdownShellUrl(Uri, ShellUrl) then Exit;
+    // Attachment pages may be viewed, but never count as the rendering shell.
+    // The next RenderMarkdown call reloads shell.html before injecting content.
+    if (FBaseHrefUrl = '') or
        not StartsText(NormalizeFileUrl(FBaseHrefUrl), NormalizeFileUrl(Uri)) then
     begin
       Args.ArgsInterface.Set_Cancel(1);
       OutputDebugString(PChar('[MarkdownViewer] Blocked file navigation outside attachment dir: ' + Uri));
       ShowToast('Blocked link outside the attachment folder');
-    end;
-  end;
+    end
+    else
+      FShellLoaded := False;
+  end
+  else
+    Args.ArgsInterface.Set_Cancel(1);
 end;
 
 procedure TframeMarkdownViewer.ShowToast(const AMessage: string);

@@ -15,12 +15,7 @@ uses
 type
   TTemplateMode = (tmManager, tmSelector);
 
-  { Structure tree node data.
-    NOTE: Folder nodes (IsFolder=True) are read-only in v1. The editing paths
-    (btnAddChildClick, btnDeleteNodeClick, SyncNodeToProps, SyncPropsToNode,
-    SaveStructureToJSON, SaveStructureNode) do not handle folder nodes.
-    Opening a folder-root template for viewing works, but editing it is
-    undefined behavior. }
+  { Folder-root templates are view-only: editing and serialization paths do not handle folder nodes. }
   PTemplateNodeData = ^TTemplateNodeData;
   TTemplateNodeData = record
     Title: string;
@@ -31,7 +26,6 @@ type
     IsFolder: Boolean;
   end;
 
-  { Template list node data }
   TTemplateListNodeKind = (tnkCategory, tnkTemplate);
 
   PTemplateListNodeData = ^TTemplateListNodeData;
@@ -44,11 +38,9 @@ type
   end;
 
   TdlgExperimentTemplate = class(TForm)
-    { Bottom panel }
     pnlBottom: TRzPanel;
     btnCreate: TRzButton;
     btnClose: TRzButton;
-    { Left panel -- template list }
     pnlLeft: TRzPanel;
     lblTemplateList: TRzLabel;
     pnlListButtons: TRzPanel;
@@ -59,10 +51,8 @@ type
     btnImport: TRzButton;
     btnBulkImport: TRzButton;
     vstTemplateList: TVirtualStringTree;
-    { Splitters }
     spltMain: TSplitter;
     spltRight: TSplitter;
-    { Right panel -- properties }
     pnlRight: TRzPanel;
     pnlDetails: TRzPanel;
     lblName: TRzLabel;
@@ -82,7 +72,6 @@ type
     lstNodeActionType: TListBox;
     pnlSaveBar: TRzPanel;
     btnSave: TRzButton;
-    { Center panel -- structure editor }
     pnlCenter: TRzPanel;
     pnlTreeButtons: TRzPanel;
     btnAddChild: TRzButton;
@@ -92,10 +81,8 @@ type
     btnLevelUp: TRzButton;
     btnDeleteNode: TRzButton;
     vstStructure: TVirtualStringTree;
-    { Event handlers }
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
-    { Template list VST events }
     procedure vstTemplateListGetNodeDataSize(Sender: TBaseVirtualTree;
       var NodeDataSize: Integer);
     procedure vstTemplateListGetCellText(Sender: TCustomVirtualStringTree;
@@ -110,7 +97,6 @@ type
     procedure vstTemplateListPaintText(Sender: TBaseVirtualTree;
       const TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
       TextType: TVSTTextType);
-    { Structure tree events }
     procedure vstStructureGetNodeDataSize(Sender: TBaseVirtualTree;
       var NodeDataSize: Integer);
     procedure vstStructureGetCellText(Sender: TCustomVirtualStringTree;
@@ -122,7 +108,6 @@ type
     procedure vstStructurePaintText(Sender: TBaseVirtualTree;
       const TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
       TextType: TVSTTextType);
-    { Template CRUD buttons }
     procedure btnAddClick(Sender: TObject);
     procedure btnDeleteClick(Sender: TObject);
     procedure btnDuplicateClick(Sender: TObject);
@@ -130,7 +115,6 @@ type
     procedure btnExportClick(Sender: TObject);
     procedure btnImportClick(Sender: TObject);
     procedure btnBulkImportClick(Sender: TObject);
-    { Structure tree buttons }
     procedure btnAddChildClick(Sender: TObject);
     procedure btnAddSiblingClick(Sender: TObject);
     procedure btnDeleteNodeClick(Sender: TObject);
@@ -138,12 +122,10 @@ type
     procedure btnMoveDownClick(Sender: TObject);
     procedure btnLevelUpClick(Sender: TObject);
     procedure btnCreateClick(Sender: TObject);
-    { Node property changes }
     procedure edtNodeTitleChange(Sender: TObject);
     procedure lstNodeLevelClick(Sender: TObject);
     procedure lstNodeTypeClick(Sender: TObject);
     procedure lstNodeActionTypeClick(Sender: TObject);
-    { Details panel changes }
     procedure edtNameChange(Sender: TObject);
     procedure cmbCategoryChange(Sender: TObject);
     procedure memDescriptionChange(Sender: TObject);
@@ -183,7 +165,6 @@ uses
   unit_DataModel,
   unit_NotebookSettings;
 
-{ TdlgExperimentTemplate }
 
 procedure TdlgExperimentTemplate.FormCreate(Sender: TObject);
 var
@@ -202,7 +183,6 @@ begin
     LSettings.Free;
   end;
 
-  // Populate Level list -- skip Folder
   lstNodeLevel.Items.Clear;
   for L := Low(TItemLevel) to High(TItemLevel) do
   begin
@@ -212,13 +192,11 @@ begin
       GetEnumName(TypeInfo(TItemLevel), Ord(L)), TObject(Ord(L)));
   end;
 
-  // Populate Type list -- all TItemType values
   lstNodeType.Items.Clear;
   for T := Low(TItemType) to High(TItemType) do
     lstNodeType.Items.AddObject(
       GetEnumName(TypeInfo(TItemType), Ord(T)), TObject(Ord(T)));
 
-  // Populate Action Type list
   PopulateActionTypes;
 end;
 
@@ -254,7 +232,6 @@ begin
   end;
 end;
 
-{ --- Template list (VirtualStringTree with category grouping) --- }
 
 procedure TdlgExperimentTemplate.LoadTemplates;
 var
@@ -274,7 +251,6 @@ begin
 
   Templates := Model.ExperimentTemplates.GetAllTemplates;
   try
-    // Collect unique categories, sorted
     Categories := TStringList.Create;
     try
       Categories.Sorted := True;
@@ -293,7 +269,6 @@ begin
         begin
           Cat := Categories[i];
 
-          // Create category header node
           CatNode := vstTemplateList.AddChild(nil);
           CatData := vstTemplateList.GetNodeData(CatNode);
           CatData^.Kind := tnkCategory;
@@ -302,7 +277,6 @@ begin
           CatData^.Category := Cat;
           CatData^.Description := '';
 
-          // Add template nodes under this category
           for Template in Templates do
           begin
             if Trim(Template.Category) = '' then
@@ -371,7 +345,6 @@ begin
     Result := Node;
 end;
 
-{ --- Template list VST events --- }
 
 procedure TdlgExperimentTemplate.vstTemplateListGetNodeDataSize(
   Sender: TBaseVirtualTree; var NodeDataSize: Integer);
@@ -456,7 +429,6 @@ begin
   end;
 end;
 
-{ --- Details panel sync --- }
 
 procedure TdlgExperimentTemplate.SyncTemplateToDetails;
 var
@@ -527,7 +499,6 @@ begin
     SyncDetailsToTemplate;
 end;
 
-{ --- Structure tree --- }
 
 procedure TdlgExperimentTemplate.LoadStructure(TemplateId: Integer);
 var
@@ -552,7 +523,6 @@ begin
   RootJSON := TJSONObject.ParseJSONValue(Template.StructureJSON) as TJSONObject;
   if not Assigned(RootJSON) then Exit;
   try
-    // Support "folder", "proc", and "item" root keys
     IsFolder := False;
     if RootJSON.TryGetValue<TJSONObject>('folder', RootObj) then
     begin
@@ -687,7 +657,6 @@ begin
     SaveStructureNode(FirstChild, ChildrenArr);
   RootObj.AddPair('children', ChildrenArr);
 
-  // Use root key based on the root node's level
   if Data^.Level = TItemLevel.Item then
     RootKey := 'item'
   else
@@ -731,7 +700,6 @@ begin
   end;
 end;
 
-{ --- Structure VTree events --- }
 
 procedure TdlgExperimentTemplate.vstStructureGetNodeDataSize(
   Sender: TBaseVirtualTree; var NodeDataSize: Integer);
@@ -811,12 +779,11 @@ begin
     TItemLevel.Action:
     begin
       TargetCanvas.Font.Style := [];
-      TargetCanvas.Font.Color := $006400; // dark green
+      TargetCanvas.Font.Color := $006400; 
     end;
   end;
 end;
 
-{ --- Node property panel sync --- }
 
 procedure TdlgExperimentTemplate.SyncNodeToProps;
 var
@@ -835,7 +802,6 @@ begin
       Data := vstStructure.GetNodeData(Node);
       edtNodeTitle.Text := Data^.Title;
 
-      // Select Level
       lstNodeLevel.ItemIndex := -1;
       for i := 0 to lstNodeLevel.Items.Count - 1 do
         if Integer(lstNodeLevel.Items.Objects[i]) = Ord(Data^.Level) then
@@ -844,7 +810,6 @@ begin
           Break;
         end;
 
-      // Select Type
       lstNodeType.ItemIndex := -1;
       for i := 0 to lstNodeType.Items.Count - 1 do
         if Integer(lstNodeType.Items.Objects[i]) = Ord(Data^.ItemType) then
@@ -853,7 +818,6 @@ begin
           Break;
         end;
 
-      // Select ActionType
       lstNodeActionType.ItemIndex := -1;
       for i := 0 to lstNodeActionType.Items.Count - 1 do
         if Integer(lstNodeActionType.Items.Objects[i]) = Data^.ActionTypeId then
@@ -870,7 +834,6 @@ begin
       lstNodeActionType.ItemIndex := -1;
     end;
 
-    // Enable/disable based on mode and selection
     edtNodeTitle.Enabled := HasNode and (FMode = tmManager);
     lstNodeLevel.Enabled := HasNode and (FMode = tmManager);
     lstNodeType.Enabled := HasNode and (FMode = tmManager);
@@ -942,14 +905,13 @@ begin
     SyncPropsToNode;
 end;
 
-{ --- Tree editing buttons --- }
 
 function TdlgExperimentTemplate.GetAllowedChildLevel(
   ParentNode: PVirtualNode): TItemLevel;
 var
   Data: PTemplateNodeData;
 begin
-  Result := TItemLevel.Item; // default
+  Result := TItemLevel.Item; 
   if not Assigned(ParentNode) then
     Exit;
   Data := vstStructure.GetNodeData(ParentNode);
@@ -970,7 +932,6 @@ var
 begin
   Focused := vstStructure.FocusedNode;
 
-  // If tree is empty, add root node — let user choose Proc or Item
   if (vstStructure.RootNodeCount = 0) then
   begin
     case MessageDlg('Create root as Procedure or Item (Specimen)?'#13#10#13#10 +
@@ -1103,17 +1064,14 @@ begin
   GrandParent := vstStructure.NodeParent[ParentNode];
   if not Assigned(GrandParent) then Exit;
 
-  // Reparent: move node as sibling after its current parent
   vstStructure.MoveTo(Focused, ParentNode, amInsertAfter, False);
 
-  // Update the node's Level to match its new depth
   Data := vstStructure.GetNodeData(Focused);
   Data^.Level := GetAllowedChildLevel(GrandParent);
   vstStructure.InvalidateNode(Focused);
   SyncNodeToProps;
 end;
 
-{ --- Template CRUD buttons --- }
 
 procedure TdlgExperimentTemplate.AddNewTemplate;
 var
@@ -1130,7 +1088,6 @@ begin
      (Trim(Name) = '') then
     Exit;
 
-  // Choose root level
   case MessageDlg('Create root as Procedure or Item (Specimen)?'#13#10#13#10 +
     '[Yes] = Procedure'#13#10 +
     '[No] = Item (Specimen)',
@@ -1164,7 +1121,6 @@ begin
     Model.User.Id);
   LoadTemplates;
 
-  // Select the newly added template by name
   Node := vstTemplateList.GetFirst;
   while Assigned(Node) do
   begin
@@ -1348,12 +1304,10 @@ begin
   Template := Model.ExperimentTemplates.GetTemplate(FSelectedTemplateId);
   if not Assigned(Template) then Exit;
 
-  // Save structure if tree has content
   JSON := SaveStructureToJSON;
   if JSON <> '' then
     Template.StructureJSON := JSON;
 
-  // Save metadata from details panel
   Node := GetSelectedTemplateNode;
   if Assigned(Node) then
   begin
@@ -1375,7 +1329,6 @@ begin
   end;
 end;
 
-{ --- Dual mode --- }
 
 procedure TdlgExperimentTemplate.SetMode(AMode: TTemplateMode);
 begin
@@ -1407,7 +1360,6 @@ begin
   end;
 end;
 
-{ --- Class methods --- }
 
 class function TdlgExperimentTemplate.SelectTemplate(
   out TemplateId: Integer): Boolean;

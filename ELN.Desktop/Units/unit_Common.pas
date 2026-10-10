@@ -20,7 +20,6 @@ uses
 
 implementation
 
-// To show smooth images we have to convert the image list from 16 colors to high color.
 procedure ConvertToHighColor(ImageList: TImageList);
 var
   IL: TImageList;

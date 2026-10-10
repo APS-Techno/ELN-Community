@@ -42,7 +42,6 @@ uses
 
 {$R *.dfm}
 
-{ TdlgSearch }
 
 class procedure TdlgSearch.Execute(NavigateProc: TNavigateProc);
 var

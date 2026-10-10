@@ -15,6 +15,9 @@ uses
   unit_AuditLog;
 
 type
+  TSignatureIntegrityState = (sisUnsigned, sisVerified, sisMismatch,
+    sisLegacyUnverifiable);
+
   TSignatureModel = class
   private
     FManager: TObjectManager;
@@ -30,6 +33,7 @@ type
     function GetSignature(ItemId: Integer): TSignature;
     function GetSignedItemIds(ProjectID, FolderID: Integer): TList<Integer>;
     function ComputeItemHash(Item: TItem): string;
+    function GetIntegrityState(ItemId: Integer): TSignatureIntegrityState;
     function VerifyIntegrity(ItemId: Integer): Boolean;
   end;
 
@@ -39,6 +43,8 @@ implementation
 
 uses
   System.Generics.Defaults,
+  System.Math,
+  System.NetEncoding,
   Aurelius.Criteria.Base,
   unit_LabEntry,
   unit_Protocol,
@@ -67,7 +73,6 @@ begin
   end;
 end;
 
-{ TSignatureModel }
 
 constructor TSignatureModel.Create(Manager: TObjectManager);
 begin
@@ -80,6 +85,19 @@ destructor TSignatureModel.Destroy;
 begin
   FreeAndNil(FDic);
   inherited;
+end;
+
+function FramedText(const S: string): string;
+begin
+  Result := IntToStr(Length(S)) + ':' + S;
+end;
+
+function DoubleBits(const Value: Double): string;
+var
+  Bits: Int64;
+begin
+  Move(Value, Bits, SizeOf(Bits));
+  Result := IntToHex(Bits, 16);
 end;
 
 function TSignatureModel.BuildItemContent(Item: TItem): string;
@@ -95,15 +113,13 @@ var
 begin
   SB := TStringBuilder.Create;
   try
-    // Item fields
-    SB.Append('ITEM|')
-      .Append(Item.Id).Append('|')
-      .Append(Item.Title).Append('|')
-      .Append(Item.Description).Append('|')
-      .Append(Ord(Item.Level)).Append('|')
-      .Append(Ord(Item.Type_)).Append('|');
+    SB.Append('ELN-SIGNATURE-2|ITEM|')
+      .Append(IntToStr(Item.Id)).Append('|')
+      .Append(FramedText(Item.Title)).Append('|')
+      .Append(FramedText(Item.Description)).Append('|')
+      .Append(IntToStr(Ord(Item.Level))).Append('|')
+      .Append(IntToStr(Ord(Item.Type_))).Append('|');
 
-    // Entries sorted by Id
     Entries := TList<TLabEntry>.Create;
     try
       for Entry in Item.Entries do
@@ -111,24 +127,23 @@ begin
       Entries.Sort(TComparer<TLabEntry>.Construct(
         function(const A, B: TLabEntry): Integer
         begin
-          Result := A.Id - B.Id;
+          Result := CompareValue(A.Id, B.Id);
         end));
       for I := 0 to Entries.Count - 1 do
       begin
         Entry := Entries[I];
         SB.Append('ENTRY|')
-          .Append(Entry.Id).Append('|');
+          .Append(IntToStr(Entry.Id)).Append('|');
         if Entry is TProtocol then
         begin
-          SB.Append(TProtocol(Entry).Title).Append('|');
-          SB.Append(TProtocol(Entry).FormData).Append('|');
+          SB.Append('PROTOCOL|').Append(FramedText(TProtocol(Entry).Title)).Append('|');
+          SB.Append(FramedText(TProtocol(Entry).FormData)).Append('|');
         end;
       end;
     finally
       Entries.Free;
     end;
 
-    // Files sorted by Id
     Files := TList<unit_Item.TFile>.Create;
     try
       for AFile in Item.Files do
@@ -136,21 +151,22 @@ begin
       Files.Sort(TComparer<unit_Item.TFile>.Construct(
         function(const A, B: unit_Item.TFile): Integer
         begin
-          Result := A.Id - B.Id;
+          if A.Id < B.Id then Result := -1
+          else if A.Id > B.Id then Result := 1
+          else Result := 0;
         end));
       for I := 0 to Files.Count - 1 do
       begin
         AFile := Files[I];
         SB.Append('FILE|')
-          .Append(AFile.Id).Append('|')
-          .Append(AFile.Title).Append('|')
-          .Append(AFile.Hash).Append('|');
+          .Append(IntToStr(AFile.Id)).Append('|')
+          .Append(FramedText(AFile.Title)).Append('|')
+          .Append(FramedText(AFile.Hash)).Append('|');
       end;
     finally
       Files.Free;
     end;
 
-    // Values sorted by Id
     Values := TList<unit_Item.TValue>.Create;
     try
       for Val in Item.Values do
@@ -158,15 +174,15 @@ begin
       Values.Sort(TComparer<unit_Item.TValue>.Construct(
         function(const A, B: unit_Item.TValue): Integer
         begin
-          Result := A.Id - B.Id;
+          Result := CompareValue(A.Id, B.Id);
         end));
       for I := 0 to Values.Count - 1 do
       begin
         Val := Values[I];
         SB.Append('VALUE|')
-          .Append(Val.Id).Append('|')
-          .Append(FloatToStr(Val.Value)).Append('|')
-          .Append(FloatToStr(Val.Tol)).Append('|');
+          .Append(IntToStr(Val.Id)).Append('|')
+          .Append(DoubleBits(Val.Value)).Append('|')
+          .Append(DoubleBits(Val.Tol)).Append('|');
       end;
     finally
       Values.Free;
@@ -183,7 +199,9 @@ var
   Content: string;
 begin
   Content := BuildItemContent(Item);
-  Result := THashSHA2.GetHashString(Content, SHA256);
+  // Prefix plus Base64 fits the existing 64-character column without migration.
+  Result := 'v2:' + TNetEncoding.Base64.EncodeBytesToString(
+    THashSHA2.GetHashBytes(Content, SHA256));
 end;
 
 function TSignatureModel.SignItem(Item: TItem; User: TUser;
@@ -195,18 +213,14 @@ var
 begin
   Result := False;
 
-  // Verify password
   if not TBCrypt.CheckPassword(Password, User.Password, RehashNeeded) then
     Exit;
 
-  // Check not already signed
   if IsSigned(Item.Id) then
     Exit;
 
-  // Compute hash
   Hash := ComputeItemHash(Item);
 
-  // Create signature record
   Sig := TSignature.Create;
   Sig.ItemId := Item.Id;
   Sig.UserId := User.Id;
@@ -262,17 +276,20 @@ begin
 
   ItemDic := TItemDictionary.Create;
   try
-    Items := FManager.Find<TItem>
-      .Where((ItemDic.ProjectID = ProjectID) and (ItemDic.FolderID = FolderID)
-        and (ItemDic.IsDeleted = False))
-      .List;
+    if FolderID <= 0 then
+      Items := FManager.Find<TItem>
+        .Where((ItemDic.ProjectID = ProjectID) and (ItemDic.FolderID <= 0)
+          and (ItemDic.IsDeleted = False))
+        .List
+    else
+      Items := FManager.Find<TItem>
+        .Where((ItemDic.ProjectID = ProjectID) and (ItemDic.FolderID = FolderID)
+          and (ItemDic.IsDeleted = False))
+        .List;
     try
       if Items.Count = 0 then
         Exit;
 
-      // Collapse the previous N+1 (one SELECT per item) into a single
-      // SELECT ... WHERE ItemId IN (...) that returns every signature for
-      // the items in the current folder at once.
       SetLength(Ids, Items.Count);
       for I := 0 to Items.Count - 1 do
         Ids[I] := Items[I].Id;
@@ -303,21 +320,44 @@ begin
   end;
 end;
 
-function TSignatureModel.VerifyIntegrity(ItemId: Integer): Boolean;
+function TSignatureModel.GetIntegrityState(ItemId: Integer): TSignatureIntegrityState;
 var
+  Reader: TObjectManager;
+  Signatures: TSignatureModel;
   Sig: TSignature;
   Item: TItem;
-  CurrentHash: string;
 begin
-  Result := False;
-  Sig := GetSignature(ItemId);
-  if not Assigned(Sig) then Exit;
+  // A new identity map also reloads entries/files/values; refreshing only Item
+  // would leave previously loaded collections available to the old manager.
+  Reader := TObjectManager.Create(FManager.Connection);
+  try
+    Signatures := TSignatureModel.Create(Reader);
+    try
+      Sig := Signatures.GetSignature(ItemId);
+      if not Assigned(Sig) then
+        Exit(sisUnsigned);
+      // Old delimiter/locale-dependent hashes cannot prove integrity. Preserve
+      // the signature and its write lock, but never silently upgrade its seal.
+      if Copy(Sig.ContentHash, 1, 3) <> 'v2:' then
+        Exit(sisLegacyUnverifiable);
+      Item := Reader.Find<TItem>(ItemId);
+      if not Assigned(Item) then
+        Exit(sisMismatch);
+      if Sig.ContentHash = ComputeItemHash(Item) then
+        Result := sisVerified
+      else
+        Result := sisMismatch;
+    finally
+      Signatures.Free;
+    end;
+  finally
+    Reader.Free;
+  end;
+end;
 
-  Item := FManager.Find<TItem>(ItemId);
-  if not Assigned(Item) then Exit;
-
-  CurrentHash := ComputeItemHash(Item);
-  Result := SameText(Sig.ContentHash, CurrentHash);
+function TSignatureModel.VerifyIntegrity(ItemId: Integer): Boolean;
+begin
+  Result := GetIntegrityState(ItemId) = sisVerified;
 end;
 
 end.

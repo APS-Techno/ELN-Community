@@ -19,7 +19,6 @@ type
 
   TFileTypeModel = class(TELNModel)
     private
-      { Private declarations }
       FDic: TFileTypeDictionary;
       FManager: TObjectManager;
     protected
@@ -35,9 +34,6 @@ type
       function GetFileTypes: TFileTypes;
       function FindDuplicateExt(const Ext: string; ExcludeID: Integer): TFileType;
       function CanDelete(ID: Integer): string;
-      // Exposed for Win-only TFileTypeIconSeeder, which needs the same Manager
-      // instance to flush icon writes. Lives in ELN.Model.Win to keep VCL out
-      // of this unit.
       property Manager: TObjectManager read FManager;
   end;
 implementation
@@ -48,7 +44,6 @@ uses
   unit_TimeHelper;
 
 
-{ TFileTypeModel }
 
 procedure TFileTypeModel.AddFileType(const Ext, Description: string);
 var
@@ -75,7 +70,7 @@ end;
 
 procedure TFileTypeModel.CreateDefaultData;
 begin
-  AddFileType('.xrcx','X-Ray Calc Project'); // #1
+  AddFileType('.xrcx','X-Ray Calc Project');
   AddFileType('.opju','Origin Project');
   AddFileType('.pdf','PDF File');
   AddFileType('.xlsx','Excel Sheet');
@@ -83,21 +78,21 @@ begin
   AddFileType('.log','Sputtering log');
   AddFileType('.rp4','3D Profile');
   AddFileType('.xrdml','XRD Data');
-  AddFileType('.tiff','TIFF Image');         // #9
-  AddFileType('.fibps','Optical Profilometer'); // #10
-  AddFileType('.zrw','Tribotester Data');       // #11
-  AddFileType('.dat','Columnar Data');           // #12
-  AddFileType('.csv','CSV Data');                // #13
-  AddFileType('.ascii','ASCII Data');            // #14
-  AddFileType('.mit','Nanoindentation Data');    // #15
-  AddFileType('.lmpin','LAMMPS Input Script');   // #16
-  AddFileType('.dump','LAMMPS Data File');        // #17
-  AddFileType('.xrfx','XRF Optimization Results'); // #18
-  AddFileType('.raw','Tribometer Raw Data');        // #19
-  AddFileType('.tsv','Deposition Log');             // #20
-  AddFileType('.json','JSON Data');                 // #21
-  AddFileType('.data','LAMMPS Data');               // #22
-  AddFileType('.lammps','LAMMPS Data');             // #23
+  AddFileType('.tiff','TIFF Image');
+  AddFileType('.fibps','Optical Profilometer');
+  AddFileType('.zrw','Tribotester Data');
+  AddFileType('.dat','Columnar Data');
+  AddFileType('.csv','CSV Data');
+  AddFileType('.ascii','ASCII Data');
+  AddFileType('.mit','Nanoindentation Data');
+  AddFileType('.lmpin','LAMMPS Input Script');
+  AddFileType('.dump','LAMMPS Data File');
+  AddFileType('.xrfx','XRF Optimization Results');
+  AddFileType('.raw','Tribometer Raw Data');
+  AddFileType('.tsv','Deposition Log');
+  AddFileType('.json','JSON Data');
+  AddFileType('.data','LAMMPS Data');
+  AddFileType('.lammps','LAMMPS Data');
 end;
 
 destructor TFileTypeModel.Destroy;

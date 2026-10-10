@@ -40,13 +40,13 @@ type
     FLineCount: Integer;
     FByteCount: Int64;
     FTextTruncated: Boolean;
+    FTableText: string;
 
     procedure BuildSeries(ALines: TStrings;
       const AClassification: TColumnarClassification);
     procedure FillTextView(ALines: TStrings);
     procedure ApplyTextTheme;
     function ActiveContent: string;
-    procedure SeriesToText(List: TStringList);
     procedure UpdateStatus;
     procedure ClearSeries;
     function TextPreviewBitmap(MaxW, MaxH: Integer): TBitmap;
@@ -196,7 +196,6 @@ begin
       Series.Title := 'Column ' + IntToStr(J);
   end;
 
-  // Axis titles
   if AClassification.HasHeader and (Length(AClassification.ColumnNames) > 0) then
   begin
     Chart.BottomAxis.Title.Caption := AClassification.ColumnNames[0];
@@ -211,7 +210,6 @@ begin
     Chart.LeftAxis.Title.Caption := 'Value';
   end;
 
-  // Hide legend if only one Y series
   Chart.Legend.Visible := (AClassification.ColCount > 2);
 
   HeaderSkipped := not AClassification.HasHeader;
@@ -258,6 +256,7 @@ begin
   FDelimiterName := '';
   FIsTabular := False;
   FTextTruncated := False;
+  FTableText := '';
   SetLength(FColumnNames, 0);
 
   ClearSeries;
@@ -268,8 +267,6 @@ begin
     FLineCount := Lines.Count;
     FByteCount := FileSizeOf(FileName);
 
-    // One pass decides what this file is; the chart is built only if it can
-    // actually draw something. Anything else is shown as the text it is.
     Classification := ClassifyColumnarText(Lines);
     FIsTabular      := Classification.IsTabular;
     FDelimiterName  := Classification.DelimiterName;
@@ -280,7 +277,10 @@ begin
     FillTextView(Lines);
 
     if FIsTabular then
+    begin
+      FTableText := ColumnarTableToText(Lines, Classification);
       BuildSeries(Lines, Classification);
+    end;
   finally
     Lines.Free;
     ApplyChartTheme(Chart);
@@ -303,66 +303,13 @@ begin
   Cards.ActiveCardIndex := Pages.TabIndex;
 end;
 
-procedure TframeColumnarDataViewer.SeriesToText(List: TStringList);
-var
-  I, J: Integer;
-  Header, Row: string;
-  Series: TChartSeries;
-begin
-  // Build header
-  if Length(FColumnNames) > 0 then
-  begin
-    Header := FColumnNames[0];
-    for J := 1 to Chart.SeriesCount do
-    begin
-      if J < Length(FColumnNames) then
-        Header := Header + #9 + FColumnNames[J]
-      else
-        Header := Header + #9 + 'Column ' + IntToStr(J);
-    end;
-  end
-  else
-  begin
-    Header := 'X';
-    for J := 1 to Chart.SeriesCount do
-      Header := Header + #9 + 'Column ' + IntToStr(J);
-  end;
-  List.Add(Header);
 
-  // Build data rows (use first series for X values)
-  if Chart.SeriesCount = 0 then
-    Exit;
-
-  for I := 0 to Chart.Series[0].Count - 1 do
-  begin
-    Row := FloatToStrF(Chart.Series[0].XValues[I], ffGeneral, 10, 0);
-    for J := 0 to Chart.SeriesCount - 1 do
-    begin
-      Series := Chart.Series[J];
-      if I < Series.Count then
-        Row := Row + #9 + FloatToStrF(Series.YValues[I], ffGeneral, 10, 0)
-      else
-        Row := Row + #9;
-    end;
-    List.Add(Row);
-  end;
-end;
-
-{ What Copy and Save act on: whatever the visible tab is showing. }
 function TframeColumnarDataViewer.ActiveContent: string;
-var
-  List: TStringList;
 begin
   if Pages.TabIndex = TAB_TEXT then
     Exit(memText.Lines.Text);
 
-  List := TStringList.Create;
-  try
-    SeriesToText(List);
-    Result := List.Text;
-  finally
-    List.Free;
-  end;
+  Result := FTableText;
 end;
 
 function TframeColumnarDataViewer.TextPreviewBitmap(MaxW, MaxH: Integer): TBitmap;
@@ -498,7 +445,6 @@ begin
   end;
 end;
 
-{ Chart interactivity }
 
 procedure TframeColumnarDataViewer.ChartMouseWheel(Sender: TObject;
   Shift: TShiftState; WheelDelta: Integer; MousePos: TPoint;

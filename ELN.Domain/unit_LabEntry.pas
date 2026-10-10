@@ -12,11 +12,6 @@ type
   TLabEntry = class;
   TLabEntries = TList<TLabEntry>;
 
-  /// <summary>
-  /// Abstract base class for lab notebook entries.
-  /// Supports inheritance hierarchy: TProtocol (structured protocols and notes).
-  /// Uses Aurelius SingleTable inheritance strategy with EntryType discriminator.
-  /// </summary>
   [Entity]
   [Table('LabEntries')]
   [Inheritance(TInheritanceStrategy.SingleTable)]

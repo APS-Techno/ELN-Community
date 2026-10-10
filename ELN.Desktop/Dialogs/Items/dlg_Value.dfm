@@ -12,6 +12,7 @@ object dlgValue: TdlgValue
   Font.Name = 'Segoe UI'
   Font.Style = []
   Position = poMainFormCenter
+  OnCloseQuery = FormCloseQuery
   TextHeight = 15
   object RzPanel2: TRzPanel
     AlignWithMargins = True

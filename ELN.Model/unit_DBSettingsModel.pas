@@ -31,7 +31,6 @@ uses
 const
   KEY_DB_GUID = 'DB_GUID';
 
-{ TDBSettingsModel }
 
 constructor TDBSettingsModel.Create(AManager: TObjectManager);
 begin

@@ -49,7 +49,6 @@ type
 
 implementation
 
-{ TActionTypeModel }
 
 procedure TActionTypeModel.AddType(const Name: string; Kind: TActionKind;
                                    AItemType: TItemType; Equip: TEquipmentType);
@@ -78,11 +77,11 @@ end;
 
 procedure TActionTypeModel.CreateDefaultData;
 begin
-  AddType('Depostion', TActionKind.Synthesys, TItemType.Synthesis, FManager.Find<TEquipmentType>(2));       // #1
+  AddType('Depostion', TActionKind.Synthesys, TItemType.Synthesis, FManager.Find<TEquipmentType>(2));
   AddType('XRD', TActionKind.Testing, TItemType.Characterization, FManager.Find<TEquipmentType>(3));
   AddType('XPS', TActionKind.Testing, TItemType.Characterization, nil);
   AddType('SEM', TActionKind.Testing, TItemType.Characterization, FManager.Find<TEquipmentType>(4));
-  AddType('TEM', TActionKind.Testing, TItemType.Characterization, nil);               // #5
+  AddType('TEM', TActionKind.Testing, TItemType.Characterization, nil);
   AddType('Raman', TActionKind.Testing, TItemType.Characterization, nil);
   AddType('3D Profiling', TActionKind.Testing, TItemType.Characterization, FManager.Find<TEquipmentType>(6));
   AddType('Indentation', TActionKind.Testing, TItemType.Testing, nil);
@@ -91,7 +90,7 @@ begin
   AddType('Transmittance', TActionKind.Measurement, TItemType.Measurement, nil);
   AddType('Wettability', TActionKind.Measurement, TItemType.Measurement, nil);
 
-  AddType('XRR Simulation', TActionKind.Simulation, TItemType.Computing, FManager.Find<TEquipmentType>(1)); // #12
+  AddType('XRR Simulation', TActionKind.Simulation, TItemType.Computing, FManager.Find<TEquipmentType>(1));
   AddType('MD Simulation', TActionKind.Simulation, TItemType.Computing, FManager.Find<TEquipmentType>(1));
   AddType('FEM Simulation', TActionKind.Simulation, TItemType.Computing, FManager.Find<TEquipmentType>(1));
 end;

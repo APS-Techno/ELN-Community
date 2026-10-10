@@ -9,7 +9,7 @@ import os
 
 SUPERSAMPLE = 4
 FINAL_SIZE = 150
-RENDER_SIZE = FINAL_SIZE * SUPERSAMPLE  # 600
+RENDER_SIZE = FINAL_SIZE * SUPERSAMPLE
 
 
 def lerp_color(c1, c2, t):
@@ -30,7 +30,6 @@ def draw_gradient_rect(img, box, color_top, color_bottom, radius=0):
         draw = ImageDraw.Draw(img)
         draw.line([(x0, y), (x1, y)], fill=color)
 
-    # Apply the rounded rectangle mask
     flat = Image.new('RGBA', img.size, (0, 0, 0, 0))
     flat.paste(img, mask=mask)
     return flat
@@ -41,7 +40,6 @@ def draw_logo(size):
     s = size / 256
     img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
 
-    # --- Background: gradient rounded square ---
     pad = int(6 * s)
     r = int(44 * s)
     bg_box = [pad, pad, size - pad, size - pad]
@@ -52,7 +50,6 @@ def draw_logo(size):
     bg_layer = draw_gradient_rect(bg_layer, bg_box, navy_top, navy_bot, radius=r)
     img = Image.alpha_composite(img, bg_layer)
 
-    # Subtle shine at top
     shine = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     shine_draw = ImageDraw.Draw(shine)
     shine_h = int(90 * s)
@@ -61,7 +58,6 @@ def draw_logo(size):
         alpha = int(50 * (1 - t) ** 2)
         shine_draw.line([(pad + r // 2, y), (size - pad - r // 2, y)],
                         fill=(255, 255, 255, alpha))
-    # Mask shine to background shape
     bg_mask = Image.new('L', (size, size), 0)
     ImageDraw.Draw(bg_mask).rounded_rectangle(bg_box, radius=r, fill=255)
     shine_masked = Image.new('RGBA', (size, size), (0, 0, 0, 0))
@@ -70,7 +66,6 @@ def draw_logo(size):
 
     d = ImageDraw.Draw(img)
 
-    # --- Notebook body ---
     nb_left = int(38 * s)
     nb_top = int(42 * s)
     nb_right = int(170 * s)
@@ -78,7 +73,6 @@ def draw_logo(size):
     nb_r = int(10 * s)
     spine_w = int(16 * s)
 
-    # Notebook shadow
     shadow_layer = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     sd = ImageDraw.Draw(shadow_layer)
     so = int(5 * s)
@@ -91,12 +85,10 @@ def draw_logo(size):
     img = Image.alpha_composite(img, shadow_masked)
     d = ImageDraw.Draw(img)
 
-    # Notebook page (white)
     d.rounded_rectangle(
         [nb_left + spine_w, nb_top, nb_right, nb_bottom],
         radius=nb_r, fill=(252, 252, 255))
 
-    # Spine gradient
     spine_layer = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     spine_box = [nb_left, nb_top, nb_left + spine_w + nb_r, nb_bottom]
     spine_layer = draw_gradient_rect(
@@ -105,12 +97,10 @@ def draw_logo(size):
     img = Image.alpha_composite(img, spine_layer)
     d = ImageDraw.Draw(img)
 
-    # Re-draw page over spine overlap
     d.rounded_rectangle(
         [nb_left + spine_w, nb_top, nb_right, nb_bottom],
         radius=nb_r, fill=(252, 252, 255))
 
-    # Page lines
     line_start_x = int(68 * s)
     line_y_start = int(72 * s)
     line_spacing = int(22 * s)
@@ -133,9 +123,8 @@ def draw_logo(size):
             d.line([(line_start_x, y), (end_x, y)],
                    fill=line_colors[i % len(line_colors)], width=line_w)
 
-    # --- Erlenmeyer Flask ---
     fx = int(188 * s)
-    fy = int(148 * s)  # neck top
+    fy = int(148 * s)
 
     neck_w = int(20 * s)
     neck_h = int(38 * s)
@@ -143,7 +132,6 @@ def draw_logo(size):
     body_h = int(48 * s)
     base_y = fy + neck_h + body_h
 
-    # Flask shadow
     flask_shadow = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     fsd = ImageDraw.Draw(flask_shadow)
     fso = int(4 * s)
@@ -162,7 +150,6 @@ def draw_logo(size):
     img = Image.alpha_composite(img, flask_shadow_masked)
     d = ImageDraw.Draw(img)
 
-    # Flask body (translucent glass)
     flask_pts = [
         (fx - neck_w // 2, fy),
         (fx + neck_w // 2, fy),
@@ -173,14 +160,12 @@ def draw_logo(size):
     ]
     d.polygon(flask_pts, fill=(215, 230, 248, 210))
 
-    # Liquid in flask (teal gradient)
     liquid_y = fy + neck_h + int(12 * s)
     t = (liquid_y - (fy + neck_h)) / body_h if body_h > 0 else 0
     liq_half_w_top = neck_w // 2 + t * (body_w // 2 - neck_w // 2)
 
     liquid_layer = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     ld = ImageDraw.Draw(liquid_layer)
-    # Draw liquid rows as gradient
     for row_y in range(int(liquid_y), int(base_y)):
         t_row = (row_y - liquid_y) / max(1, base_y - liquid_y)
         t_w = (row_y - (fy + neck_h)) / body_h if body_h > 0 else 0
@@ -188,7 +173,6 @@ def draw_logo(size):
         color = lerp_color((40, 200, 200, 230), (25, 150, 180, 250), t_row)
         ld.line([(int(fx - half_w), row_y), (int(fx + half_w), row_y)], fill=color)
 
-    # Liquid surface highlight
     ld.line([(int(fx - liq_half_w_top + 3 * s), int(liquid_y)),
              (int(fx + liq_half_w_top - 3 * s), int(liquid_y))],
             fill=(100, 230, 230, 200), width=max(1, int(2 * s)))
@@ -196,18 +180,15 @@ def draw_logo(size):
     img = Image.alpha_composite(img, liquid_layer)
     d = ImageDraw.Draw(img)
 
-    # Flask outline
     outline_w = max(1, int(2.5 * s))
     d.polygon(flask_pts, outline=(70, 140, 210), width=outline_w)
 
-    # Flask rim
     rim_w = int(26 * s)
     rim_h = max(1, int(3.5 * s))
     d.rounded_rectangle(
         [fx - rim_w // 2, fy - rim_h, fx + rim_w // 2, fy + rim_h],
         radius=max(1, int(2 * s)), fill=(70, 140, 210))
 
-    # Glass highlight (left side reflection)
     highlight = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     hd = ImageDraw.Draw(highlight)
     hl_x = fx - neck_w // 2 + int(4 * s)
@@ -225,7 +206,6 @@ def draw_logo(size):
     img = Image.alpha_composite(img, highlight)
     d = ImageDraw.Draw(img)
 
-    # Bubbles in liquid
     bubble_data = [
         (fx - int(10 * s), base_y - int(14 * s), int(4 * s)),
         (fx + int(7 * s), base_y - int(22 * s), int(3 * s)),
@@ -237,7 +217,6 @@ def draw_logo(size):
         d.ellipse([bx - br, by - br, bx + br, by + br],
                   fill=(255, 255, 255, 140), outline=(200, 240, 240, 180))
 
-    # --- Subtle border on background ---
     border_layer = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     bd = ImageDraw.Draw(border_layer)
     bd.rounded_rectangle(bg_box, radius=r, outline=(255, 255, 255, 30),
@@ -248,10 +227,8 @@ def draw_logo(size):
 
 
 def main():
-    # Render at 4x supersampled size
     large = draw_logo(RENDER_SIZE)
 
-    # Downscale to final 150x150
     logo = large.resize((FINAL_SIZE, FINAL_SIZE), Image.LANCZOS)
 
     out_dir = os.path.dirname(os.path.abspath(__file__))
@@ -259,7 +236,6 @@ def main():
     logo.save(out_path, 'PNG')
     print(f'Logo saved to: {out_path}')
 
-    # Also save the high-res version for reference
     hires_path = os.path.join(out_dir, 'ELN3_logo_600.png')
     large.save(hires_path, 'PNG')
     print(f'High-res saved to: {hires_path}')

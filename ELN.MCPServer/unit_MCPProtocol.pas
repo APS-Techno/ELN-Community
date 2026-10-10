@@ -16,27 +16,18 @@ type
 
   TMCPProtocol = class
   public
-    /// <summary>Parse a JSON-RPC 2.0 request from a single line of text.
-    /// On success the caller owns Req.Id (cloned) and Req.RawJSON (which
-    /// transitively owns Req.Params).  On failure nothing is allocated.</summary>
     class function ParseRequest(const Line: string; out Req: TMCPRequest): Boolean;
 
-    /// <summary>Build a JSON-RPC 2.0 success response.</summary>
     class function MakeResult(const Id: TJSONValue; const AResult: TJSONValue): string;
 
-    /// <summary>Build a JSON-RPC 2.0 error response.</summary>
     class function MakeError(const Id: TJSONValue; Code: Integer; const Msg: string): string;
 
-    /// <summary>Build an MCP tool result (content array with a single text item).</summary>
     class function MakeToolResult(const Id: TJSONValue; const Content: string): string;
 
-    /// <summary>Build an MCP tool error result (isError = true).</summary>
     class function MakeToolError(const Id: TJSONValue; const ErrorMsg: string): string;
 
-    /// <summary>Build the response to "initialize" with server capabilities.</summary>
     class function MakeInitializeResult(const Id: TJSONValue): string;
 
-    /// <summary>Build the response to "tools/list".</summary>
     class function MakeToolsListResult(const Id: TJSONValue; const Tools: TJSONArray): string;
   end;
 
@@ -48,9 +39,7 @@ uses
 var
   CachedVersion: string;
 
-// The version resource is the single source of truth for the build identity
-// (build-all.bat keeps it in agreement with VERSION.txt); an exe built
-// without one must not masquerade as a versioned release.
+// Read the version resource; an unversioned executable must not claim a release.
 function ServerVersionString: string;
 var
   Size, Handle: DWORD;
@@ -77,11 +66,7 @@ begin
   Result := CachedVersion;
 end;
 
-{ --------------------------------------------------------------------------- }
-{  Helpers                                                                      }
-{ --------------------------------------------------------------------------- }
 
-/// <summary>Clone a TJSONValue so the copy has independent lifetime.</summary>
 function CloneId(const Src: TJSONValue): TJSONValue;
 begin
   if Src = nil then
@@ -90,8 +75,6 @@ begin
     Result := TJSONValue(Src.Clone);
 end;
 
-/// <summary>Create the outer JSON-RPC 2.0 envelope with id, serialise to
-/// string, free the object and return the string.</summary>
 function BuildEnvelope(const Id: TJSONValue): TJSONObject;
 begin
   Result := TJSONObject.Create;
@@ -111,9 +94,6 @@ begin
   end;
 end;
 
-{ --------------------------------------------------------------------------- }
-{  TMCPProtocol                                                                }
-{ --------------------------------------------------------------------------- }
 
 class function TMCPProtocol.ParseRequest(const Line: string;
   out Req: TMCPRequest): Boolean;
@@ -126,7 +106,6 @@ var
 begin
   Result := False;
 
-  // Zero-init
   Req.Id := nil;
   Req.Method := '';
   Req.Params := nil;
@@ -148,7 +127,6 @@ begin
 
   Obj := TJSONObject(Root);
 
-  // "method" is required
   MethodVal := Obj.FindValue('method');
   if (MethodVal = nil) or not (MethodVal is TJSONString) then
   begin
@@ -170,7 +148,6 @@ begin
     Req.Id := TJSONValue(IdVal.Clone);  // independent copy
   end;
 
-  // "params" — optional
   ParamsVal := Obj.FindValue('params');
   if (ParamsVal <> nil) and (ParamsVal is TJSONObject) then
     Req.Params := TJSONObject(ParamsVal)   // owned by Obj

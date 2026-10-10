@@ -19,10 +19,7 @@ type
     LinkedItemProjectId: Integer;
     LinkedProjectName: string;
     LinkTypeId: Integer;
-    /// <summary>The relation phrase as read from the queried item's end:
-    /// the type's forward caption when this item is the source, its reverse
-    /// caption when it is the target. Resolved here so no caller ever has to
-    /// reason about link direction.</summary>
+    /// Relation direction is relative to the queried item, not always the source.
     RelationText: string;
     /// <summary>Legacy free-text label, kept for provenance. Not for display.</summary>
     Label_: string;
@@ -50,9 +47,6 @@ type
 
     function AddLink(SourceId, TargetId, LinkTypeId: Integer;
       const ANotes: string; CreatedBy: Integer): TItemLink;
-    /// <summary>For callers that know the relation by caption rather than by id
-    /// — the duplicate-item flow, which always means 'derived from'. Returns nil
-    /// when the caption is not in the vocabulary.</summary>
     function AddLinkByForwardText(SourceId, TargetId: Integer;
       const AForwardText, ANotes: string; CreatedBy: Integer): TItemLink;
     procedure UpdateLink(LinkId, LinkTypeId: Integer; const ANotes: string);
@@ -72,7 +66,6 @@ uses
   unit_ItemLinkMigrationSeed,
   unit_TimeHelper;
 
-{ TItemLinkModel }
 
 constructor TItemLinkModel.Create(Manager: TObjectManager);
 begin
@@ -80,8 +73,6 @@ begin
   FManager := Manager;
   FDic := TItemLinkDictionary.Create;
   FAccessibleProjects := TDictionary<Integer, Boolean>.Create;
-  // Unrestricted until a caller says otherwise, so behaviour is unchanged for
-  // every caller that does not care about per-project visibility.
   FUnrestricted := True;
 end;
 
@@ -189,10 +180,7 @@ var
   LinkedItem: TItem;
   Project: TProject;
 
-  // Resolves the far end and applies the access filter. Returns False when the
-  // link must be hidden. A far item that cannot be found at all is kept: the
-  // row carries no project to judge, and orphan rows behaved this way before
-  // the filter existed.
+  // Missing far-end items carry no project to check; orphan links remain visible.
   function ResolveFarEnd(AFarItemId: Integer; var AInfo: TItemLinkInfo): Boolean;
   begin
     Result := True;
@@ -212,7 +200,6 @@ var
 begin
   List := TList<TItemLinkInfo>.Create;
   try
-    // Links where this item is the source: the forward caption reads correctly.
     SourceLinks := FManager.Find<TItemLink>
       .Where(FDic.SourceItemId = ItemId)
       .List;
@@ -240,7 +227,6 @@ begin
       SourceLinks.Free;
     end;
 
-    // Links where this item is the target: the reverse caption reads correctly.
     TargetLinks := FManager.Find<TItemLink>
       .Where(FDic.TargetItemId = ItemId)
       .List;
@@ -274,8 +260,6 @@ begin
   end;
 end;
 
-// Derived from the same query the list uses, so the tree badge can never
-// disagree with what the details panel shows.
 function TItemLinkModel.GetLinkCount(ItemId: Integer): Integer;
 begin
   Result := Length(GetLinksForItem(ItemId));
@@ -285,7 +269,6 @@ function TItemLinkModel.IsLinked(ItemId1, ItemId2: Integer): Boolean;
 var
   Links: TItemLinks;
 begin
-  // Check source->target direction
   Links := FManager.Find<TItemLink>
     .Where(
       (FDic.SourceItemId = ItemId1) and
@@ -299,7 +282,6 @@ begin
     Links.Free;
   end;
 
-  // Check target->source direction
   Links := FManager.Find<TItemLink>
     .Where(
       (FDic.SourceItemId = ItemId2) and

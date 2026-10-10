@@ -31,13 +31,12 @@ type
       procedure OpenDataSet; override;
 
       procedure AssignAction(const AActionID: integer);
-      function GetFile(const ID: integer):TFile;
-      function GetFileName(const ID: integer): string;
+      function GetFile(const ID: Int64):TFile;
+      function GetFileName(const ID: Int64): string;
   end;
 
 implementation
 
-{ TFileModel }
 
 procedure TFileModel.AssignAction(const AActionID: integer);
 begin
@@ -59,12 +58,12 @@ begin
   inherited;
 end;
 
-function TFileModel.GetFile(const ID: integer): TFile;
+function TFileModel.GetFile(const ID: Int64): TFile;
 begin
   Result := FManager.Find<TFile>(ID);
 end;
 
-function TFileModel.GetFileName(const ID: integer): string;
+function TFileModel.GetFileName(const ID: Int64): string;
 var
   F: TFile;
 begin
@@ -77,7 +76,6 @@ end;
 
 procedure TFileModel.OpenDataSet;
 begin
-  // Dataset not used - model uses direct ObjectManager queries
 end;
 
 end.

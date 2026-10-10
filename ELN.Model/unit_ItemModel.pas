@@ -78,16 +78,12 @@ type
       function GetItem(const ID:integer):TItem;
       function GetItemForEntry(EntryId: Integer): TItem;
       function UpdateItem(Item: TItem; UserId: Integer): Boolean;
-      // Attachments are stored under files/Projects/<project>/[id]<title>/, so
-      // a title change must move them or every existing file becomes
-      // unreachable. Call BEFORE flushing the new title: Item.Title already
-      // holds the new value, OldTitle the previous one. Moves file by file;
-      // if one move fails, the files already moved are moved back (best
-      // effort) and the exception is re-raised, so the caller can revert the
-      // title without touching storage. No-op when the title is unchanged,
-      // the item has no files, or Relocator is nil (local storage mode).
-      procedure RelocateFilesForRename(Item: TItem; const OldTitle: string;
-        const Relocator: IFileRelocator);
+      // Scalar edits only. Uses Item.Version as the optimistic baseline.
+      // Commits metadata, audit and attachment moves together, or rolls back.
+      // Refreshes Item after the attempt, but never flushes unrelated drafts.
+      // False means signed/stale refusal; other failures raise.
+      function UpdateItemDurable(Item: TItem; UserId: Integer;
+        const Relocator: IFileRelocator): Boolean;
       function UpdateEntry(Entry: TLabEntry; UserId: Integer): Boolean;
       function UpdateFile(AFile: TFile; UserId: Integer): Boolean;
       function MoveFile(AFile: TFile; NewParentId, UserId: Integer): Boolean;
@@ -98,9 +94,6 @@ type
       function IsItemEmpty(Item: TItem): Boolean;
       function DeleteItem(Item: TItem; UserId: Integer): Boolean;
       function SoftDeleteItemTree(Item: TItem; UserId: Integer): Boolean;
-      // '' when Item and its whole live subtree may be deleted; otherwise the
-      // user-facing sentence naming the signed or hypothesis-locked item that
-      // blocks it.
       function FindDeleteBlocker(Item: TItem): string;
       function GetRecentItems(UserId: Integer; Count: Integer = 20): TItems; overload;
       function GetRecentItems(UserId: Integer; DateFrom: TDateTime; Count: Integer = 20): TItems; overload;
@@ -111,6 +104,7 @@ implementation
 
 uses
   unit_AuditHelper,
+  Aurelius.Commands.Exceptions,
   unit_ConflictHandler,
   unit_SignatureModel,
   unit_DataModel,
@@ -119,7 +113,6 @@ uses
   unit_Hypothesis,
   unit_HypothesisGuard;
 
-{ TItemModel }
 
 function TItemModel.AddFile(const FType: TFileType; Title: string;
   UserId: Integer; var Item: TItem): TFile;
@@ -129,7 +122,6 @@ begin
   if IsItemSignedCheck(FManager, Item.Id) then
     Exit(nil);
 
-  // Get managed instance of FileType from ObjectManager
   ManagedFileType := FManager.Find<TFileType>(FType.Id);
 
   Result := TFile.Create;
@@ -164,6 +156,7 @@ begin
   Result.Type_ := IType;
   Result.Level := Level;
   Result.CreatedDate := UTCNow;
+  Result.CreatedBy := UserId;
   Result.ProjectID := FProjectID;
   Result.FolderID := FFolderID;
   Result.Parent := Parent;
@@ -227,7 +220,6 @@ begin
   Protocol.CreatedDate := UTCNow;
   Protocol.CreatedBy := UserId;
 
-  // Snapshot equipment from parent Item's ActionType
   if Assigned(Item.ActionType) and Assigned(Item.ActionType.Equipment) then
   begin
     Protocol.EquipModel := Item.ActionType.Equipment.Model;
@@ -247,6 +239,8 @@ procedure TItemModel.AssignProject(const ProjectID, FolderID: integer);
 begin
   FProjectID := ProjectID;
   FFolderID := FolderID;
+  if FFolderID < 0 then
+    FFolderID := 0;
 end;
 
 constructor TItemModel.Create;
@@ -312,7 +306,7 @@ end;
 
 function TItemModel.RemoveFile(AFile: TFile; var Item: TItem; UserId: Integer): Boolean;
 var
-  FileId: Integer;
+  FileId: Int64;
   FileTitle: string;
 begin
   Result := False;
@@ -386,79 +380,133 @@ begin
 end;
 
 function TItemModel.GetItemsList: TItems;
+var
+  Criteria: TCriteria;
 begin
-  Result := FManager.Find<TItem>
-    .Where((FDic.ProjectID = FProjectID) and (FDic.FolderID = FFolderID)
-      and (FDic.IsDeleted = False))
-    .OrderBy('SortOrder')
-    .OrderBy('Id')
-    .List;
+  Criteria := FManager.Find<TItem>
+    .Where((FDic.ProjectID = FProjectID) and (FDic.IsDeleted = False));
+  // New root writes use zero; legacy non-positive locations remain visible.
+  if FFolderID = 0 then
+    Criteria.Where(FDic.FolderID <= 0)
+  else
+    Criteria.Where(FDic.FolderID = FFolderID);
+  Result := Criteria.OrderBy('SortOrder').OrderBy('Id').List<TItem>;
 end;
 
 function TItemModel.UpdateItem(Item: TItem; UserId: Integer): Boolean;
+var
+  ReadManager: TObjectManager;
+  Persisted: TItem;
 begin
+  // A split title change followed by Flush cannot compensate attachment moves.
+  ReadManager := TObjectManager.Create(FManager.Connection);
+  try
+    Persisted := ReadManager.Find<TItem>(Item.Id);
+    if Assigned(Persisted) and (Persisted.Title <> Item.Title) then
+    begin
+      Item.Title := Persisted.Title;
+      raise EInvalidOperation.Create('Use UpdateItemDurable to change an item title.');
+    end;
+  finally
+    TConflictHandler.FreeOperationManager(ReadManager);
+  end;
   if IsItemSignedCheck(FManager, Item.Id) then
     Exit(False);
 
   Item.ModifiedDate := UTCNow;
   Item.ModifiedBy := UserId;
-
   Result := TConflictHandler.SafeFlush(FManager);
   if Result then
     RecordAudit(FManager, aetItem, Item.Id, aoUpdate, UserId,
       'Updated item "' + Item.Title + '"');
 end;
 
-procedure TItemModel.RelocateFilesForRename(Item: TItem; const OldTitle: string;
-  const Relocator: IFileRelocator);
+function TItemModel.UpdateItemDurable(Item: TItem; UserId: Integer;
+  const Relocator: IFileRelocator): Boolean;
 var
+  Operation: TObjectManager;
+  Transaction: IDBTransaction;
+  Current: TItem;
   Project: TProject;
-  OldFolder, NewFolder, OldPath, NewPath: string;
-  F: TFile;
-  MovedOld, MovedNew: TStringList;
-  i: Integer;
+  Attachment: TFile;
+  Moves: TFileMoveJournal;
+  OldFolder: string;
+  Committed: Boolean;
 begin
-  if (not Assigned(Item)) or (not Assigned(Relocator)) then Exit;
-  if Item.Title = OldTitle then Exit;
-  OldFolder := TItem.MakeFolderName(Item.Id, OldTitle);
-  NewFolder := Item.FolderName;
-  if OldFolder = NewFolder then Exit;
-  if Item.Files.Count = 0 then Exit;
-
-  Project := FManager.Find<TProject>(Item.ProjectID);
-  if not Assigned(Project) then Exit;
-
-  MovedOld := TStringList.Create;
-  MovedNew := TStringList.Create;
+  Result := False;
+  if Item = nil then
+    raise EArgumentNilException.Create('Item');
+  Operation := TObjectManager.Create(FManager.Connection);
+  Moves := TFileMoveJournal.Create(Relocator);
   try
-    for F in Item.Files do
-    begin
-      OldPath := BuildItemFileRemotePath(Project.FileFolder, OldFolder, F.FullName);
-      NewPath := BuildItemFileRemotePath(Project.FileFolder, NewFolder, F.FullName);
+    Transaction := TConflictHandler.BeginOperationTransaction(FManager);
+    Committed := False;
+    try
       try
-        Relocator.MoveFile(OldPath, NewPath);
-      except
-        on E: Exception do
+        Current := Operation.Find<TItem>(Item.Id);
+        if (Current = nil) or (Current.Version <> Item.Version) or
+          IsItemSignedCheck(Operation, Item.Id) then
+          Exit(False);
+        OldFolder := Current.FolderName;
+        Current.Title := Item.Title;
+        Current.Description := Item.Description;
+        Current.Properties := Item.Properties;
+        Current.Type_ := Item.Type_;
+        Current.Level := Item.Level;
+        if Item.ActionType = nil then
+          Current.ActionType := nil
+        else
+          Current.ActionType := Operation.Find<TActionType>(Item.ActionType.Id);
+        if Item.Equipment = nil then
+          Current.Equipment := nil
+        else
+          Current.Equipment := Operation.Find<TEquipment>(Item.Equipment.Id);
+        Current.ModifiedDate := UTCNow;
+        Current.ModifiedBy := UserId;
+        if OldFolder <> Current.FolderName then
         begin
-          // Put back what was already moved so storage matches the title
-          // the caller is about to restore. Failures here are swallowed:
-          // the original error is the one worth reporting.
-          for i := MovedOld.Count - 1 downto 0 do
-            try
-              Relocator.MoveFile(MovedNew[i], MovedOld[i]);
-            except
-            end;
-          raise Exception.CreateFmt(
-            'Could not move attachment "%s" to the renamed item folder: %s',
-            [F.FullName, E.Message]);
+          Project := Operation.Find<TProject>(Current.ProjectID);
+          if Project = nil then
+            raise EInvalidOperation.Create('The item project no longer exists.');
+          for Attachment in Current.Files do
+            Moves.Add(BuildItemFileRemotePath(Project.FileFolder, OldFolder, Attachment.FullName),
+              BuildItemFileRemotePath(Project.FileFolder, Current.FolderName, Attachment.FullName));
+        end;
+        Moves.Execute;
+        Operation.Flush;
+        RecordAudit(Operation, aetItem, Current.Id, aoUpdate, UserId,
+          'Updated item "' + Current.Title + '"');
+        Transaction.Commit;
+        Committed := True;
+        Result := True;
+      finally
+        if not Committed then
+        begin
+          try
+            Transaction.Rollback;
+          finally
+            Moves.Rollback;
+          end;
         end;
       end;
-      MovedOld.Add(OldPath);
-      MovedNew.Add(NewPath);
+    except
+      on E: EVersionedConcurrencyControl do
+      begin
+        if Assigned(TConflictHandler.OnConflict) then
+          TConflictHandler.OnConflict(E.Message);
+        Result := False;
+      end;
     end;
   finally
-    MovedNew.Free;
-    MovedOld.Free;
+    try
+      // Only the submitted item loses rejected edits. The operation manager
+      // owns all failed writes and audit entries, so no later host Flush can
+      // replay them.
+      FManager.Refresh(Item);
+    finally
+      Moves.Free;
+      TConflictHandler.FreeOperationManager(Operation);
+    end;
   end;
 end;
 
@@ -522,7 +570,6 @@ begin
   begin
     RecordAudit(FManager, aetFile, AFile.Id, aoUpdate, UserId,
       'Moved file "' + AFile.Title + '" to "' + NewParent.Title + '"');
-    // Evict stale entities so proxy collections reload from DB on next access
     FManager.Evict(AFile);
     FManager.Evict(OldParent);
     FManager.Evict(NewParent);
@@ -548,7 +595,6 @@ function TItemModel.IsItemEmpty(Item: TItem): Boolean;
 var
   Children: TList<TItem>;
 begin
-  // Check for non-deleted child items
   Children := FManager.Find<TItem>
     .Where((FDic.ParentID = Item.Id) and (FDic.IsDeleted = False))
     .List;
@@ -559,7 +605,6 @@ begin
     Children.Free;
   end;
 
-  // Check entries, files, and values
   Result := (Item.Entries.Count = 0) and
             (Item.Files.Count = 0) and
             (Item.Values.Count = 0);
@@ -571,7 +616,7 @@ var
   Child: TItem;
 begin
   if AList.Contains(Item) then
-    Exit;                       // circular parent-child guard
+    Exit;
   AList.Add(Item);
   Children := FManager.Find<TItem>
     .Where((FDic.ParentID = Item.Id) and (FDic.IsDeleted = False))
@@ -639,9 +684,8 @@ var
   I: TItem;
   Trans: IDBTransaction;
 begin
-  // Check the WHOLE live subtree first, then delete. The previous version
-  // marked each child deleted before the recursive call checked whether that
-  // child was signed, so a signed descendant was soft-deleted anyway.
+  // Check the whole subtree before marking any node deleted; signed children
+  // must refuse the entire operation.
   if FindDeleteBlocker(Item) <> '' then
     Exit(False);
   if Item.IsDeleted then
@@ -689,21 +733,22 @@ end;
 function TItemModel.MoveProc(Proc: TItem; NewProjectID, NewFolderID, UserID: Integer;
   const Relocator: IFileRelocator): Boolean;
 var
+  Operation: TObjectManager;
+  Transaction: IDBTransaction;
   AllItems: TItems;
   ToMove: TList<TItem>;
-  Item: TItem;
-  OldProjectID, OldFolderID: Integer;
+  Item, Current, Cached: TItem;
   OldProject, NewProject: TProject;
-  F: unit_Item.TFile;
-  IsCrossProject: Boolean;
-  OldPath, NewPath: string;
+  Attachment: TFile;
+  Moves: TFileMoveJournal;
+  Committed, Stale: Boolean;
 
   procedure CollectDescendants(ParentID: Integer);
   var
     Child: TItem;
   begin
     for Child in AllItems do
-      if Child.Parent = ParentID then
+      if (Child.Parent = ParentID) and not ToMove.Contains(Child) then
       begin
         ToMove.Add(Child);
         CollectDescendants(Child.Id);
@@ -711,78 +756,99 @@ var
   end;
 
 begin
-  if IsItemSignedCheck(FManager, Proc.Id) then
-    Exit(False);
-
-  OldProjectID := Proc.ProjectID;
-  OldFolderID  := Proc.FolderID;
-  IsCrossProject := OldProjectID <> NewProjectID;
-
-  // Include soft-deleted (recycle-bin) descendants so they move with the
-  // parent Proc; leaving them behind would strand them under a departed
-  // parent. Their files stay at the old path (no relocation until restore).
-  AllItems := FManager.Find<TItem>
-    .Where((FDic.ProjectID = OldProjectID) and (FDic.FolderID = OldFolderID))
-    .List;
-
+  Result := False;
+  if Proc = nil then
+    Exit;
+  if NewFolderID < 0 then
+    NewFolderID := 0;
+  Operation := TObjectManager.Create(FManager.Connection);
+  AllItems := nil;
   ToMove := TList<TItem>.Create;
+  Moves := TFileMoveJournal.Create(Relocator);
   try
-    ToMove.Add(Proc);
-    CollectDescendants(Proc.Id);
-
-    // Reject the move if ANY collected item (including soft-deleted
-    // descendants) is signed, before any mutation — mirroring
-    // TProjectsModel.MoveFolder, which rejects a folder move when any contained
-    // item is signed. Without this, only the top Proc was checked and signed
-    // descendants would be moved.
-    for Item in ToMove do
-      if IsItemSignedCheck(FManager, Item.Id) then
-        Exit(False);
-
-    // Commit the DB move FIRST. If the flush conflicts, nothing on WebDAV has
-    // been touched, so DB and storage stay consistent (clean no-op). Only after
-    // the DB is the authoritative source of truth do we relocate the files: a
-    // file-move failure then leaves the file at its old path, reconcilable via
-    // relocate_item_files, instead of the previous order's orphaned files
-    // behind an uncommitted DB.
-    for Item in ToMove do
-    begin
-      Item.ProjectID := NewProjectID;
-      Item.FolderID  := NewFolderID;
-      FManager.Update(Item);
-    end;
-
-    Result := TConflictHandler.SafeFlush(FManager);
-    if not Result then
-      Exit;
-
-    RecordAudit(FManager, aetItem, Proc.Id, aoUpdate, UserID,
-      Format('Moved Proc "%s" to project %d, folder %d',
-        [Proc.Title, NewProjectID, NewFolderID]));
-
-    if IsCrossProject and Assigned(Relocator) then
-    begin
-      OldProject := FManager.Find<TProject>(OldProjectID);
-      NewProject := FManager.Find<TProject>(NewProjectID);
-      for Item in ToMove do
-      begin
-        // Relocate files for soft-deleted descendants too: their ProjectID was
-        // just switched to the new project, and RestoreItem does not relocate
-        // files, so leaving the bytes at the old path would orphan the
-        // attachment after a later restore.
-        for F in Item.Files do
+    Transaction := TConflictHandler.BeginOperationTransaction(FManager);
+    Committed := False;
+    try
+      try
+        Current := Operation.Find<TItem>(Proc.Id);
+        if Current = nil then
+          Exit(False);
+        ToMove.Add(Current);
+        AllItems := Operation.Find<TItem>
+          .Where(FDic.ProjectID = Current.ProjectID).List;
+        CollectDescendants(Current.Id);
+        Stale := Current.Version <> Proc.Version;
+        for Item in ToMove do
         begin
-          OldPath := BuildItemFileRemotePath(
-            OldProject.FileFolder, Item.FolderName, F.FullName);
-          NewPath := BuildItemFileRemotePath(
-            NewProject.FileFolder, Item.FolderName, F.FullName);
-          Relocator.MoveFile(OldPath, NewPath);
+          Cached := FManager.FindCached<TItem>(Item.Id);
+          if Assigned(Cached) then
+          begin
+            if FManager.HasChanges(Cached) then
+              raise EInvalidOperation.Create('Save or cancel item edits before moving the subtree.');
+            Stale := Stale or (Cached.Version <> Item.Version);
+          end;
+          if IsItemSignedCheck(Operation, Item.Id) then
+            Exit(False);
         end;
+        if Stale then
+          Exit(False);
+        OldProject := Operation.Find<TProject>(Current.ProjectID);
+        NewProject := Operation.Find<TProject>(NewProjectID);
+        if (OldProject = nil) or (NewProject = nil) then
+          raise EInvalidOperation.Create('The source or destination project no longer exists.');
+        if (NewFolderID <> 0) and (NewProject.GetFolder(NewFolderID) = nil) then
+          raise EInvalidOperation.Create('The destination folder is not in the destination project.');
+        for Item in ToMove do
+        begin
+          if Item.ProjectID <> NewProjectID then
+            for Attachment in Item.Files do
+              Moves.Add(BuildItemFileRemotePath(OldProject.FileFolder, Item.FolderName, Attachment.FullName),
+                BuildItemFileRemotePath(NewProject.FileFolder, Item.FolderName, Attachment.FullName));
+          Item.ProjectID := NewProjectID;
+          Item.FolderID := NewFolderID;
+        end;
+        Moves.Execute;
+        Operation.Flush;
+        RecordAudit(Operation, aetItem, Current.Id, aoUpdate, UserID,
+          Format('Moved Proc "%s" to project %d, folder %d',
+            [Current.Title, NewProjectID, NewFolderID]));
+        Transaction.Commit;
+        Committed := True;
+        Result := True;
+      finally
+        if not Committed then
+        begin
+          try
+            Transaction.Rollback;
+          finally
+            Moves.Rollback;
+          end;
+        end;
+      end;
+    except
+      on E: EVersionedConcurrencyControl do
+      begin
+        if Assigned(TConflictHandler.OnConflict) then
+          TConflictHandler.OnConflict(E.Message);
+        Result := False;
       end;
     end;
   finally
-    ToMove.Free;
-    AllItems.Free; // criteria .List container (entities stay manager-owned)
+    try
+      // Refresh the whole affected cache only after commit/rollback. Never
+      // clear the host manager or include its unrelated pending edits.
+      for Item in ToMove do
+      begin
+        Cached := FManager.FindCached<TItem>(Item.Id);
+        if Assigned(Cached) and not FManager.HasChanges(Cached) then
+          FManager.Refresh(Cached);
+      end;
+    finally
+      Moves.Free;
+      ToMove.Free;
+      AllItems.Free;
+      TConflictHandler.FreeOperationManager(Operation);
+    end;
   end;
 end;
 
@@ -830,7 +896,6 @@ begin
   try
     for Item in Items do
     begin
-      // Evict child entities loaded via Proxy<T>
       for Entry in Item.Entries do
         FManager.Evict(Entry);
       for AFile in Item.Files do

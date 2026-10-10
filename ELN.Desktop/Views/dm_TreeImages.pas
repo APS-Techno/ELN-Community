@@ -190,7 +190,7 @@ begin
       end;
     except
       on E: EResNotFound do
-        ; // leave empty placeholder
+        ; 
     end;
   end;
 end;
@@ -299,15 +299,12 @@ begin
     Bmp.Canvas.FillRect(Rect(0, 0, Bmp.Width, Bmp.Height));
     AVIL.Draw(Bmp.Canvas, 0, 0, 0);
 
-    // Check if any pixel differs from fuchsia AND from white
     for Y := 0 to Bmp.Height - 1 do
     begin
       Row := Bmp.ScanLine[Y];
       for X := 0 to Bmp.Width - 1 do
       begin
         // BGRA layout: B=Row[X*4], G=Row[X*4+1], R=Row[X*4+2]
-        // Fuchsia = R:255 G:0 B:255 → B:255 G:0 R:255
-        // White   = R:255 G:255 B:255
         if not ((Row[X*4]=255) and (Row[X*4+1]=0) and (Row[X*4+2]=255)) and
            not ((Row[X*4]=255) and (Row[X*4+1]=255) and (Row[X*4+2]=255)) then
         begin

@@ -41,7 +41,6 @@ uses
 
 {$R *.dfm}
 
-{ TfrmEditorBase }
 
 procedure TfrmEditorBase.Show(DataSet: TDataSet);
 begin
@@ -84,7 +83,6 @@ var
 begin
   List := TStringList.Create;
   try
-    // Use visible DBGrid1 columns, skipping Id and audit fields
     if DBGrid1.Columns.Count > 0 then
     begin
       for I := 0 to DBGrid1.Columns.Count - 1 do
@@ -154,7 +152,6 @@ begin
     Delimiter := DetectDelimiter(Lines[0]);
     FieldNames := GetEditableFieldNames;
 
-    // Detect header row: skip if first field is non-numeric and matches a known column name
     StartLine := 0;
     if Lines.Count > 1 then
     begin
@@ -164,7 +161,6 @@ begin
         FirstField := Fields[0];
         if (FirstField <> '') and not CharInSet(FirstField[1], ['0'..'9']) then
         begin
-          // Looks like a header — skip it
           StartLine := 1;
         end;
       end;
@@ -180,7 +176,6 @@ begin
       Inc(Imported);
     end;
 
-    // Flush pending changes to the database so other queries see them immediately
     if (Imported > 0) and (DataSource.DataSet is TAureliusDataset) then
       TAureliusDataset(DataSource.DataSet).Manager.Flush;
 

@@ -1,8 +1,5 @@
 unit dlg_LinkManager;
 
-// Management view for one item's links. Reading and navigating links happens
-// inline in the item details panel; this dialog exists to add, edit and remove
-// them, and to show the full set when there are more than the panel lists.
 
 interface
 
@@ -53,7 +50,6 @@ uses
 
 {$R *.dfm}
 
-{ TdlgLinkManager }
 
 procedure TdlgLinkManager.LoadLinks;
 var
@@ -104,7 +100,6 @@ begin
   btnAdd.Enabled := FCanWrite;
   btnEdit.Enabled := FCanWrite and HasSel;
   btnRemove.Enabled := FCanWrite and HasSel;
-  // Navigation is always allowed; only mutation is gated on write access.
   btnOpen.Enabled := HasSel;
 end;
 
@@ -120,14 +115,11 @@ var
   TargetTitle: string;
   Res: TLinkRelationResult;
 begin
-  // Two steps: pick the item, then pick the relation. The picker no longer
-  // carries relation fields of its own — dlg_LinkRelation owns that entirely.
   if not TdlgItemPicker.Execute(FItemId, TargetItemId, TargetTitle) then Exit;
 
   Res := Default(TLinkRelationResult);
   if not TdlgLinkRelation.Execute(FItemTitle, TargetTitle, Res) then Exit;
 
-  // A reverse phrasing simply swaps which item is stored as the source.
   if Res.IsForward then
   begin
     SourceId := FItemId;
@@ -142,7 +134,6 @@ begin
   if not Model.Access.CanWrite(Model.Manager, Model.User, FProjectId) then Exit;
   if Model.ItemLinks.AddLink(SourceId, DestId, Res.LinkTypeId, Res.Notes,
        Model.User.Id) = nil then
-    // Previously this silently did nothing, so the click looked broken.
     MessageDlg('These items are already linked.', mtInformation, [mbOK], 0)
   else
     LoadLinks;
@@ -156,8 +147,6 @@ begin
   Idx := SelectedIndex;
   if (Idx < 0) or (Idx >= Length(FLinks)) then Exit;
 
-  // Preselect the stored type and the direction as read from this end, so the
-  // dialog opens showing exactly what the list row says.
   Res := Default(TLinkRelationResult);
   Res.LinkTypeId := FLinks[Idx].LinkTypeId;
   Res.IsForward := FLinks[Idx].IsSource;
@@ -214,7 +203,6 @@ begin
     Dlg.FProjectId := AProjectId;
     Dlg.FItemTitle := ItemTitle;
     Dlg.FOnNavigate := OnNavigate;
-    // Links are viewable on a read-only project; only mutation is blocked.
     Dlg.FCanWrite :=
       Model.Access.CanWrite(Model.Manager, Model.User, AProjectId);
     Dlg.Caption := 'Links - ' + ItemTitle;

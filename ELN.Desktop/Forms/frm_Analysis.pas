@@ -50,7 +50,7 @@ type
     FProcIDs:     TList<Integer>;             // Proc IDs parallel to clbProcs items
     FXTypes:      TList<TValueType>;          // unique condition types (NOT owned)
     FYTypes:      TList<TValueType>;          // unique result types (NOT owned)
-    FPlottedData: TArray<TAnalysisPoint>;     // cached for CSV export
+    FPlottedData: TArray<TAnalysisPoint>;     
     procedure PopulateCombos(AllItems: TItems);
     procedure PlotData;
     procedure AddRegressionLine(const Pts: TArray<TAnalysisPoint>);
@@ -68,7 +68,6 @@ uses
 
 {$R *.dfm}
 
-{ TfrmAnalysis }
 
 procedure TfrmAnalysis.FormCreate(Sender: TObject);
 var
@@ -210,7 +209,6 @@ begin
   ChildMap   := TDictionary<Integer, TList<TItem>>.Create;
   DataPoints := TList<TAnalysisPoint>.Create;
   try
-    // Partition items into Procs and a parent→children map
     for Item in AllItems do
       if Item.Level = TItemLevel.Proc then
         Procs.Add(Item)
@@ -221,13 +219,11 @@ begin
         ChildMap[Item.Parent].Add(Item);
       end;
 
-    // Collect (X, Y) per selected Proc
     for Item in Procs do
     begin
       var ChkIdx := FProcIDs.IndexOf(Item.Id);
       if (ChkIdx < 0) or not clbProcs.Checked[ChkIdx] then Continue;
 
-      // X: EXP_CONDITION value directly on the Proc
       XVal := 0;
       XFound := False;
       for Val in Item.Values do
@@ -240,12 +236,11 @@ begin
         end;
       if not XFound then Continue;
 
-      // Y: average TEST_RESULT across all descendant Actions (including sub-actions)
       YSum := 0; YCount := 0;
       if ChildMap.TryGetValue(Item.Id, ChildList) then
         for ChildItem in ChildList do
         begin
-          if ChildItem.Level = TItemLevel.Item then  // Specimen level
+          if ChildItem.Level = TItemLevel.Item then  
           begin
             var ActionList: TList<TItem>;
             if ChildMap.TryGetValue(ChildItem.Id, ActionList) then
@@ -259,7 +254,6 @@ begin
                       YSum := YSum + Val.Value;
                       Inc(YCount);
                     end;
-                  // Sub-actions (e.g., XRR Simulation under XRR)
                   var SubList: TList<TItem>;
                   if ChildMap.TryGetValue(ActionItem.Id, SubList) then
                     for var SubAction in SubList do
@@ -274,7 +268,6 @@ begin
                 end;
           end
           else if ChildItem.Level = TItemLevel.Action then
-            // Direct Action child of Proc (no Specimen level)
             for Val in ChildItem.Values do
               if (Val.RecType = TEST_RESULT) and
                  Assigned(Val.ValueType) and (Val.ValueType.Id = SelYTypeId) then

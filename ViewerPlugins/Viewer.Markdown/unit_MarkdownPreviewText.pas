@@ -1,15 +1,7 @@
 unit unit_MarkdownPreviewText;
 
-{
-  Flattens raw markdown into a short list of classified display lines for the
-  thumbnail renderer.
-
-  This is deliberately NOT a markdown parser: the thumbnail only has to be
-  recognisable at 400x300, so block kinds are classified by their line prefix
-  and inline markup is stripped rather than interpreted. Kept free of
-  Vcl.Graphics so it can be unit-tested from a console harness — the drawing
-  lives in unit_MarkdownPreviewRender.
-}
+{ Thumbnail classification deliberately uses line prefixes rather than a full
+  Markdown parser; inline markup is stripped, not interpreted. }
 
 interface
 
@@ -35,12 +27,10 @@ const
 function BuildPreviewLines(const AMarkdown: string;
   AMaxLines: Integer): TArray<TPreviewLine>;
 
-{ Exposed for testing. }
 function StripInlineMarkup(const ALine: string): string;
 
 implementation
 
-{ Index of the AClose that balances the AOpen at AStart, or 0 if unbalanced. }
 function FindMatching(const S: string; AStart: Integer;
   AOpen, AClose: Char): Integer;
 var
@@ -61,7 +51,6 @@ begin
   end;
 end;
 
-{ '[text](url)' -> 'text', '![alt](url)' -> 'alt', '[[item:5]]' -> 'item:5'. }
 function FlattenLinks(const ALine: string): string;
 var
   SB: TStringBuilder;
@@ -86,8 +75,6 @@ begin
         begin
           Inner := Copy(ALine, BOpen + 1, BClose - BOpen - 1);
 
-          { Drop a trailing '(url)' target or '[ref]' label so only the visible
-            text survives. }
           TClose := BClose;
           TOpen := BClose + 1;
           if TOpen <= Length(ALine) then
@@ -205,7 +192,6 @@ begin
   Result := ATrimmed.StartsWith('```') or ATrimmed.StartsWith('~~~');
 end;
 
-{ '---', '***', '___' (3 or more of a single char) — a thematic break. }
 function IsRule(const ATrimmed: string): Boolean;
 var
   I: Integer;
@@ -223,7 +209,7 @@ begin
   Result := True;
 end;
 
-{ '|---|:--:|' — pure noise in a thumbnail. Assumes IsRule was checked first. }
+{ Assumes IsRule was checked first. }
 function IsTableSeparator(const ATrimmed: string): Boolean;
 var
   I: Integer;
@@ -301,7 +287,6 @@ var
   begin
     if Count >= AMaxLines then
       Exit;
-    { Never lead with vertical space and never stack two blanks. }
     if (AStyle = plsBlank) and
        ((Count = 0) or (Res[Count - 1].Style = plsBlank)) then
       Exit;
@@ -359,7 +344,6 @@ begin
 
       if InFence then
       begin
-        { Verbatim, minus leading indentation so short snippets stay legible. }
         Add(TrimLeft(TrimRight(Raw)), plsCode, 0);
         Continue;
       end;
@@ -389,7 +373,6 @@ begin
            CharInSet(T[Hashes + 1], [' ', #9]) then
         begin
           Content := StripInlineMarkup(Copy(T, Hashes + 1, MaxInt));
-          { Trailing closing hashes are optional syntax: '## Title ##'. }
           while (Content <> '') and (Content[Length(Content)] = '#') do
             Content := TrimRight(Copy(Content, 1, Length(Content) - 1));
           case Hashes of
@@ -426,7 +409,6 @@ begin
     Src.Free;
   end;
 
-  { Drop a trailing blank so the block doesn't end on empty space. }
   while (Count > 0) and (Res[Count - 1].Style = plsBlank) do
     Dec(Count);
 

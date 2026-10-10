@@ -19,7 +19,7 @@ function AddUser(const Name: string; Role: TDBRole): TUser;
 function AddProject(Owner: TUser): TProject;
 function AddItem(Project: TProject): TItem;
 procedure AddLink(Source, Target: Integer);
-procedure AddAudit(EntityType: TAuditEntityType; EntityId: Integer);
+procedure AddAudit(EntityType: TAuditEntityType; EntityId: Int64);
 function AddHypothesis(Project: TProject): THypothesis;
 procedure SetRegistry;
 procedure ExpectTagRefusal;
@@ -107,7 +107,7 @@ begin
   Notebook.Manager.Flush;
 end;
 
-procedure AddAudit(EntityType: TAuditEntityType; EntityId: Integer);
+procedure AddAudit(EntityType: TAuditEntityType; EntityId: Int64);
 var
   Log: TAuditLog;
 begin

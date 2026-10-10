@@ -93,7 +93,6 @@ uses
   unit_ValueType, unit_FileTypeLink, unit_ELNDB_Dictionary,
   unit_TimeHelper;
 
-{ TImportManifest }
 
 function TImportManifest.TotalFiles: Integer;
 var
@@ -115,7 +114,6 @@ begin
       Inc(Result, Files[I].RowCount);
 end;
 
-{ TImportResult }
 
 procedure TImportResult.Init;
 var
@@ -132,7 +130,6 @@ begin
   end;
 end;
 
-{ TServiceImporter }
 
 constructor TServiceImporter.Create(AManager: TObjectManager; APrincipalId: Integer);
 begin
@@ -193,7 +190,6 @@ begin
 
     Delimiter := DetectDelimiter(Lines[0]);
 
-    // Detect header row: skip if first field is non-numeric
     StartLine := 0;
     if Lines.Count > 1 then
     begin
@@ -236,7 +232,6 @@ begin
     Result.Files[I].Found := FileExists(FilePath);
     if Result.Files[I].Found then
     begin
-      // Count data rows (exclude header and blank lines)
       Lines := TStringList.Create;
       try
         Lines.LoadFromFile(FilePath, TEncoding.UTF8);
@@ -463,7 +458,6 @@ begin
   end;
 end;
 
-{ FK Lookup Helpers }
 
 function TServiceImporter.FindEquipmentTypeByName(const Name: string): TEquipmentType;
 var
@@ -513,7 +507,6 @@ begin
       Exit(FT);
 end;
 
-{ Enum Parsers }
 
 const
   ActionKindNames: array[0..5] of string =
@@ -542,7 +535,6 @@ begin
       Exit(TItemType(I));
 end;
 
-{ Import Dependent Entities }
 
 procedure TServiceImporter.ImportEquipment(const FolderPath: string; var R: TEntityImportResult);
 var
@@ -665,7 +657,6 @@ begin
   end;
 end;
 
-{ Import Relations }
 
 procedure TServiceImporter.ImportFileTypeLinks(const FolderPath: string; var R: TEntityImportResult);
 var
@@ -705,7 +696,6 @@ begin
         Continue;
       end;
 
-      // Check if link already exists
       LinkDic := TFileTypeLinkDictionary.Create;
       try
         Links := FManager.Find<TFileTypeLink>

@@ -48,7 +48,6 @@ type
     // (e.g. 2.8026E-45). Call after LoadFromFile to zero them everywhere the
     // numeric matrix is consumed (charts, columnar data, stats).
     procedure ClampDenormals(const Threshold: Double = 1E-30);
-    // Columnar data provider operations
     function GetTotalRows: Integer;
     function GetTimeAxisIndex: Integer;
     function GetTimeSpan(out StartTime, EndTime: string): Boolean;
@@ -68,7 +67,7 @@ uses
   System.Math, System.StrUtils;
 
 const
-  DTYPE_INFER_ROWS = 10;  // rows sampled for dtype inference
+  DTYPE_INFER_ROWS = 10;
 
 constructor TLogFile.Create;
 begin
@@ -99,7 +98,6 @@ begin
 
     if Lines.Count < 2 then Exit;
 
-    // Detect truncated last row: fewer tabs than the header.
     if Lines.Count > 2 then
     begin
       var HeaderTabs := 0;
@@ -152,10 +150,9 @@ begin
         FColumns[I].Units := Units[I]
       else
         FColumns[I].Units := '';
-      FColumns[I].DType := cdNumeric;  // default; overridden by InferDTypes
+      FColumns[I].DType := cdNumeric;
     end;
 
-    // Time-axis convention: column 0 named "Time" (case-insensitive).
     if (Names.Count > 0) and SameText(Names[0], 'Time') then
       FTimeColIndex := 0;
   finally
@@ -405,7 +402,6 @@ begin
   BucketCount := MaxRows div 2;
   if BucketCount < 1 then BucketCount := 1;
 
-  // Worst case: 2 points per bucket.
   SetLength(Result, BucketCount * 2);
   OutCount := 0;
 
@@ -518,7 +514,6 @@ begin
         else
           Result[I] := GetColumnDownsampleText(ColIdx, MaxRows, RangeStart, RangeEnd, UseTime);
     else
-      // cmStats handled separately by GetStats
       SetLength(Result[I], 0);
     end;
   end;

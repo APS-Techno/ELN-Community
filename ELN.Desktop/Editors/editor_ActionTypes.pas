@@ -34,7 +34,7 @@ type
     FEquipTypeIds: TList<Integer>;
     FEquipIds: TList<Integer>;
     FFileTypeIds: TList<Integer>;
-    FAllFileTypeNames: TStringList;  // full list: display text
+    FAllFileTypeNames: TStringList;  
     FAllFileTypeIds: TList<Integer>; // full list: IDs (parallel)
     FFilterEdit: TEdit;
     procedure DataSetBeforeDelete(DataSet: TDataSet);
@@ -79,7 +79,6 @@ end;
 
 procedure TedActionTypes.ShowEditor(ADataSet, AEquipTypeLookup, AFileTypeLookup: TDataSet);
 begin
-  // Populate Kind combo from TActionKind enum
   cbKind.Items.Clear;
   cbKind.Items.Add('Synthesys');
   cbKind.Items.Add('Testing');
@@ -88,7 +87,6 @@ begin
   cbKind.Items.Add('Simulation');
   cbKind.Items.Add('Other');
 
-  // Populate ItemType combo from TItemType enum
   cbItemType.Items.Clear;
   cbItemType.Items.Add('Synthesis');
   cbItemType.Items.Add('Treatment');
@@ -100,7 +98,6 @@ begin
   cbItemType.Items.Add('Model');
   cbItemType.Items.Add('Other');
 
-  // Populate EquipmentType combo from lookup dataset
   if FEquipTypeIds = nil then
     FEquipTypeIds := TList<Integer>.Create
   else
@@ -123,13 +120,11 @@ begin
     AEquipTypeLookup.EnableControls;
   end;
 
-  // Init equipment ID list
   if FEquipIds = nil then
     FEquipIds := TList<Integer>.Create
   else
     FEquipIds.Clear;
 
-  // Store full FileTypes list for filtering
   if FAllFileTypeNames = nil then
     FAllFileTypeNames := TStringList.Create
   else
@@ -158,7 +153,6 @@ begin
     AFileTypeLookup.EnableControls;
   end;
 
-  // Create filter edit above checklist
   if not Assigned(FFilterEdit) then
   begin
     FFilterEdit := TEdit.Create(Self);
@@ -174,7 +168,6 @@ begin
   end;
   FFilterEdit.Text := '';
 
-  // Populate checklist with full list
   ApplyFileTypeFilter(nil);
 
   DataSource.OnDataChange := SyncCombos;
@@ -223,13 +216,10 @@ begin
   if not Assigned(AT) then
     Exit;
 
-  // Sync Kind combo
   cbKind.ItemIndex := Ord(AT.Kind);
 
-  // Sync ItemType combo
   cbItemType.ItemIndex := Ord(AT.ItemType);
 
-  // Sync EquipmentType combo
   if Assigned(AT.EquipmentType) then
     for i := 0 to FEquipTypeIds.Count - 1 do
       if FEquipTypeIds[i] = AT.EquipmentType.Id then
@@ -238,10 +228,8 @@ begin
         Break;
       end;
 
-  // Sync Equipment combo (filtered by EquipmentType)
   RefreshEquipmentCombo(AT);
 
-  // Refresh FileType checkboxes
   RefreshFileTypeChecks;
 end;
 
@@ -276,7 +264,6 @@ begin
       FEquipIds.Add(Equip.Id);
     end;
 
-    // Select current default equipment
     cbEquipment.ItemIndex := 0;
     if Assigned(AT.Equipment) then
       for i := 0 to FEquipIds.Count - 1 do
@@ -425,10 +412,9 @@ begin
 
   DS.Append;
   DS.FieldByName('CreatedDate').AsDateTime := UTCNow;
-  DS.FieldByName('Kind').AsInteger := 0;      // default: Synthesys
-  DS.FieldByName('ItemType').AsInteger := 0;  // default: Synthesis
+  DS.FieldByName('Kind').AsInteger := 0;      
+  DS.FieldByName('ItemType').AsInteger := 0;  
 
-  // Map Kind text to enum
   if (Length(Fields) > 0) and (Fields[0] <> '') then
     for i := Low(ActionKindNames) to High(ActionKindNames) do
       if SameText(ActionKindNames[i], Fields[0]) then
@@ -437,7 +423,6 @@ begin
         Break;
       end;
 
-  // Map ItemType text to enum
   if (Length(Fields) > 1) and (Fields[1] <> '') then
     for i := Low(ItemTypeNames) to High(ItemTypeNames) do
       if SameText(ItemTypeNames[i], Fields[1]) then
@@ -446,13 +431,11 @@ begin
         Break;
       end;
 
-  // Title
   if Length(Fields) > 2 then
     DS.FieldByName('Title').AsString := Fields[2];
 
   AT := TAureliusDataset(DS).Current<TActionType>;
 
-  // Map EquipmentType text to entity (skip index 0 = "(none)")
   if (Length(Fields) > 3) and (Fields[3] <> '') and Assigned(AT) then
     for i := 1 to cbEquipmentType.Items.Count - 1 do
       if SameText(cbEquipmentType.Items[i], Fields[3]) then
@@ -461,7 +444,6 @@ begin
         Break;
       end;
 
-  // Description
   if Length(Fields) > 4 then
     DS.FieldByName('Description').AsString := Fields[4];
 

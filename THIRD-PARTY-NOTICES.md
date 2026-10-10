@@ -20,12 +20,18 @@ The selected fonts are WOFF2. KaTeX CSS also names WOFF/TTF fallbacks that are n
 
 ## Linked resources
 
-`ELN.Desktop/ELabNotebook3.res` retains the application icon, version, manifest and platform metadata. It contains no vendor Carbon VCL style. Community uses native Windows styling. Official binary redistribution remains separate from this source release. The separate Commercial resource is unchanged.
+The Community Desktop links its own generated project resource for the application icon, Community version, manifest, and platform metadata. Its icon source is `ELN.Desktop/Assets/DevTools/AppIcons/ELN3_icon.ico`. The retained shared `ELN.Desktop/ELabNotebook3.res` contains no vendor Carbon VCL style. Community uses native Windows styling. Official binary redistribution remains separate from this source release. The separate Commercial resource is unchanged.
 
 ## External developer and runtime dependencies
 
 Delphi, TMS Aurelius/BCL, TMS Plugin Framework, KSVC/Raize, TeeChart, SynEdit, VirtualTreeView and required toolchain/Indy units remain external. Use valid licensed developer installations. Do not commit their source, DCUs, DCPs, BPLs, license keys or installers.
 
 SQLite and WebView2 are external runtime prerequisites. The retained WebView2 SDK 1.0.3065.39 license and notice text is under `Notices/WebView2-1.0.3065.39`; no loader or runtime binary is included. Those texts do not grant redistribution rights for proprietary runtime BPLs. Exact source-build proof, official binary packaging and publisher entitlements are separate checks.
+
+The Community installer stages selected runtime binaries from explicit local
+configuration. It keeps these source notices beside the installed application.
+The local build and runtime checks do not certify redistribution rights for
+the selected binary versions. Check the applicable runtime grants before
+signing or publishing an installer.
 
 Legacy private Help, personal user catalogs, private update-feed payloads, deployment history and laboratory/demo records are not selected into this Community tree. Community Help is complete: 19 offline English HTML pages and help.css replace the private manual. This is a source distribution, not a standalone binary package. Official binary distribution still requires applicable publisher permissions and runtime packaging proof.

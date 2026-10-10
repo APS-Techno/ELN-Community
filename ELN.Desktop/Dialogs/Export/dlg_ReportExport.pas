@@ -69,18 +69,15 @@ implementation
 uses
   unit_DataModel, unit_NotebookSettings, System.IOUtils;
 
-{ TdlgReportExport }
 
 destructor TdlgReportExport.Destroy;
 begin
-  // Return the plugin frame to its original parent
   if Assigned(FHtmlViewer) and Assigned(FSavedParent) then
   begin
     FHtmlViewer.Frame.Parent := FSavedParent;
     FHtmlViewer.Frame.Align := alClient;
   end;
   FTemplates.Free;
-  // Clean up temp file
   if (FTempFile <> '') and FileExists(FTempFile) then
     DeleteFile(FTempFile);
   inherited;
@@ -118,7 +115,6 @@ begin
 
     IsProc := Assigned(Item) and (Item.Level = TItemLevel.Proc);
 
-    // Populate checklist — include all descendants recursively
     if IsProc then
     begin
       Dialog.clbItems.Items.AddObject(Item.Title + ' [Proc]', Item);
@@ -132,7 +128,6 @@ begin
         Dialog.clbItems.Items.AddObject(It.Title, It);
     end;
 
-    // Check all by default
     for I := 0 to Dialog.clbItems.Count - 1 do
       Dialog.clbItems.Checked[I] := True;
 
@@ -263,10 +258,7 @@ begin
     Data.Comments := Model.Comments.GetComments(It.Id);
     Data.Signature := Model.Signatures.GetSignature(It.Id);
     Data.HasSignature := Assigned(Data.Signature);
-    if Data.HasSignature then
-      Data.IntegrityOk := Model.Signatures.VerifyIntegrity(It.Id)
-    else
-      Data.IntegrityOk := False;
+    Data.IntegrityState := Model.Signatures.GetIntegrityState(It.Id);
 
     Result.Add(Data);
   end;
@@ -299,7 +291,6 @@ begin
       ReportData.Free;
     end;
 
-    // Save to temp file and load via plugin
     if FTempFile = '' then
     begin
       ForceDirectories(FWorkingRoot);
@@ -378,10 +369,8 @@ begin
     Exit;
   end;
 
-  // Refresh preview with latest options
   RefreshPreview;
 
-  // Find the TEdgeBrowser inside the plugin frame to call PrintToPDF
   Browser := FindEdgeBrowser(FHtmlViewer.Frame);
   if not Assigned(Browser) then
   begin

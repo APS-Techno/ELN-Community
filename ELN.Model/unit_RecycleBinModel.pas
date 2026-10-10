@@ -51,22 +51,9 @@ uses
   unit_ConflictHandler;
 
 const
-  // Every table that carries a reference to Items.Id, deleted by item id rather
-  // than through the loaded object graph. A purge must not depend on what the
-  // ObjectManager happens to have in memory: Files/DataValues/LabEntries hold
-  // real foreign keys, so a single child row the ORM did not know about aborts
-  // the whole DELETE with a constraint violation. LabEntries was the reliable
-  // case — TItem.FEntries is mapped CascadeTypeAllButRemove, so entries were
-  // never cascade-deleted at all.
-  //
-  // The remaining tables have no foreign key, so they never blocked a purge;
-  // they just accumulated as dangling rows aimed at an id a later item can
-  // reuse. dlg_DBMaintenance's orphan sweep exists to mop up after this.
-  //
-  // Order matters: ProtocolStatusHistory hangs off a LabEntry, not off the
-  // item, so it has to go before the LabEntries rows it points at are
-  // deleted -- otherwise the subselect finds nothing and the history rows
-  // are left behind as orphans.
+  // Delete by item ID, not the cached graph: unloaded children still hold FKs,
+  // and non-FK references can target reused item IDs. ProtocolStatusHistory
+  // must go before LabEntries or its parent-ID subselect finds nothing.
   ItemChildDeletes: array[0..10] of string = (
     'DELETE FROM Files WHERE ItemID = %ID%',
     'DELETE FROM DataValues WHERE ItemID = %ID%',
@@ -103,8 +90,6 @@ end;
 
 function TRecycleBinModel.GetDeletedItems: TItems;
 begin
-  // Return only top-level deleted items (whose parent is not deleted or parent=0)
-  // For simplicity, return all deleted items — the dialog can filter display
   Result := FManager.Find<TItem>
     .Where(FDic.IsDeleted = True)
     .OrderBy('DeletedDate')
@@ -277,7 +262,7 @@ begin
   end;
 
   if not Result then
-    Exit;                // refused: nothing deleted, nothing audited
+    Exit;
   RecordAudit(FManager, aetItem, ItemId, aoDelete, UserId,
     'Permanently deleted item "' + ItemTitle + '"');
 end;
@@ -293,7 +278,7 @@ end;
 function TRecycleBinModel.EmptyBin(UserId: Integer;
   out AKeptRootCount: Integer; out ARefused: Boolean): Boolean;
 var
-  BinnedParent: TDictionary<Integer, Integer>;   // binned item id -> parent id
+  BinnedParent: TDictionary<Integer, Integer>;
   Rows: TObjectList<TCriteriaResult>;
   Row: TCriteriaResult;
   Walked, ToPurge: TList<TItem>;
@@ -301,8 +286,6 @@ var
   Id, PurgeRootCount: Integer;
   Purged: Boolean;
 
-  // Keep the whole subtree under ARoot when any item in it is cited by an
-  // InReview/Accepted hypothesis, else queue it for the purge.
   procedure Walk(ARoot: TItem);
   var
     Subtree: TList<TItem>;
@@ -336,19 +319,13 @@ var
   end;
 
 begin
-  // R1: a single binned item cited by an InReview/Accepted hypothesis no
-  // longer disables Empty Bin for every other item -- its whole subtree is
-  // kept (and counted) while everything else is purged.
   AKeptRootCount := 0;
   ARefused := False;
   PurgeRootCount := 0;
   Purged := False;
 
-  // RB-1: which binned items are roots is decided from the parent links the
-  // database holds NOW. The manager may be long-lived (desktop), so a cached
-  // parent can still look binned after another session restored it -- its
-  // binned child was then skipped as "covered by an ancestor" and never
-  // purged. A projection bypasses the identity map.
+  // Project committed parent links: cached restored parents can otherwise
+  // make a binned child look covered by an ancestor and skip its purge.
   BinnedParent := TDictionary<Integer, Integer>.Create;
   Walked := TList<TItem>.Create;
   ToPurge := TList<TItem>.Create;
@@ -366,7 +343,6 @@ begin
       Rows.Free;
     end;
 
-    // A root: its parent is top level (0), gone, or not binned.
     for Id in BinnedParent.Keys do
       if not BinnedParent.ContainsKey(BinnedParent[Id]) then
       begin
@@ -374,9 +350,7 @@ begin
         if Assigned(Root) then
           Walk(Root);
       end;
-    // CM-6: binned items no root reaches -- a parent cycle -- are walked from
-    // themselves, as the pre-experiment-tree EmptyBin (which walked from
-    // every binned item) did. Nothing binned is left out silently.
+    // Parent cycles have no root; walk them explicitly so no binned item is skipped.
     for Id in BinnedParent.Keys do
     begin
       Root := FManager.Find<TItem>(Id);
@@ -386,7 +360,7 @@ begin
 
     if ToPurge.Count > 0 then
     begin
-      // PurgeItems re-checks every item inside its own transaction (R4); a
+      // PurgeItems re-checks every item inside its own transaction; a
       // False here means another session locked or restored one of them
       // between the walk above and now, and the purge rolled back: NOTHING
       // was deleted, so every subtree queued for it was kept too (MO-8).
@@ -404,7 +378,7 @@ begin
   Result := AKeptRootCount = 0;
   // Audit exactly when something was permanently deleted: a partial purge
   // (some subtrees kept) still deleted every other binned item and must be
-  // on record (final review I2), while an empty bin, an all-kept bin or a
+  // on record, while an empty bin, an all-kept bin or a
   // refused purge (PurgeItems rolls back) deleted nothing and must not claim
   // it emptied anything.
   if not Purged then

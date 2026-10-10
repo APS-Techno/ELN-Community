@@ -26,10 +26,12 @@ type
     procedure cmbTypeChange(Sender: TObject);
   private
     FUpdating: Boolean;
+    FInitialized: Boolean;
     FOnChanged: TNotifyEvent;
     FOnFieldTypeChanged: TFieldTypeChangedEvent;
+  protected
+    procedure SetParent(AParent: TWinControl); override;
   public
-    constructor Create(AOwner: TComponent); override;
     procedure LoadFromNode(SN: TSchemaNode);
     procedure SaveToNode(SN: TSchemaNode);
     procedure SetOnChanged(AHandler: TNotifyEvent);
@@ -41,11 +43,14 @@ implementation
 
 {$R *.dfm}
 
-constructor TfrDateFieldCard.Create(AOwner: TComponent);
+procedure TfrDateFieldCard.SetParent(AParent: TWinControl);
 begin
-  inherited Create(AOwner);
+  inherited SetParent(AParent);
+  if (AParent = nil) or FInitialized then Exit;
+  // Combo-box item access needs the frame's real parent window.
   PopulateFieldTypeCombo(cmbType.Items);
   PopulateAutoFillCombo(cmbAutoFill.Items);
+  FInitialized := True;
 end;
 
 procedure TfrDateFieldCard.LoadFromNode(SN: TSchemaNode);

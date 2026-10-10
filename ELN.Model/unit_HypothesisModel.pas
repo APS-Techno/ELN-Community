@@ -1,26 +1,10 @@
 unit unit_HypothesisModel;
 
-{
-  Experiment tree - every NON-gate write, and the reads (spec 6.3).
-
-  The four gate transitions (approve, reject, accept, return) are NOT here and
-  must never be added here: this unit is compiled into the MCP server, and
-  the gates must be unreachable from MCP (spec D6). They live in
-  a separate gate unit for human clients and tests. Scientific constructors
-  require an explicit access policy. This unit never assigns hsApproved,
-  hsRejected or hsAccepted.
-
-  Every status change writes a THypothesisStatusChange and an audit row in
-  the same transaction. On failure the half-saved objects are evicted so the
-  shared manager is not poisoned for the next caller.
-
-  Stale reads (final review C1): the MCP server and the desktop keep one
-  manager for a whole session, so Load refreshes the cached hypothesis from
-  the database before anyone looks at its status. Every write also marks the
-  hypothesis modified inside its transaction, which bumps [Version]; a change
-  someone else committed between our read and our Flush then fails the
-  optimistic lock and surfaces as EHypothesisConflict.
-}
+{ This unit is compiled into MCP: human gate execution must remain in the
+  separate gate unit. Status, history and audit writes are atomic.
+  Session managers cache entities, so status reads refresh committed rows;
+  writes use Version to detect concurrent changes. Failed writes must leave
+  no dirty entities that a later shared-manager Flush could replay. }
 
 interface
 
@@ -69,7 +53,7 @@ type
 
   THypDerivedState = (hdsNone, hdsToMake, hdsWaitingForMeasurement, hdsReadyToConclude);
 
-  // The acceptance seal (spec 6.4): none unless the hypothesis is Accepted
+  // The acceptance seal: none unless the hypothesis is Accepted
   // and carries a ContentHash; otherwise intact or tampered.
   THypSealState = (hssNone, hssIntact, hssTampered);
 
@@ -170,15 +154,10 @@ type
     class function RunsOf(AManager: TObjectManager; AId: Integer): TArray<THypothesisRun>; static;
     class function EvidenceOf(AManager: TObjectManager; AId: Integer): TArray<THypothesisEvidence>; static;
     function ActorsFor(AUser: TUser; H: THypothesis): THypActors;
-    // READS about the gates, kept here (not in the gate unit) so the WebAPI
-    // read routes can show them without naming the gate model; the gate
-    // model's AllowedGateTargets/VerifySeal delegate to these, so each rule
-    // is written once. Neither executes a gate or writes anything.
-    // Gate targets AUser may move H to now (pure rules + approval policy).
+    // Keep eligibility reads here so MCP clients cannot link human gate execution.
     class function AllowedGateTargetsFor(AManager: TObjectManager; AUser: TUser;
       H: THypothesis; const AAccess: IProjectAccessPolicy): TArray<THypothesisStatus>; overload; static;
-    // Same, with a per-request TGateEligibility (policy parsed once) the
-    // caller already holds for AGates.User.
+    // Reuse per-request eligibility to avoid parsing the policy again.
     class function AllowedGateTargetsFor(AGates: TGateEligibility;
       H: THypothesis): TArray<THypothesisStatus>; overload; static;
     // Recomputes the seal from the committed runs/evidence (RunsOf/EvidenceOf
@@ -204,10 +183,7 @@ type
     procedure Abandon(AUser: TUser; ADeviceId, AId, AExpectedVersion: Integer;
       const AComment: string);
 
-    // AProjectScope / THypothesisFilter.ProjectIds: an MCP key's project
-    // scope ([] = none). The key-value summary counts only Run items in a
-    // project AUser can read AND in that scope - the same test that redacts
-    // the run itself on every surface (review #4).
+    // Summaries must redact values outside readable projects and the MCP scope.
     function Get(AUser: TUser; AId: Integer;
       const AProjectScope: TArray<Integer> = nil): THypothesisDetail;      // raises EHypothesisAccess if unreadable
     function List(AUser: TUser; const AFilter: THypothesisFilter): TArray<THypothesisSummary>;
@@ -259,7 +235,7 @@ type
     Value: Double;
   end;
 
-  // Items, files and values as the database holds them NOW (review #2/#6).
+  // Items, files and values as the database holds them NOW.
   // The MCP and desktop managers live for a whole session, so Find<TItem>,
   // Find<TFile> and Find<TValue> return whatever copy was cached when first
   // loaded - a stale hash, value or IsDeleted. These are projections, which
@@ -291,7 +267,6 @@ begin
   end;
 end;
 
-{ EHypothesisError }
 
 constructor EHypothesisError.Create(ARefusal: THypRefusal; const AMessage: string);
 begin
@@ -302,7 +277,6 @@ begin
   FRefusal := ARefusal;
 end;
 
-{ EHypothesisConflict }
 
 constructor EHypothesisConflict.Create(ACurrentVersion: Integer);
 begin
@@ -311,7 +285,6 @@ begin
   FCurrentVersion := ACurrentVersion;
 end;
 
-{ EHypothesisOtherRecordChanged }
 
 constructor EHypothesisOtherRecordChanged.Create;
 begin
@@ -319,7 +292,6 @@ begin
     'Another record was changed elsewhere; reload and try again.');
 end;
 
-{ THypothesisModel }
 
 constructor THypothesisModel.Create(AManager: TObjectManager;
   const AAccess: IProjectAccessPolicy);
@@ -360,7 +332,7 @@ var
   L: TList<THypothesisRun>;
 begin
   // Refreshing: VerifySeal and the Accept hash must see a run row exactly as
-  // committed now, not a copy this long-lived manager cached earlier (R2).
+  // committed now, not a copy this long-lived manager cached earlier.
   L := AManager.Find<THypothesisRun>.Where(Linq['HypothesisId'] = AId).Refreshing.List;
   try
     Result := L.ToArray;
@@ -408,8 +380,6 @@ begin
   try
     if (not Live.Items.TryGetValue(AItemId, It)) or It.IsDeleted then
       raise EHypothesisNotFound.CreateFmt('Item %d not found.', [AItemId]);
-    // Spec 6.3: runs and evidence are Proc, Item or Action items; a Folder
-    // is only a grouping (review U60).
     if It.IsFolder then
       raise EHypothesisError.Create(hrNotAllowed, Format(
         'Item %d is a folder; attach or cite a Proc, Item or Action instead.', [AItemId]));
@@ -430,7 +400,6 @@ begin
     Include(Result, haAuthor);
   if FAccess.CanWrite(FManager, AUser, H.ProjectId) then
     Include(Result, haWriter);
-  // Eligibility is a READ; knowing it does not execute a gate.
   if FAccess.CanPassGate(FManager, AUser, H, hgApproveProposals, Reason) then
     Include(Result, haProposalApprover);
   if FAccess.CanPassGate(FManager, AUser, H, hgAcceptConclusions, Reason) then
@@ -477,7 +446,7 @@ begin
     Exit(hssNone);
   // The Accept gate always writes a hash, so an Accepted row without one can
   // only come from an edit outside the model - and blanking the hash is the
-  // easiest way to hide an edited conclusion (spec goal 6). Tampered, not none.
+  // easiest way to hide an edited conclusion. Tampered, not none.
   if H.ContentHash = '' then
     Exit(hssTampered);
   if SameText(H.ContentHash, ComputeHypothesisHash(H,
@@ -511,7 +480,7 @@ begin
   // On a lost connection Rollback and Refresh raise too. Neither secondary
   // error may replace the caller's, and H must not stay in the shared manager
   // dirty with the failed write: a later, unrelated Flush would commit it
-  // with no history and no audit row (review fix #3). If H cannot be
+  // with no history and no audit row. If H cannot be
   // reloaded, detach it; the manager still owns and frees it, so a caller
   // holding H keeps a valid object, and the next Load reads the row afresh.
   // A deleted row does not make Refresh fail (Aurelius ignores zero rows):
@@ -520,7 +489,7 @@ begin
   // (H is no longer mapped) into the same detach path, which is harmless.
   //
   // Flush is global: the optimistic lock that failed may be another dirty
-  // entity's in this shared manager (review M-1). It is a hypothesis
+  // entity's in this shared manager. It is a hypothesis
   // conflict only when the committed row, re-read after the rollback, is
   // NEWER than our copy. Our copy is V when our UPDATE of H lost the lock or
   // never ran, V+1 when it went through before another entity failed (the
@@ -561,7 +530,7 @@ procedure THypothesisModel.WriteStatus(H: THypothesis;
   const AComment: string; out AChange: THypothesisStatusChange);
 begin
   AChange := nil;
-  // Tripwire (final review I4): this model owns the two non-gate status
+  // Guard: this model owns the two non-gate status
   // moves only. A gate status written from here would bypass the approval
   // policy, whatever the caller checked beforehand.
   if not (ANew in [hsInReview, hsAbandoned]) then
@@ -655,7 +624,7 @@ begin
     Trans.Commit;
   except
     try
-      Trans.Rollback;   // raises too on a lost connection (review fix #3)
+      Trans.Rollback;   // raises too on a lost connection
     except
     end;
     Discard(C);
@@ -1026,16 +995,10 @@ const
   IN_CHUNK = 500;
 
 type
-  TValueKey = TPair<Integer, Integer>;          // (ItemId, ValueTypeId)
+  TValueKey = TPair<Integer, Integer>;
 
-  // What a summary needs beyond the hypothesis row - its runs, how many
-  // evidence rows it has, and the key values of its Run items - read for a
-  // whole set of hypotheses with a constant number of statements per
-  // IN_CHUNK ids instead of several per node (Plan 3 Task 5b: the web board
-  // polls the list every 60 s). Runs are Refreshing entity reads, exactly
-  // like RunsOf; the evidence counts and the values are projections, which
-  // never go through the identity map, so a long-lived manager cannot serve
-  // stale cached copies of any of them.
+  // Batch facts by IN_CHUNK rather than query per node. Refresh run entities;
+  // project counts and values to bypass stale session identity-map copies.
   THypListFacts = class
   private
     FRuns: TObjectDictionary<Integer, TList<THypothesisRun>>;  // lists do not own the runs
@@ -1045,7 +1008,6 @@ type
     constructor Create;
     destructor Destroy; override;
     procedure LoadRunsAndEvidence(AManager: TObjectManager; const AIds: TArray<Integer>);
-    // For a caller that already holds a node's runs (Get).
     procedure SetRuns(AHypId: Integer; const ARuns: TArray<THypothesisRun>);
     // The values of each node's key-value type over its Run items, for
     // every node in AHyps. Call once the runs are known. Only items whose
@@ -1108,7 +1070,6 @@ begin
   Result := VariantChunks(V);
 end;
 
-{ TLiveRows }
 
 constructor TLiveRows.Create(AManager: TObjectManager;
   const AItemIds: TArray<Integer>; const AFileIds: TArray<Int64>;
@@ -1217,7 +1178,6 @@ begin
   Result := False;
 end;
 
-{ THypListFacts }
 
 constructor THypListFacts.Create;
 begin
@@ -1320,7 +1280,7 @@ begin
         Continue;
       Types.AddOrSetValue(H.KeyValueTypeId.Value, True);
       for R in RunsOf(H.Id) do
-        if R.Role = hrrRun then                 // References excluded (spec 6.3)
+        if R.Role = hrrRun then
           Items.AddOrSetValue(R.ItemId, True);
     end;
     if (Items.Count = 0) or (Types.Count = 0) then
@@ -1411,7 +1371,7 @@ begin
   for R in ARuns do
   begin
     if R.Role <> hrrRun then
-      Continue;                                   // References excluded (spec 6.3)
+      Continue;
     // No entry: a missing or soft-deleted item, or no values of the type.
     if not FValues.TryGetValue(TValueKey.Create(R.ItemId, H.KeyValueTypeId.Value), L) then
       Continue;
@@ -1529,7 +1489,6 @@ begin
       Projects := FManager.Find<TProject>.List;
       try
         for Pr in Projects do
-          // An out-of-scope project is skipped before any per-project read.
           if InProjectScope(AFilter.ProjectIds, Pr.Id) and
              FAccess.CanRead(FManager, AUser, Pr.Id) then
             L.Add(Pr.Id);
@@ -1543,13 +1502,8 @@ begin
   end;
 end;
 
-// A COPY of ARuns sorted by ItemId, for feeding the key-value summation only
-// (Task H item 7). RunsOf (the class function Get calls) has no ORDER BY, so
-// without this Get's floating-point summation order can differ from List's
-// (LoadRunsAndEvidence explicitly orders by ItemId) - the same set of values,
-// summed in a different order, can land on a different double in the last
-// bit. Do NOT add ORDER BY to RunsOf itself: nothing has proven
-// ComputeHypothesisHash order-independent, and RunsOf also feeds the seal.
+// Sort a copy for summation: Get and List must add doubles in the same order.
+// Keep RunsOf ordering unchanged because it also feeds the acceptance seal.
 function RunsSortedByItemId(const ARuns: TArray<THypothesisRun>): TArray<THypothesisRun>;
 begin
   Result := Copy(ARuns);
@@ -1588,8 +1542,6 @@ begin
   try
     Facts.SetRuns(AId, Runs);
     Facts.LoadKeyValues(FManager, TArray<THypothesis>.Create(H), AUser, AProjectScope, FAccess);
-    // A sorted COPY, only for the key-value summation (item 7); Result.Runs[]
-    // below still lists them in RunsOf's own (unspecified) order.
     Result.Summary := Summarize(H, RunsSortedByItemId(Runs), Length(Ev), Facts);
   finally
     Facts.Free;
@@ -1666,7 +1618,7 @@ begin
         if (not Live.Values.TryGetValue(Ev[I].ValueId.Value, LV)) or (LV.ItemId <> Ev[I].ItemId) then
           Result.Evidence[I].Missing := True
         else if (not Ev[I].ValueSnapshot.HasValue) or (LV.Value <> Ev[I].ValueSnapshot.Value) then
-          Result.Evidence[I].Changed := True;   // exact comparison of the stored double
+          Result.Evidence[I].Changed := True;
       end;
     end;
   finally
@@ -1726,7 +1678,7 @@ begin
     for Pid in ReadableProjectIds(AUser, AFilter) do
     begin
       // Refreshing: a long-lived manager must not list a status it cached
-      // before another client moved the node on (final review C1).
+      // before another client moved the node on.
       All := FManager.Find<THypothesis>.Where(Linq['ProjectId'] = Pid).Refreshing.List;
       try
         if AFilter.RootId <> 0 then
@@ -1743,8 +1695,6 @@ begin
         end;
         if Picked.Count = 0 then
           Continue;
-        // Runs, evidence counts and key values for the project's picked
-        // nodes at once - a constant number of statements, not per node.
         Facts := THypListFacts.Create;
         try
           Facts.LoadRunsAndEvidence(FManager, Ids.ToArray);

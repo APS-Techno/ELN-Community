@@ -1,14 +1,6 @@
 unit unit_MarkdownFormatting;
 
-// Pure-function formatting helpers for the Markdown editor toolbar.
-// All three helpers are idempotent: applying the same transform twice
-// toggles it off. SelStart / NewSelStart use the 1-based convention
-// matching SynEdit's SelStart property.
-//
-// Test #12 ('MixedPrefixOnlyAddsToBare') interpretation: PrefixLines
-// makes a per-line decision — lines that already have the prefix get it
-// stripped; lines that don't get it added. Mixed input therefore ends
-// up with the prefix toggled per-line independently.
+// Selection positions are 1-based; convert at the SynEdit boundary.
 
 interface
 
@@ -56,8 +48,6 @@ begin
   Selected := Copy(Text, SelStart, SelLen);
   After    := Copy(Text, SelStart + SelLen, MaxInt);
 
-  // Idempotent toggle: if the chars immediately surrounding the selection
-  // are already Open/Close, strip them instead of adding another layer.
   HasOpenBefore  := (OpenLen > 0)  and (Length(Before) >= OpenLen) and
                     (Copy(Before, Length(Before) - OpenLen + 1, OpenLen) = Open);
   HasCloseAfter  := (CloseLen > 0) and (Length(After) >= CloseLen) and
@@ -65,7 +55,6 @@ begin
 
   if HasOpenBefore and HasCloseAfter then
   begin
-    // Strip the wrappers: drop trailing Open from Before, leading Close from After.
     Before := Copy(Before, 1, Length(Before) - OpenLen);
     After  := Copy(After, CloseLen + 1, MaxInt);
     Result.NewText     := Before + Selected + After;
@@ -74,18 +63,13 @@ begin
     Exit;
   end;
 
-  // Add the wrappers.
   Result.NewText     := Before + Open + Selected + Close + After;
   Result.NewSelStart := Length(Before) + OpenLen + 1;
   Result.NewSelLen   := Length(Selected);
 end;
 
-// --- helpers for line-oriented operations ---
 
-// Splits Text into segments at CRLF/LF/CR boundaries. Each entry pairs the
-// line content with its terminator (the terminator is empty for the final
-// line if Text doesn't end in a newline). Reconstructing by concatenating
-// Content + Terminator for each entry exactly reproduces the input.
+// Keep each original line terminator so formatting preserves mixed line endings.
 type
   TLineSeg = record
     Content:    string;
@@ -128,9 +112,7 @@ begin
     else
       Inc(I);
   end;
-  // Trailing line (with or without content). Always emit it even if empty,
-  // unless the entire input was empty AND we want a single empty entry to
-  // represent it — yes, do that too so PrefixLines on '' still works.
+  // Keep the empty final segment so PrefixLines also works on empty input.
   SetLength(Result, Count + 1);
   Result[Count].Content    := Copy(Text, LineStart, Length(Text) - LineStart + 1);
   Result[Count].Terminator := '';
@@ -246,7 +228,6 @@ begin
 
   Lines := SplitIntoLines(Text);
 
-  // Find the line containing SelStart.
   ChosenIdx := 0;
   for I := 0 to High(Lines) do
   begin
@@ -256,15 +237,12 @@ begin
       ChosenIdx := I;
       Break;
     end;
-    // Cursor past last line: stay on last line.
     if I = High(Lines) then
       ChosenIdx := I;
   end;
 
   Content := Lines[ChosenIdx].Content;
 
-  // Strip existing leading '#' run (and the single space that follows it,
-  // if any) to determine the existing heading level.
   HashCount := 0;
   P := 1;
   while (P <= Length(Content)) and (Content[P] = '#') do
@@ -281,7 +259,6 @@ begin
   else if (HashCount > 0) and (HashCount <= 6) and
           (P > Length(Content)) then
   begin
-    // Heading marker at line end with no content: still counts as that level.
     ExistingLevel := HashCount;
   end
   else
@@ -292,7 +269,6 @@ begin
 
   Content := Copy(Content, P, MaxInt);
 
-  // Toggle: same level twice -> Level 0.
   if (Level > 0) and (Level = ExistingLevel) then
     Level := 0;
 

@@ -195,6 +195,7 @@ object dlgAction: TdlgAction
       Height = 23
       Text = ''
       TabOrder = 3
+      OnChange = TextChanged
     end
     object edComment: TRzEdit
       Left = 336
@@ -203,6 +204,7 @@ object dlgAction: TdlgAction
       Height = 23
       Text = ''
       TabOrder = 4
+      OnChange = TextChanged
     end
     object rgLevel: TRzRadioGroup
       Left = 8
@@ -296,6 +298,7 @@ object dlgAction: TdlgAction
       Height = 117
       KeyOptions = [keyEdit, keyAdd, keyDelete, keyUnique]
       TabOrder = 14
+      OnSetEditText = PropertiesChanged
       ColWidths = (
         150
         525)

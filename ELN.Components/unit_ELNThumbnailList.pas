@@ -12,35 +12,31 @@ uses
 type
   TELNThumbnailList = class(TScrollBox)
   private
-    { Private declarations }
     Images: array of TELNFilePreview;
     FLastSelected: Integer;
     FOwnerID: Integer;
 
     procedure Resize(Sender: TObject); reintroduce;
-    procedure CreateImage(const Index, ID: Integer);
+    procedure CreateImage(const Index: Integer; const ID: Int64);
   protected
-    { Protected declarations }
   public
-    { Public declarations }
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
 
-    procedure AddEmpty(const ID: Integer; FileName: string);
-    procedure Add(const ID: Integer; FileCaption, FileName: string);
-    procedure AddFromStream(const FileName: string; ID: Integer; var Stream: TStream);
-    procedure Update(const ID: Integer; const FileName: string); reintroduce;
-    procedure UpdateFromStream(const ID: Integer; Stream: TStream);
-    procedure Delete(const ID: Integer);
+    procedure AddEmpty(const ID: Int64; FileName: string);
+    procedure Add(const ID: Int64; FileCaption, FileName: string);
+    procedure AddFromStream(const FileName: string; ID: Int64; var Stream: TStream);
+    procedure Update(const ID: Int64; const FileName: string); reintroduce;
+    procedure UpdateFromStream(const ID: Int64; Stream: TStream);
+    procedure Delete(const ID: Int64);
     procedure Clear;
     procedure Repaint; override;
 
-    procedure Select(const ID: Integer);
+    procedure Select(const ID: Int64);
     procedure SelectLast;
-    procedure SetLabel(const ID: Integer; Comment, FileName: string);
+    procedure SetLabel(const ID: Int64; Comment, FileName: string);
     property OwnerID: Integer read FOwnerID write FOwnerID;
   published
-    { Published declarations }
   end;
 
 procedure Register;
@@ -52,9 +48,8 @@ begin
   RegisterComponents('ELN.Components', [TELNThumbnailList]);
 end;
 
-{ TELNThumbnailList }
 
-procedure TELNThumbnailList.CreateImage(const Index, ID: Integer);
+procedure TELNThumbnailList.CreateImage(const Index: Integer; const ID: Int64);
 begin
   Images[Index]        := TELNFilePreview.Create(Self);
   Images[Index].Parent := Self;
@@ -88,7 +83,7 @@ begin
   CreateImage(i, ID);
 end;
 
-procedure TELNThumbnailList.AddFromStream(const FileName: string; ID: Integer;
+procedure TELNThumbnailList.AddFromStream(const FileName: string; ID: Int64;
   var Stream: TStream);
 var
   i: Integer;
@@ -115,7 +110,6 @@ constructor TELNThumbnailList.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
 
-  //scrlPanel
   Name := 'scrlPanel';
   Width := 649;
   Height := 209;
@@ -125,7 +119,7 @@ begin
   Self.OnResize := Resize;
 end;
 
-procedure TELNThumbnailList.Delete(const ID: Integer);
+procedure TELNThumbnailList.Delete(const ID: Int64);
 begin
 
 end;
@@ -154,7 +148,7 @@ begin
       Images[i].Width := Images[i].Height * 4 div 3;
 end;
 
-procedure TELNThumbnailList.Select(const ID: Integer);
+procedure TELNThumbnailList.Select(const ID: Int64);
 var
   i: Integer;
 begin
@@ -179,7 +173,7 @@ begin
   FLastSelected := High(Images);
 end;
 
-procedure TELNThumbnailList.SetLabel(const ID: Integer; Comment,
+procedure TELNThumbnailList.SetLabel(const ID: Int64; Comment,
   FileName: string);
 var
   i: Integer;
@@ -193,7 +187,7 @@ begin
 
 end;
 
-procedure TELNThumbnailList.Update(const ID: Integer; const FileName: string);
+procedure TELNThumbnailList.Update(const ID: Int64; const FileName: string);
 var
   i: Integer;
 begin
@@ -206,7 +200,7 @@ begin
     end;
 end;
 
-procedure TELNThumbnailList.UpdateFromStream(const ID: Integer; Stream: TStream);
+procedure TELNThumbnailList.UpdateFromStream(const ID: Int64; Stream: TStream);
 var
   i: Integer;
 begin

@@ -1,12 +1,6 @@
 unit unit_LinkClipboard;
 
-// Holds the item most recently marked as a link target, so "Link to '<Title>'"
-// keeps working after the user navigates elsewhere to find the second item.
-//
-// Deliberately a unit-level singleton rather than a field on TframeItemTree:
-// the item tree is rebuilt on every project/folder change, and the whole point
-// of the copy/paste flow is that you copy a target, go somewhere else, and link
-// from there.
+// Keep the clipboard outside the item tree, which is rebuilt on project or folder changes.
 
 interface
 
@@ -28,7 +22,6 @@ var
 
 implementation
 
-{ TLinkClipboard }
 
 procedure TLinkClipboard.SetTarget(AItemId: Integer; const ATitle: string);
 begin

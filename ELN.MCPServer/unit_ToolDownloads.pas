@@ -10,7 +10,7 @@ uses
 // Each download has its own directory and keeps the stored name, including
 // compound extensions used to select scientific viewer plugins.
 function DownloadFileToLocal(const Context: TToolContext;
-  FileId: Integer): string;
+  FileId: Int64): string;
 // Use only with paths returned by DownloadFileToLocal. This removes the owned
 // directory and any files created there by the plugin.
 procedure DeleteLocalDownload(const LocalPath: string);
@@ -37,7 +37,7 @@ begin
 end;
 
 function DownloadFileToLocal(const Context: TToolContext;
-  FileId: Integer): string;
+  FileId: Int64): string;
 var
   F: unit_Item.TFile;
   Item: TItem;
@@ -83,7 +83,6 @@ begin
   Result := TPath.Combine(TempDir, F.FullName);
   try
     TDirectory.CreateDirectory(TempDir);
-    // CopyOut lets the backend stream binary data directly to disk.
     Context.Storage.CopyOut(RelativePath, Result);
   except
     on E: Exception do

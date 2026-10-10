@@ -58,7 +58,6 @@ end;
 
 procedure TedEquipment.ShowEditor(ADataSet, ALookupDataSet: TDataSet);
 begin
-  // Populate type combobox from lookup dataset
   if FTypeIds = nil then
     FTypeIds := TList<Integer>.Create
   else
@@ -145,7 +144,6 @@ begin
   DS.FieldByName('CreatedDate').AsDateTime := UTCNow;
   Equip := TAureliusDataset(DS).Current<TEquipment>;
 
-  // Map EquipmentType text to entity
   if (Length(Fields) > 0) and (Fields[0] <> '') then
   begin
     TypeName := Fields[0];
@@ -158,7 +156,6 @@ begin
       end;
   end;
 
-  // String fields by index
   if Length(Fields) > 1 then
     DS.FieldByName('Model').AsString := Fields[1];
   if Length(Fields) > 2 then

@@ -5,8 +5,6 @@ interface
 uses
   System.JSON;
 
-{ Create a TJSONNumber with smart rounding (6 significant digits max).
-  Integer values are emitted as integers for compactness. }
 function SmartNum(const Value: Double): TJSONNumber;
 
 { Deep-clone a JSON value tree, rounding all numbers to 6 significant digits.
@@ -28,11 +26,9 @@ begin
   if Value = 0 then
     Exit(TJSONNumber.Create(0));
 
-  // Integer values: emit without decimal point
   if (Frac(Value) = 0) and (Abs(Value) < MaxInt) then
     Exit(TJSONNumber.Create(Trunc(Value)));
 
-  // Round to 6 significant digits via %.6g (shortest representation)
   S := Format('%.6g', [Value], JSONFmt);
   Result := TJSONNumber.Create(StrToFloat(S, JSONFmt));
 end;

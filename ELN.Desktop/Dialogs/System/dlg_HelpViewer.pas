@@ -55,7 +55,6 @@ begin
 
     Dialog.ShowModal;
   finally
-    // Return the frame to its original parent
     if Assigned(Dialog.FHtmlViewer) and Assigned(Dialog.FSavedParent) then
     begin
       Dialog.FHtmlViewer.Frame.Parent := Dialog.FSavedParent;

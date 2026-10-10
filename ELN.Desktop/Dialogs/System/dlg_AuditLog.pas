@@ -47,7 +47,6 @@ uses
 
 {$R *.dfm}
 
-{ TdlgAuditLog }
 
 class procedure TdlgAuditLog.ShowLog;
 var
@@ -110,7 +109,7 @@ var
   User: TUser;
 begin
   FUserIds.Clear;
-  FUserIds.Add(0); // placeholder for "(All)"
+  FUserIds.Add(0); 
 
   cmbUser.Items.BeginUpdate;
   try
@@ -140,7 +139,7 @@ var
   EntityTypeFilter, OperationFilter, UserFilter: Integer;
   User: TUser;
 begin
-  EntityTypeFilter := cmbEntityType.ItemIndex - 1; // -1 = All
+  EntityTypeFilter := cmbEntityType.ItemIndex - 1; 
   OperationFilter := cmbOperation.ItemIndex - 1;
 
   if cmbUser.ItemIndex > 0 then

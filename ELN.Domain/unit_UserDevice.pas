@@ -11,17 +11,13 @@ uses
   unit_User;
 
 const
-  /// <summary>WebAPI refresh-cookie credential. Also the reading for a blank
-  /// column, so rows written before schema v8 stay web credentials.</summary>
+  // Blank DeviceKind reads as web for credentials stored before schema v8.
   DEVICE_KIND_WEB = 'web';
   /// <summary>MCP key-file credential. Never accepted by /auth/refresh.</summary>
   DEVICE_KIND_MCP = 'mcp';
 
-/// <summary>Splits a stored ProjectScope into project ids. Anything that is
-/// not a positive integer is DROPPED, never treated as a wildcard: an empty
-/// result means "unrestricted" to callers, so a malformed entry must shrink
-/// the scope, never widen it. Callers that write a scope are responsible for
-/// refusing input that parses to nothing.</summary>
+// Empty means unrestricted to callers. Writers must reject nonempty input
+// that parses to no positive IDs, or malformed input could widen the scope.
 function ParseProjectScope(const AScope: string): TArray<Integer>;
 
 type
@@ -61,19 +57,14 @@ type
     [Column('RevokedUtc', [])]
     FRevokedUtc: Nullable<TDateTime>;
 
-    // Which subsystem this credential belongs to. The WebAPI refresh cookie
-    // and the MCP key file are the SAME secret shape ("<id>:<token>"), so
-    // without this a key file could be replayed as an eln_rt cookie against
-    // /auth/refresh and exchanged for a role-bearing JWT - escaping the MCP
-    // tool surface entirely. Empty is read as 'web' so pre-v8 rows keep
-    // working; an MCP key must be explicitly 'mcp', which means an old row
-    // can never be used as one.
+    // Web cookies and MCP key files share the "<id>:<token>" shape. Check kind
+    // to prevent key replay through /auth/refresh. Blank means legacy web;
+    // MCP credentials must explicitly store 'mcp'.
     [Column('DeviceKind', [], 16)]
     FDeviceKind: string;
 
-    // Comma-separated project ids this credential may read. Empty means
-    // unrestricted. Server-side on purpose: the confined party has shell
-    // access, so a scope kept in the key file would be self-asserted.
+    // Empty means unrestricted. Keep scope server-side: the confined party
+    // has shell access and could edit a scope stored in its key file.
     [Column('ProjectScope', [], 255)]
     FProjectScope: string;
 

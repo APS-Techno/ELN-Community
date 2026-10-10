@@ -1,10 +1,6 @@
 unit unit_UserTreeState;
 
 {
-  One user's expanded/collapsed state of one node in the desktop trees
-  (projects panel and item tree). Rows exist only for nodes the user has
-  touched; unit_TreeStateModel decides the default for the rest.
-
   NodeKind: 0 seeded marker (NodeId 0), 1 project, 2 folder, 3 group,
   4 user node, 5 item - TTreeNodeKind in unit_TreeStateModel, in that order.
   No foreign keys (the kinds live in different tables): DB Maintenance's

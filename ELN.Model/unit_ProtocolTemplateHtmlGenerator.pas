@@ -65,7 +65,6 @@ var
 begin
   if (Length(S) = 0) or (Length(S) > 32) then Exit(DEFAULT_ACCENT);
 
-  // Fast path: hex colours (#4a90d9) and CSS colour keywords (steelblue).
   Simple := True;
   for C in S do
     if not CharInSet(C, ['a'..'z', 'A'..'Z', '0'..'9', '#']) then
@@ -305,7 +304,6 @@ begin
       Sections := TJSONArray(Root.GetValue('sections'));
       for I := 0 to Sections.Count - 1 do
       begin
-        // Skip a malformed section entry rather than crashing on the cast.
         if not (Sections.Items[I] is TJSONObject) then Continue;
         Section := TJSONObject(Sections.Items[I]);
 
@@ -317,7 +315,6 @@ begin
           SB.Append('</legend>');
         end;
 
-        // A section with no (or non-array) "rows" simply has no fields.
         if not (Section.GetValue('rows') is TJSONArray) then
         begin
           SB.Append('</fieldset>');
@@ -364,7 +361,6 @@ begin
             FieldLabel := HtmlEsc(FieldLabel);
             Placeholder := HtmlEsc(Placeholder);
 
-            // Flex column wrapper for multi-field rows
             if FieldCount > 1 then
             begin
               FlexStr := '';
@@ -379,7 +375,6 @@ begin
               SB.Append('<div class="col"' + FlexStr + '>');
             end;
 
-            // Render field by type
             if FieldType = 'textarea' then
             begin
               SB.Append('<label>');
@@ -487,7 +482,6 @@ begin
             end
             else
             begin
-              // text, number, date
               SB.Append('<label>');
               SB.Append(FieldLabel);
               SB.Append('</label>');

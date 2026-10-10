@@ -1,23 +1,7 @@
 unit unit_TreeLook;
 
-{
-  The shared look of the desktop trees (item tree, project tree, hypotheses):
-
-    - every row tinted full width in its own colour (the host decides it),
-      with 2 px lines in the enclosing rows' colours at their indents;
-    - top-level rows are group headers: a gap above, semibold title;
-    - a hover pill (collapse / expand / focus) on rows with children;
-    - a soft neutral column header instead of the plain white one.
-
-  The host frame creates one TTreeLook per tree, passing the row colour and
-  "can this row contain others" callbacks, and calls BeforeCellPaint /
-  AfterCellPaint / PaintText from its own tree events. TTreeLook owns the
-  tree's OnMeasureItem and header owner-draw events and subclasses its
-  WindowProc for the pill; the frame must not assign those.
-
-  Scale, row spacing, tint and row colours follow unit_TreeAppearance:
-  ApplyAppearance re-sizes one tree, ApplyAll every live one.
-}
+{ TTreeLook owns OnMeasureItem, OnAfterItemPaint, header owner-draw events and
+  WindowProc. The host must not replace them and must free the look before the tree. }
 
 interface
 
@@ -53,6 +37,8 @@ type
     procedure RunAction(Node: PVirtualNode; Action: Integer);
     procedure MeasureItem(Sender: TBaseVirtualTree; TargetCanvas: TCanvas;
       Node: PVirtualNode; var NodeHeight: TDimension);
+    procedure AfterItemPaint(Sender: TBaseVirtualTree; TargetCanvas: TCanvas;
+      Node: PVirtualNode; ItemRect: TRect);
     procedure HeaderDrawQueryElements(Sender: TVTHeader;
       var PaintInfo: THeaderPaintInfo; var Elements: THeaderPaintElements);
     procedure AdvancedHeaderDraw(Sender: TVTHeader;
@@ -61,32 +47,19 @@ type
     function IsDark: Boolean;
     function LineLeft(ALevel: Integer): Integer;
     function LineNodes(Node: PVirtualNode): TArray<PVirtualNode>;
-    /// True when Node is the last visible row of Container's block (and not
-    /// Container itself): its line ends there with an L.
     function EndsBlock(Node, Container: PVirtualNode): Boolean;
   public
-    /// AIsContainer: rows that get a nesting line and (with children) the
-    /// pill. AOnFocus: run after Focus selected the row (nil = nothing).
     constructor Create(ATree: TVirtualStringTree; ARowColor: TTreeRowColorFunc;
       AIsContainer: TTreeNodePredicate; AOnFocus: TTreeNodeProc);
     destructor Destroy; override;
     /// Call before Tree.Clear: forgets the hovered row.
     procedure ClearHover;
-    /// Re-sizes the tree from its base metrics and Appearance (scale,
-    /// spacing), re-measures the rows it has, and repaints (tint, colours).
     procedure ApplyAppearance;
-    /// ApplyAppearance on every live TTreeLook.
     class procedure ApplyAll;
-    /// The tree's DPI times the appearance scale: what the pill, the nesting
-    /// lines, the header gap and the badges size by.
     function PPI: Integer;
-    /// Height a top-level row carries above its band; 0 for other rows.
     function HeaderGap(Node: PVirtualNode): Integer;
-    /// The row's tint (its colour, light over the tree background).
     function RowTint(Node: PVirtualNode): TColor;
-    /// What the row's badges sit on: the selection, or the row's tint.
     function RowBackground(Node: PVirtualNode): TColor;
-    /// From the tree's OnBeforeCellPaint.
     procedure BeforeCellPaint(TargetCanvas: TCanvas; Node: PVirtualNode;
       CellPaintMode: TVTCellPaintMode; const CellRect: TRect;
       var ContentRect: TRect);
@@ -95,10 +68,7 @@ type
     /// caller then skips its own right-aligned badges there.
     function AfterCellPaint(TargetCanvas: TCanvas; Node: PVirtualNode;
       Column: TColumnIndex; var CellRect: TRect): Boolean;
-    /// Colours of the nesting lines for Node: the container rows enclosing
-    /// it, outermost first (index = level), itself included when a container.
     function LineColors(Node: PVirtualNode): TArray<TColor>;
-    /// From the tree's OnPaintText: semibold top-level titles.
     procedure PaintText(TargetCanvas: TCanvas; Node: PVirtualNode;
       Column: TColumnIndex);
   end;
@@ -110,9 +80,8 @@ uses
   unit_TreeAppearance;
 
 var
-  GLooks: TList<TTreeLook>;   // every live look, for ApplyAll
+  GLooks: TList<TTreeLook>;   
 
-{ TTreeLook }
 
 constructor TTreeLook.Create(ATree: TVirtualStringTree;
   ARowColor: TTreeRowColorFunc; AIsContainer: TTreeNodePredicate;
@@ -125,13 +94,12 @@ begin
   FOnFocus := AOnFocus;
   FHoverAction := -1;
 
-  // Header rows are taller (gap + band): measured per node by VirtualTree.
   FTree.TreeOptions.MiscOptions := FTree.TreeOptions.MiscOptions + [toVariableNodeHeight];
   // Row height is ApplyAppearance's: VirtualTree must not reset it to its own
   // choice whenever the window is made or the font changes.
   FTree.TreeOptions.AutoOptions := FTree.TreeOptions.AutoOptions - [toAutoChangeScale];
   FTree.OnMeasureItem := MeasureItem;
-  // The tree's own dotted lines give way to the coloured nesting lines.
+  FTree.OnAfterItemPaint := AfterItemPaint;
   FTree.TreeOptions.PaintOptions := FTree.TreeOptions.PaintOptions - [toShowTreeLines];
   FTree.Header.Options := FTree.Header.Options + [hoOwnerDraw];
   FTree.OnHeaderDrawQueryElements := HeaderDrawQueryElements;
@@ -162,6 +130,7 @@ begin
   if Assigned(GLooks) then
     GLooks.Remove(Self);
   FTree.WindowProc := FOldWndProc;
+  FTree.OnAfterItemPaint := nil;
   inherited;
 end;
 
@@ -212,8 +181,6 @@ begin
     FTree.Header.Font.Height := MulDiv(Appearance.Scaled(FBaseHeaderFont), PPIOf, 96);
     FTree.Header.Height := MulDiv(Appearance.Scaled(FBaseHeaderHeight), PPIOf, 96);
     FTree.Indent := MulDiv(Appearance.Scaled(FBaseIndent), PPIOf, 96);
-    // Natural height at the scaled font and icons, times the spacing; never
-    // so tight that the text clips.
     Row := Appearance.Spaced(NaturalRowHeight(TextHeight));
     FTree.DefaultNodeHeight := Max(Row, TextHeight + 2);
     // A new default height leaves existing rows as they were: give them the
@@ -246,7 +213,6 @@ begin
   Result := MulDiv(FTree.CurrentPPI, Appearance.Scale, 100);
 end;
 
-{ Rows }
 
 procedure TTreeLook.MeasureItem(Sender: TBaseVirtualTree; TargetCanvas: TCanvas;
   Node: PVirtualNode; var NodeHeight: TDimension);
@@ -254,10 +220,6 @@ var
   Gap, Img: Integer;
 begin
   if Sender.GetNodeLevel(Node) <> 0 then Exit;
-  // Top-level rows: a gap above a band of the normal row height. Icon and
-  // button are re-centred on the band; the text in BeforeCellPaint.
-  // Sized at the tree's current PPI and scale; ApplyAppearance re-measures
-  // after a scale or monitor change.
   Gap := MulDiv(8, PPI, 96);
   Img := 16;
   if Assigned(FTree.Images) then
@@ -287,8 +249,6 @@ begin
     Result := RowTint(Node);
 end;
 
-// The container rows enclosing Node, outermost first, index = level; Node
-// itself is included when it is a container.
 function TTreeLook.LineNodes(Node: PVirtualNode): TArray<PVirtualNode>;
 var
   P: PVirtualNode;
@@ -323,13 +283,11 @@ var
   Next: PVirtualNode;
 begin
   Result := False;
-  if Node = Container then Exit;   // a lone container row: straight line
+  if Node = Container then Exit;   
   Next := FTree.GetNextVisible(Node);
   Result := not Assigned(Next) or not FTree.HasAsParent(Next, Container);
 end;
 
-// Left edge of level ALevel, in the paint canvas' (absolute) coordinates:
-// the start of that level's expand-button slot.
 function TTreeLook.LineLeft(ALevel: Integer): Integer;
 begin
   Result := FTree.Header.Columns[FTree.Header.MainColumn].Left + FTree.Margin +
@@ -361,21 +319,12 @@ begin
   Result := False;
   TargetCanvas.Brush.Style := bsSolid;
   Gap := HeaderGap(Node);
-  if Gap > 0 then
-  begin
-    // The selection highlight fills the whole cell; give the gap back.
-    TargetCanvas.Brush.Color := Background;
-    TargetCanvas.FillRect(Rect(CellRect.Left, CellRect.Top, CellRect.Right,
-      CellRect.Top + Gap));
-    Inc(CellRect.Top, Gap);
-  end;
+  Inc(CellRect.Top, Gap);
   if Column <> FTree.Header.MainColumn then Exit;
 
-  // One line per enclosing container, in its colour. On the last row of a
-  // container's block the line stops mid-row and turns right: a small L.
   Lines := LineNodes(Node);
   W := Max(2, MulDiv(2, PPI, 96));
-  Y0 := (CellRect.Top + CellRect.Bottom - W) div 2;   // top of the foot
+  Y0 := (CellRect.Top + CellRect.Bottom - W) div 2;   
   for D := 0 to High(Lines) do
   begin
     X := LineLeft(D);
@@ -397,6 +346,20 @@ begin
   end;
 end;
 
+procedure TTreeLook.AfterItemPaint(Sender: TBaseVirtualTree; TargetCanvas: TCanvas;
+  Node: PVirtualNode; ItemRect: TRect);
+var
+  Gap: Integer;
+begin
+  Gap := HeaderGap(Node);
+  if Gap = 0 then Exit;
+  // Cell paint events are column-clipped; selection also fills unused row width.
+  TargetCanvas.Brush.Style := bsSolid;
+  TargetCanvas.Brush.Color := Background;
+  TargetCanvas.FillRect(Rect(ItemRect.Left, ItemRect.Top, ItemRect.Right,
+    ItemRect.Top + Gap));
+end;
+
 procedure TTreeLook.PaintText(TargetCanvas: TCanvas; Node: PVirtualNode;
   Column: TColumnIndex);
 begin
@@ -407,7 +370,6 @@ begin
     TargetCanvas.Font.Style := TargetCanvas.Font.Style + [fsBold];
 end;
 
-{ Column header }
 
 procedure TTreeLook.HeaderDrawQueryElements(Sender: TVTHeader;
   var PaintInfo: THeaderPaintInfo; var Elements: THeaderPaintElements);
@@ -415,8 +377,6 @@ begin
   Elements := [hpeBackground];
 end;
 
-// Soft neutral band, a hairline between columns and one under the header.
-// Captions, sort glyphs and drag feedback stay VirtualTree's.
 procedure TTreeLook.AdvancedHeaderDraw(Sender: TVTHeader;
   var PaintInfo: THeaderPaintInfo; const Elements: THeaderPaintElements);
 var
@@ -446,7 +406,6 @@ begin
     C.FillRect(Rect(R.Right - 1, R.Top + 4, R.Right, R.Bottom - 4));
 end;
 
-{ Hover row actions }
 
 // Below VirtualTree's own mouse handling: a click on a pill button is
 // swallowed, so it neither selects the row, nor opens it on double-click,
@@ -493,8 +452,6 @@ begin
   end;
 end;
 
-// Node: the row under P that gets a pill (a container with children), else
-// nil. Result: the pill button under P, or -1.
 function TTreeLook.ActionHit(const P: TPoint; out Node: PVirtualNode): Integer;
 var
   R: TRect;
@@ -508,7 +465,7 @@ begin
     Exit;
   end;
   R := FTree.GetDisplayRect(Node, FTree.Header.MainColumn, False);
-  Inc(R.Top, HeaderGap(Node));   // the pill sits on the header band
+  Inc(R.Top, HeaderGap(Node));   
   Result := TreeActionAt(R, PPI, P);
 end;
 
@@ -554,7 +511,7 @@ begin
   if NewHint <> FTree.Hint then
   begin
     FTree.Hint := NewHint;
-    Application.CancelHint;   // re-arms the hint for the new button
+    Application.CancelHint;   
   end;
 end;
 
@@ -591,7 +548,7 @@ begin
     FTree.Selected[Node] := True;
     FTree.ScrollIntoView(Node, False);
     if Assigned(FOnFocus) then
-      FOnFocus(Node);   // e.g. show it, as a click on the row would
+      FOnFocus(Node);   
   end;
 
   UpdateHover(FTree.ScreenToClient(Mouse.CursorPos));

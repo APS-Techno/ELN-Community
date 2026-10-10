@@ -1,11 +1,5 @@
 unit unit_ToolsTags;
 
-// Tag write tools: create_tag, assign_tag, unassign_tag, get_item_tags.
-//
-// All four delegate to TTagModel (ELN.Model) rather than hand-rolling Aurelius
-// calls, because TTagModel is exactly the code the desktop client runs. Sharing
-// it is what guarantees the client and this server agree on tables, colour
-// format and referential shape.
 
 interface
 
@@ -15,9 +9,6 @@ uses
 
 procedure RegisterTagTools(Registry: TToolRegistry);
 
-// The handlers are exported (unlike the other tool units, which keep them in
-// the implementation section) so ELN.Tests can drive them directly against a
-// real database without standing up the JSON-RPC transport.
 function HandleCreateTag(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 function HandleAssignTag(const Params: TJSONObject;
@@ -27,21 +18,12 @@ function HandleUnassignTag(const Params: TJSONObject;
 function HandleGetItemTags(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 
-// Converts between the desktop client's stored '#BBGGRR' (Delphi TColor byte
-// order, see dlg_TagManager.pas:342) and web '#RRGGBB'. The swap is its own
-// inverse, so one function serves both directions.
-//
-// The output is UPPERCASE hex, to match the desktop client byte for byte: the
-// client writes tag colours with Format('#%.6x', [ColorToRGB(C)])
-// (dlg_TagManager.pas:342), and Delphi's %x emits uppercase digits. Only values
-// this server WRITES are uppercased - a colour already stored in the database is
-// always echoed back verbatim, whatever case a legacy row happens to use.
+// Stored Delphi colors use #BBGGRR; web colors use #RRGGBB.
+// New writes use uppercase hex to match Desktop; reads preserve stored case.
 function SwapHexByteOrder(const AHex: string): string;
 
 // Read-side counterpart of SwapHexByteOrder: a malformed legacy Tags.Color must
 // never abort a read, so an unconvertible value yields '' instead of raising.
-// Exported because every read path that reports color_rgb (get_item_tags here,
-// get_item / list_items in unit_ToolsNavigation) needs the same guard.
 function TrySwapHexByteOrder(const AHex: string): string;
 
 implementation
@@ -56,7 +38,6 @@ resourcestring
   SInvalidColor =
     'Invalid color "%s": expected 6 hex digits with a leading # (e.g. #00C000).';
 
-{ ---- Helpers ---- }
 
 function GetOptBool(const Params: TJSONObject; const Key: string;
   Default: Boolean): Boolean;
@@ -67,8 +48,6 @@ begin
     Result := Params.GetValue<Boolean>(Key);
 end;
 
-// True only for exactly '#' + 6 hex digits. Used both to guard the swap and to
-// decide whether a legacy row's colour can be reported as color_rgb at all.
 function IsHexColor(const AHex: string): Boolean;
 var
   I: Integer;
@@ -102,8 +81,6 @@ begin
     Result := '';
 end;
 
-// 'id 3, id 6' - used by both the duplicate-name refusal in create_tag and the
-// ambiguous-name refusal in assign_tag/unassign_tag.
 function FormatTagIdList(Tags: TTags): string;
 var
   I: Integer;
@@ -117,7 +94,6 @@ begin
   end;
 end;
 
-{ ---- create_tag ---- }
 
 function HandleCreateTag(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -192,7 +168,6 @@ begin
   end;
 end;
 
-{ ---- assign_tag / unassign_tag shared resolution ---- }
 
 // tag_id XOR tag_name. Returns a manager-owned TTag - do not free it.
 function ResolveTag(TagModel: TTagModel; const Params: TJSONObject): TTag;
@@ -233,7 +208,6 @@ begin
   end;
 end;
 
-// item_id XOR item_ids, de-duplicated preserving first-seen order.
 function ResolveItemIds(const Params: TJSONObject): TList<Integer>;
 var
   ItemId, I: Integer;
@@ -299,7 +273,6 @@ begin
   end;
 end;
 
-{ ---- assign_tag ---- }
 
 function HandleAssignTag(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -354,7 +327,6 @@ begin
   end;
 end;
 
-{ ---- unassign_tag ---- }
 
 function HandleUnassignTag(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -407,7 +379,6 @@ begin
   end;
 end;
 
-{ ---- get_item_tags ---- }
 
 function HandleGetItemTags(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -421,8 +392,6 @@ var
   Obj: TJSONObject;
 begin
   ItemId := GetReqInt(Params, 'item_id');
-  // Uniform refusal for out-of-scope and missing-under-scope; inert without
-  // a scope, where the plain "Item not found" below still applies.
   RequireItemRead(Context, ItemId);
 
   // Read-only: no write-access check and no signed-item check on purpose. The
@@ -472,7 +441,6 @@ begin
   end;
 end;
 
-{ ---- Schemas ---- }
 
 function MakeCreateTagSchema: TJSONObject;
 var
@@ -618,7 +586,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- Registration ---- }
 
 procedure RegisterTagTools(Registry: TToolRegistry);
 begin

@@ -39,7 +39,6 @@ implementation
 
 {$R *.dfm}
 
-{ TdlgNote }
 
 class function TdlgNote.Execute(Protocol: TProtocol): Boolean;
 var

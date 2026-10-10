@@ -30,7 +30,6 @@ type
 
 implementation
 
-{ TAuditLogModel }
 
 constructor TAuditLogModel.Create(Manager: TObjectManager);
 begin
@@ -47,7 +46,6 @@ end;
 
 procedure TAuditLogModel.OpenDataSet;
 begin
-  // Not used - model uses direct ObjectManager queries
 end;
 
 function TAuditLogModel.GetLogs(DateFrom, DateTo: TDateTime;

@@ -91,7 +91,6 @@ begin
   Result := TagPalette[Tags.Count mod Length(TagPalette)];
 end;
 
-{ Tag input helper dialog - code-built (retained as internal sub-form). }
 
 type
   TdlgTagInput = class(TForm)
@@ -208,7 +207,6 @@ begin
   end;
 end;
 
-{ TdlgTagManager }
 
 procedure TdlgTagManager.ApplyMode;
 begin

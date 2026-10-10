@@ -17,7 +17,6 @@ uses
   unit_Item, unit_Project, unit_ItemTypes, unit_ELNDB_Dictionary,
   unit_ValueType, unit_JSONCompact, unit_ToolScope;
 
-{ Helpers - same patterns as unit_ToolsNavigation }
 
 function DateToISO(const DT: TDateTime): string;
 begin
@@ -84,7 +83,6 @@ begin
   Result := Params.GetValue<Integer>(Key);
 end;
 
-{ Helper: Build a JSON object for a single TValue record }
 
 function ValueToJSON(V: TValue): TJSONObject;
 var
@@ -119,7 +117,6 @@ begin
   end;
 end;
 
-{ --- Tool handlers --- }
 
 function HandleGetValues(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -132,8 +129,6 @@ var
   Obj: TJSONObject;
 begin
   ItemId := GetReqInt(Params, 'item_id');
-  // Uniform refusal for out-of-scope and missing-under-scope; inert without
-  // a scope, where the plain "Item not found" below still applies.
   RequireItemRead(Context, ItemId);
 
   Item := Context.Manager.Find<TItem>(ItemId);
@@ -170,7 +165,6 @@ begin
         EXP_CONDITION: CondArr.AddElement(Obj);
         TEST_RESULT:   ResArr.AddElement(Obj);
       else
-        // Unknown rec type - add to results by default
         ResArr.AddElement(Obj);
       end;
     end;
@@ -233,7 +227,6 @@ begin
   if HasDateTo then
     DateTo := ISO8601ToDate(DateToStr, False);
 
-  // Query items (with optional project and date filters)
   ItemDic := TItemDictionary.Create;
   try
     Criteria := (ItemDic.IsDeleted = False);
@@ -262,7 +255,6 @@ begin
         if not IsProjectVisible(Context, Item.ProjectID) then
           Continue;
 
-        // Cache project title
         Project := Context.Manager.Find<TProject>(Item.ProjectID);
         if Assigned(Project) then
           ProjectTitle := Project.Title
@@ -271,11 +263,9 @@ begin
 
         for V in Item.Values do
         begin
-          // Filter by rec_type if specified
           if HasRecType and (V.RecType <> FilterRecType) then
             Continue;
 
-          // Filter by value_type (match title or symbol)
           VT := V.ValueType;
           if HasValueType then
           begin
@@ -352,13 +342,11 @@ begin
   try
     if HasCategory then
     begin
-      // CatID is an integer - try to parse the category as an integer
       if TryStrToInt(CategoryStr, CategoryId) then
         Types := Context.Manager.Find<TValueType>
           .Where(VTDic.CatID = CategoryId)
           .List
       else
-        // If not an integer, list all (category is stored as CatID integer)
         Types := Context.Manager.Find<TValueType>.List;
     end
     else
@@ -423,12 +411,10 @@ begin
   else if Limit < 1 then
     Limit := 1;
 
-  // Validate: at least one filter must be provided
   if not HasProject and not HasCondType and not HasResType then
     raise Exception.Create('At least one of project_id, condition_type_id, ' +
       'or result_type_id must be provided');
 
-  // Query items
   ItemDic := TItemDictionary.Create;
   try
     Criteria := (ItemDic.IsDeleted = False);
@@ -451,11 +437,9 @@ begin
         if Count >= Limit then
           Break;
 
-        // Same scope filter as query_values.
         if not IsProjectVisible(Context, Item.ProjectID) then
           Continue;
 
-        // Build condition and result arrays for this item
         CondArr := TJSONArray.Create;
         ResArr := TJSONArray.Create;
         HasCond := False;
@@ -469,7 +453,6 @@ begin
             case V.RecType of
               EXP_CONDITION:
               begin
-                // Filter by condition_type_id if specified
                 if HasCondType then
                 begin
                   if not Assigned(VT) or (VT.Id <> CondTypeId) then
@@ -496,7 +479,6 @@ begin
 
               TEST_RESULT:
               begin
-                // Filter by result_type_id if specified
                 if HasResType then
                 begin
                   if not Assigned(VT) or (VT.Id <> ResTypeId) then
@@ -523,7 +505,6 @@ begin
             end;
           end;
 
-          // Only include items that have at least one condition AND one result
           if HasCond and HasRes then
           begin
             ItemObj := TJSONObject.Create;
@@ -564,7 +545,6 @@ begin
   Result.AddPair('limit', TJSONNumber.Create(Limit));
 end;
 
-{ --- Schema builders --- }
 
 function MakeGetValuesSchema: TJSONObject;
 var
@@ -670,7 +650,6 @@ begin
   Result.AddPair('properties', Props);
 end;
 
-{ --- Registration --- }
 
 procedure RegisterValueTools(Registry: TToolRegistry);
 begin

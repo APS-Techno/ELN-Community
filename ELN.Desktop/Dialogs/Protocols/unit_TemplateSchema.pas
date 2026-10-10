@@ -35,7 +35,6 @@ implementation
 uses
   System.SysUtils;
 
-{ TSchemaNode }
 
 constructor TSchemaNode.Create(AKind: TSchemaNodeKind);
 begin

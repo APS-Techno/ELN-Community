@@ -1,17 +1,6 @@
 unit unit_MarkdownEditorPlugin;
 
-// Editor.Markdown plugin entry point.
-//
-// This BPL doesn't render files (it's not an IViewerPlugin). Its purpose is
-// to provide an out-of-pane markdown editor window, exposed to the rest of
-// the system via the global IMarkdownEditorLauncher (from unit_ELNPluginCore).
-// Viewer.Markdown's Edit toolbar button (Task 9.1) reads that global at
-// click time and asks the launcher to open the editor for a given local file.
-//
-// The TupfVisualPlugin shell (TELNMarkdownEditorPlugin) exists solely because
-// the TMS plugin framework loads BPLs by registering visual plugins; the
-// shell has no frame, no params, no LoadFromFile. Real work lives in
-// TMarkdownEditorLauncher and TformMarkdownEditor.
+// The plugin framework requires a visual-plugin shell to load this editor BPL.
 
 interface
 
@@ -31,7 +20,7 @@ type
     constructor Create;
     destructor Destroy; override;
     procedure LaunchEditor(const LocalPath: string;
-                           ItemId, FileId: Integer;
+                           ItemId: Integer; FileId: Int64;
                            OnSaved: TProc<string>);
   end;
 
@@ -65,14 +54,11 @@ begin
   APlugin.Free;
 end;
 
-{ TELNMarkdownEditorPlugin }
 
 procedure TELNMarkdownEditorPlugin.upfVisualPluginCreate(Sender: TObject);
 begin
-  // No frame; nothing to construct.
 end;
 
-{ TMarkdownEditorLauncher }
 
 constructor TMarkdownEditorLauncher.Create;
 begin
@@ -92,8 +78,6 @@ var
   Pair: TPair<string, TformMarkdownEditor>;
   KeyToRemove: string;
 begin
-  // Find the entry whose value is Sender; remove it. (Reverse-lookup is OK
-  // because the registry is small - one entry per open editor window.)
   KeyToRemove := '';
   for Pair in FOpenWindows do
     if Pair.Value = Sender then
@@ -107,22 +91,49 @@ begin
 end;
 
 procedure TMarkdownEditorLauncher.LaunchEditor(const LocalPath: string;
-  ItemId, FileId: Integer; OnSaved: TProc<string>);
+  ItemId: Integer; FileId: Int64; OnSaved: TProc<string>);
 var
   Form: TformMarkdownEditor;
+  Key, WorkingPath: string;
 begin
-  if FOpenWindows.TryGetValue(LocalPath, Form) then
+  if FileId <> 0 then
+    Key := 'file:' + IntToStr(FileId)
+  else
+    Key := 'path:' + LocalPath;
+  // Reuse before preparation: refreshing a live editor's baseline would
+  // disconnect its unsaved buffer from the remote version it was opened on.
+  if FOpenWindows.TryGetValue(Key, Form) then
   begin
+    if Form = nil then
+      raise Exception.Create('This Markdown file is already being opened.');
     Form.SetOnSaved(OnSaved);
     Form.BringToFront;
     Form.Show;
     Exit;
   end;
-  Form := TformMarkdownEditor.Create(nil);
-  Form.OpenFile(LocalPath, ItemId, FileId, OnSaved);
-  Form.OnClose := HandleEditorClose;
-  FOpenWindows.Add(LocalPath, Form);
-  Form.Show;
+  // Reserve the identity while a remote preparation pumps messages.
+  FOpenWindows.Add(Key, nil);
+  Form := nil;
+  try
+    WorkingPath := LocalPath;
+    if FileId <> 0 then
+    begin
+      if not Assigned(ElnFileService) then
+        raise Exception.Create('The host file service is not available.');
+      WorkingPath := ElnFileService.PrepareLocalFile(FileId);
+      if (WorkingPath = '') or not FileExists(WorkingPath) then
+        raise EFileNotFoundException.Create('The complete Markdown working file is not available.');
+    end;
+    Form := TformMarkdownEditor.Create(nil);
+    Form.OpenFile(WorkingPath, ItemId, FileId, OnSaved);
+    Form.OnClose := HandleEditorClose;
+    FOpenWindows[Key] := Form;
+    Form.Show;
+  except
+    FOpenWindows.Remove(Key);
+    Form.Free;
+    raise;
+  end;
 end;
 
 end.

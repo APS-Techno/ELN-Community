@@ -1,16 +1,7 @@
 unit unit_ItemLinkMigrationSeed;
 
-// Owns the LinkTypes seed vocabulary and the one-shot mapping of legacy
-// free-text ItemLinks.Label values onto it.
-//
-// Lives in ELN.DB, not ELN.Model, because TConnectionModule.RunMigrations must
-// call it and ELN.DB sits below ELN.Model — the same placement and reasoning as
-// unit_TemplateMigrationSeed. TLinkTypeModel.CreateDefaultData delegates here
-// (ELN.Model -> ELN.DB is the allowed direction) so the vocabulary has exactly
-// one definition.
-//
-// Run only ever touches rows whose LinkType is still nil, so it is safe to
-// re-run: a second pass finds nothing left to map and changes nothing.
+// Kept below ELN.Model so migrations and the model share one seed vocabulary
+// without reversing the ELN.Model -> ELN.DB dependency.
 
 interface
 
@@ -21,29 +12,16 @@ uses
 type
   TItemLinkMigration = class
   public
-    /// <summary>Insert-if-absent seeding of the default relation vocabulary.
-    /// Re-running against a database whose vocabulary an admin has edited
-    /// neither duplicates entries nor resurrects deleted ones.</summary>
     class procedure SeedLinkTypes(Mgr: TObjectManager); static;
 
-    /// <summary>Case-insensitive, trimmed lookup by forward caption.
-    /// Returns nil when absent.</summary>
     class function FindByForwardText(Mgr: TObjectManager;
       const AText: string): TLinkType; static;
 
-    /// <summary>Maps every ItemLinks row with a nil LinkType onto the
-    /// vocabulary, correcting the legacy 'taken from' direction on the way.
-    /// Caller owns transaction lifetime.</summary>
+    // Caller owns transaction lifetime.
     class procedure Run(Mgr: TObjectManager); static;
 
-    /// <summary>Sentence-cases every stored caption. One-shot: databases seeded
-    /// before the vocabulary was capitalised hold lower-case captions, and types
-    /// auto-created from legacy free-text labels keep whatever case the old
-    /// label had, so the relation list showed a mix.</summary>
     class procedure NormalizeCaptions(Mgr: TObjectManager); static;
 
-    /// <summary>Upper-cases the first letter and leaves the rest alone, so
-    /// 'uses data from' becomes 'Uses data from' rather than title case.</summary>
     class function Capitalize(const AText: string): string; static;
   end;
 
@@ -63,9 +41,6 @@ type
   end;
 
 const
-  // Captions are stored sentence-case — first letter capitalised, the rest left
-  // alone — because they are shown as list entries in the relation combo and
-  // the links panel, where a mix of cases reads as sloppy.
   SEED_TYPES: array[0..5] of TLinkTypeSeed = (
     (ForwardText: 'Related to';     ReverseText: 'Related to';
      Description: 'General cross-reference.';                          SortOrder: 10),
@@ -84,7 +59,6 @@ const
   IMPORTED_DESCRIPTION = 'Imported from free-text label';
   IMPORTED_SORTORDER   = 1000;
 
-{ TItemLinkMigration }
 
 class function TItemLinkMigration.FindByForwardText(Mgr: TObjectManager;
   const AText: string): TLinkType;
@@ -193,7 +167,7 @@ begin
     for Link in Links do
     begin
       if Assigned(Link.LinkType) then
-        Continue; // already migrated
+        Continue;
 
       Lbl := Trim(Link.Label_);
 
@@ -213,8 +187,6 @@ begin
         Target := FindByForwardText(Mgr, ResolveAlias(Lbl));
         if Target = nil then
         begin
-          // Unrecognised free text becomes its own symmetric type, sentence-cased
-          // so an imported 'calibrates' sits beside 'Derived from' consistently.
           Target := TLinkType.Create;
           Target.ForwardText := Capitalize(Lbl);
           Target.ReverseText := Capitalize(Lbl);

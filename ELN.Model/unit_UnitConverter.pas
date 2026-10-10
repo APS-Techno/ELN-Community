@@ -32,14 +32,12 @@ implementation
 uses
   System.SysUtils, System.Generics.Collections;
 
-{ TUnitConverter }
 
 class procedure TUnitConverter.Initialize;
 const
-  // Unicode constants
-  Micro = #$00B5; // µ
-  Angstrom = #$00C5; // Å
-  Degree = #$00B0; // °
+  Micro = #$00B5;
+  Angstrom = #$00C5;
+  Degree = #$00B0;
 var
   Defs: TArray<TUnitDef>;
 
@@ -65,7 +63,6 @@ begin
 
   SetLength(Defs, 0);
 
-  // Length — base: m
   Add('m',                'Length', 1.0,               0.0);
   Add('mm',               'Length', 1.0e-3,             0.0);
   Add(Micro + 'm',        'Length', 1.0e-6,             0.0);
@@ -74,7 +71,6 @@ begin
   Add('pm',               'Length', 1.0e-12,            0.0);
   Add('cm',               'Length', 1.0e-2,             0.0);
 
-  // Energy — base: J
   Add('J',                'Energy', 1.0,                0.0);
   Add('kJ',               'Energy', 1.0e3,              0.0);
   Add('eV',               'Energy', 1.602176634e-19,    0.0);
@@ -87,7 +83,6 @@ begin
   Add(Degree + 'C',       'Temperature', 1.0,           273.15,  True);
   Add(Degree + 'F',       'Temperature', 5.0 / 9.0,    459.67,  True);
 
-  // Pressure — base: Pa
   Add('Pa',               'Pressure', 1.0,              0.0);
   Add('kPa',              'Pressure', 1.0e3,            0.0);
   Add('MPa',              'Pressure', 1.0e6,            0.0);
@@ -97,40 +92,37 @@ begin
   Add('Torr',             'Pressure', 133.322368,       0.0);
   Add('atm',              'Pressure', 101325.0,         0.0);
 
-  // Current — base: A
   Add('A',                'Current', 1.0,               0.0);
   Add('mA',               'Current', 1.0e-3,            0.0);
   Add(Micro + 'A',        'Current', 1.0e-6,            0.0);
   Add('nA',               'Current', 1.0e-9,            0.0);
 
-  // Voltage — base: V
   Add('V',                'Voltage', 1.0,               0.0);
   Add('mV',               'Voltage', 1.0e-3,            0.0);
   Add('kV',               'Voltage', 1.0e3,             0.0);
 
-  // Power — base: W
   Add('W',                'Power',   1.0,               0.0);
   Add('mW',               'Power',   1.0e-3,            0.0);
   Add('kW',               'Power',   1.0e3,             0.0);
   Add('MW',               'Power',   1.0e6,             0.0);
 
-  // Mass — base: kg
   Add('kg',               'Mass',    1.0,               0.0);
   Add('g',                'Mass',    1.0e-3,            0.0);
   Add('mg',               'Mass',    1.0e-6,            0.0);
   Add(Micro + 'g',        'Mass',    1.0e-9,            0.0);
 
-  // Volume — base: L
   Add('L',                'Volume',  1.0,               0.0);
   Add('mL',               'Volume',  1.0e-3,            0.0);
   Add(Micro + 'L',        'Volume',  1.0e-6,            0.0);
 
-  // Concentration — base: mol/L
-  Add('mol/L',            'Concentration', 1.0,         0.0);
-  Add('mmol/L',           'Concentration', 1.0e-3,      0.0);
-  Add('mg/mL',            'Concentration', 1.0,         0.0);  // numerically equal to g/L; distinct label
+  Add('mol/L',            'Molar concentration', 1.0,    0.0);
+  Add('mmol/L',           'Molar concentration', 1.0e-3, 0.0);
 
-  // Time — base: s
+  // Mass concentration - base: g/L. Molar mass is not known here.
+  Add('g/L',              'Mass concentration', 1.0,    0.0);
+  Add('mg/mL',            'Mass concentration', 1.0,    0.0);
+  Add('mg/L',             'Mass concentration', 1.0e-3, 0.0);
+
   Add('s',                'Time',    1.0,               0.0);
   Add('ms',               'Time',    1.0e-3,            0.0);
   Add(Micro + 's',        'Time',    1.0e-6,            0.0);
@@ -138,7 +130,6 @@ begin
   Add('min',              'Time',    60.0,              0.0);
   Add('h',                'Time',    3600.0,            0.0);
 
-  // Frequency — base: Hz
   Add('Hz',               'Frequency', 1.0,             0.0);
   Add('kHz',              'Frequency', 1.0e3,           0.0);
   Add('MHz',              'Frequency', 1.0e6,           0.0);
@@ -179,13 +170,11 @@ begin
       'Cannot convert between categories "%s" and "%s"',
       [FromDef.Category, ToDef.Category]);
 
-  // Convert input to base unit
   if FromDef.IsOffset then
     BaseValue := (Value + FromDef.Offset) * FromDef.Factor
   else
     BaseValue := Value * FromDef.Factor;
 
-  // Convert base unit to target unit
   if ToDef.IsOffset then
     Result := (BaseValue / ToDef.Factor) - ToDef.Offset
   else
@@ -257,7 +246,6 @@ begin
   Result := FindUnit(Symbol, Def);
 end;
 
-{ ParseSIInput }
 
 function ParseSIInput(const Input, BaseUnit: string; out Value: Double): Boolean;
 var
@@ -270,11 +258,9 @@ begin
   if S = '' then
     Exit;
 
-  // Try parsing entire input as a plain number (handles "2e-8", "0.005", etc.)
   if TryStrToFloat(S, Value) then
     Exit(True);
 
-  // Split into number + unit suffix by scanning backwards from end
   I := Length(S);
   while (I > 0) and not CharInSet(S[I], ['0'..'9', '.', ',', ' ']) do
     Dec(I);
@@ -294,14 +280,12 @@ begin
       Value := TUnitConverter.Convert(RawValue, UnitStr, BaseUnit);
       Result := True;
     except
-      // Category mismatch — treat as base value
-      Value := RawValue;
-      Result := True;
+      on E: EArgumentException do
+        Result := False;
     end;
   end
   else
   begin
-    // Unrecognized unit — treat as base value
     Value := RawValue;
     Result := True;
   end;

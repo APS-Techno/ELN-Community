@@ -46,11 +46,8 @@ type
     [Description('')]
     FModifiedBy: Nullable<Integer>;
     
-    // No cascade: this is a reference to a row owned elsewhere, not a child of
-    // this entity. CascadeTypeAll carries TCascadeType.Evict, so cascading here
-    // detaches the referenced row whenever this one is evicted, leaving a stale
-    // instance alive while the next Find maps a fresh one -- two live instances
-    // of one Id, and the next Save/Update cascade raises EObjectAlreadyPersistent.
+    // This reference is not owned here. Cascading Evict would leave a stale
+    // shared instance and cause EObjectAlreadyPersistent on a later save.
     [Association([TAssociationProp.Lazy, TAssociationProp.Required], [])]
     [JoinColumn('ProjectId', [TColumnProp.Required], 'Id')]
     [Description('')]
@@ -77,7 +74,6 @@ type
   
 implementation
 
-{ TUserRole }
 
 function TUserRole.GetProject: TProject;
 begin

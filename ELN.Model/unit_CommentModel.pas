@@ -35,7 +35,6 @@ uses
   Aurelius.Criteria.Base,
   unit_TimeHelper;
 
-{ TCommentModel }
 
 constructor TCommentModel.Create(Manager: TObjectManager);
 begin
@@ -115,10 +114,6 @@ begin
   if (ItemIds = nil) or (ItemIds.Count = 0) then
     Exit;
 
-  // Push the ItemId filter into SQL instead of loading the entire Comments
-  // table and filtering in Pascal — this function is called on every tree
-  // navigation and the full-scan form was the dominant latency on folders
-  // with thousands of comments.
   SetLength(Ids, ItemIds.Count);
   for I := 0 to ItemIds.Count - 1 do
     Ids[I] := ItemIds[I];

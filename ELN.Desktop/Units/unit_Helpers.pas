@@ -1,37 +1,4 @@
-{*
-  unit_Helpers.pas — Miscellaneous utility functions
-
-  File/path helpers
-  -----------------
-  CreateFolders(Root, Path) — Ensures Root+Path directory tree exists (ForceDirectories).
-  ClearDir(Dir)             — Deletes all files directly inside Dir (non-recursive).
-  RenameFolder(Old, New)    — Thin wrapper around RenameFile for directory renames.
-  GetSpecialPath(CSIDL)     — Returns a Windows special folder path (e.g. CSIDL_MYDOCS).
-
-  Screenshot capture
-  ------------------
-  SaveScreenshot(FileName, Control)
-    Captures the screen region occupied by Control (BitBlt from foreground window DC),
-    resizes to 200×150 px thumbnail via ResizeBitmap, and saves as PNG.
-    Used to generate file preview thumbnails in the content viewer.
-
-  ResizeBitmap(Bitmap, MaxWidth, MaxHeight)  [internal]
-    Scales Bitmap down to fit within MaxWidth×MaxHeight while preserving aspect ratio.
-    Uses WIC (IWICBitmapScaler) with HighQualityCubic interpolation.
-
-  Encoding helpers (legacy, not cryptographic)
-  --------------------------------------------
-  EncodePassString / DecodePassString — Caesar cipher (+5 / -5 on each char ordinal).
-    NOTE: This is not secure; use Windows Credential Manager for real secrets.
-
-  Other
-  -----
-  md5(Journal, Title)          — MD5 hash of concatenated strings (Indy TIdHashMessageDigest5).
-  SimpleShellExecute(...)      — ShellExecute wrapper that auto-quotes paths with spaces.
-  CompareInt(i1, i2)           — Returns Sign(i1-i2); useful as TList sort comparator.
-  SimpleQuoteString(Value)     — Wraps Value in double-quotes unless already quoted.
-  c_GetTempPath                — Returns system temp directory path.
-*}
+{ EncodePassString is reversible obfuscation, not protection for secrets. }
 unit unit_Helpers;
 
 interface
@@ -94,7 +61,6 @@ var
   NewWidth, NewHeight: Integer;
   AspectRatio: Extended;
 begin
-  // Calculate new dimensions maintaining aspect ratio
   AspectRatio := Bitmap.Width / Bitmap.Height;
   if Bitmap.Width > MaxWidth then
   begin
@@ -284,8 +250,6 @@ begin
   AFileName := SimpleQuoteString(FileName);
   AParameters := SimpleQuoteString(Parameters);
   ADirectory := Directory;
-//  if ADirectory = '' then
-//    ADirectory := TPath.GetDirectoryName(Application.ExeName);
 
   Result := ShellAPI.ShellExecute(
     hWnd,

@@ -54,7 +54,6 @@ end;
 
 procedure TfrSectionCard.SetOnFieldTypeChanged(AHandler: TFieldTypeChangedEvent);
 begin
-  // not used by section card
 end;
 
 function TfrSectionCard.AsControl: TWinControl;

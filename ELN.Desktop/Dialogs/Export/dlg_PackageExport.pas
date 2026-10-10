@@ -37,7 +37,6 @@ implementation
 
 {$R *.dfm}
 
-{ TdlgPackageExport }
 
 class function TdlgPackageExport.Execute(Items: TItems; out SelectedItems: TItems;
   out ExportPath: string; out IncludeFiles, IncludeHistory: Boolean): Boolean;
@@ -53,11 +52,9 @@ begin
   try
     Dialog.FItems := Items;
 
-    // Populate checklist with items
     for Item in Items do
       Dialog.clbItems.Items.AddObject(Item.Title, Item);
 
-    // Check all by default
     for I := 0 to Dialog.clbItems.Count - 1 do
       Dialog.clbItems.Checked[I] := True;
 

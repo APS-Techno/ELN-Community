@@ -21,7 +21,6 @@ uses
   unit_SignatureModel,
   unit_ToolsWrite, unit_ToolScope;
 
-{ ---- Section convention ---- }
 
 const
   VALID_WIKI_SECTIONS: array[0..4] of string =
@@ -50,7 +49,6 @@ begin
        VALID_WIKI_SECTIONS[3], VALID_WIKI_SECTIONS[4]]);
 end;
 
-{ ---- Folder idempotent create ---- }
 
 // Case-insensitive title match: a pre-existing lower-case "wiki" folder is
 // reused rather than duplicated. Section folders follow the same rule for
@@ -85,7 +83,6 @@ begin
   Result := Folder.Id;
 end;
 
-{ ---- Title slug ---- }
 
 function SlugifyTitle(const Title: string): string;
 var
@@ -125,7 +122,6 @@ begin
     Result := 'page';
 end;
 
-{ ---- JSON Schema builders ---- }
 
 function MakeWikiCreatePageSchema: TJSONObject;
 var
@@ -219,7 +215,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- Page-level helpers ---- }
 
 function FindExistingPageItem(const Context: TToolContext;
   ProjectId, FolderId: Integer; const Title: string): TItem;
@@ -299,9 +294,7 @@ begin
   end;
 end;
 
-// Mutates ResponseObj by adding/merging an 'attachments' array with one
-// element per uploaded file. Permission + signed-item checks are the caller's
-// responsibility — this helper is only reached after those gates pass.
+// Callers must pass permission and signed-item checks before attaching files.
 procedure AppendAttachments(const Context: TToolContext; Item: TItem;
   Attachments: TJSONArray; ResponseObj: TJSONObject);
 var
@@ -340,7 +333,6 @@ begin
   end;
 end;
 
-{ ---- wiki_create_page ---- }
 
 function HandleWikiCreatePage(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -356,7 +348,6 @@ var
   F: unit_Item.TFile;
   Attachments: TJSONArray;
 begin
-  // 1. Param extraction + validation
   ProjectId := GetReqInt(Params, 'project_id');
   Section   := GetReqStr(Params, 'section');
   Title     := GetReqStr(Params, 'title');
@@ -365,8 +356,7 @@ begin
     raise Exception.Create('title must not be empty');
   RequireValidSection(Section, CanonicalSection);
 
-  // 2. Access + project checks. Scope first, with the uniform refusal, so
-  // the write-path errors below cannot reveal out-of-scope projects.
+  // Check scope first so write-path errors cannot reveal foreign projects.
   RequireProjectRead(Context, ProjectId);
   CheckProjectWriteAccess(Context, ProjectId);
 
@@ -374,11 +364,9 @@ begin
   if not Assigned(Project) then
     raise Exception.CreateFmt('Project not found: %d', [ProjectId]);
 
-  // 3. Idempotent folder creation (case-insensitive title match)
   WikiFolderId    := FindOrCreateFolder(Context, ProjectId, 0,            'Wiki');
   SectionFolderId := FindOrCreateFolder(Context, ProjectId, WikiFolderId, CanonicalSection);
 
-  // 4. Duplicate-page detection
   Existing := FindExistingPageItem(Context, ProjectId, SectionFolderId, Title);
   if Assigned(Existing) then
     raise Exception.CreateFmt(
@@ -386,7 +374,6 @@ begin
       '(item id %d). To edit it, call wiki_update_page(item_id=%d, ...).',
       [Title, CanonicalSection, Existing.Id, Existing.Id]);
 
-  // 5. Create the page item
   Item := TItem.Create;
   Item.Title       := Title;
   Item.Level       := TItemLevel.Item;
@@ -403,7 +390,6 @@ begin
     Format('MCP: Wiki - created page "%s" in Wiki/%s',
       [Title, CanonicalSection]));
 
-  // 6. Write body_md to a server-owned temp file
   MdFileType := ResolveMarkdownFileType(Context);
   Slug := SlugifyTitle(Title);
   TempPath := TPath.Combine(TPath.GetTempPath,
@@ -415,7 +401,6 @@ begin
   try
     Hash := ComputeFileMD5(TempPath);
 
-    // 7. Create the file DB row
     F := unit_Item.TFile.Create;
     F.FileType    := MdFileType;
     F.Title       := Slug;
@@ -427,7 +412,6 @@ begin
     Context.Manager.Update(Item);
     TConflictHandler.SafeFlush(Context.Manager);
 
-    // 8. Store the body (needs F.Id, now assigned).
     RemotePath := Format('Projects/%s/%s/%s', [
       CleanFileName(Project.FileFolder),
       CleanFileName(Item.FolderName),
@@ -441,7 +425,6 @@ begin
       System.IOUtils.TFile.Delete(TempPath);
   end;
 
-  // 9. Response skeleton
   Result := TJSONObject.Create;
   try
   Result.AddPair('item_id',           TJSONNumber.Create(Item.Id));
@@ -453,7 +436,6 @@ begin
   Result.AddPair('md_file_id',        TJSONNumber.Create(F.Id));
   Result.AddPair('md_file_name',      F.FullName);
 
-  // 10. Attachments
   Attachments := nil;
   if (Params <> nil) and (Params.FindValue('attachments') is TJSONArray) then
     Attachments := TJSONArray(Params.FindValue('attachments'));
@@ -486,8 +468,6 @@ begin
   if not (HasBody or HasAttachments) then
     raise Exception.Create('Provide at least one of body_md or attachments.');
 
-  // Uniform refusal for out-of-scope and missing-under-scope; inert without
-  // a scope.
   RequireItemRead(Context, ItemId);
 
   Item := Context.Manager.Find<TItem>(ItemId);
@@ -506,8 +486,6 @@ begin
   try
   Result.AddPair('item_id', TJSONNumber.Create(Item.Id));
 
-  // --- Body replacement path: locate the attached .md file, overwrite it in
-  //     storage (keeping same filename), update hash + ModifiedDate/By.
   if HasBody then
   begin
     MdFile := nil;
@@ -554,7 +532,6 @@ begin
     end;
   end;
 
-  // --- Attachment append path
   if HasAttachments then
   begin
     Attachments := TJSONArray(Params.FindValue('attachments'));
@@ -566,7 +543,6 @@ begin
   end;
 end;
 
-{ ---- wiki_get_page ---- }
 
 function HandleWikiGetPage(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -582,8 +558,6 @@ var
   AttObj: TJSONObject;
 begin
   ItemId := GetReqInt(Params, 'item_id');
-  // Uniform refusal for out-of-scope and missing-under-scope; inert without
-  // a scope.
   RequireItemRead(Context, ItemId);
 
   Item := Context.Manager.Find<TItem>(ItemId);
@@ -597,7 +571,6 @@ begin
     raise Exception.CreateFmt('Project %d not found for item %d.',
       [Item.ProjectID, ItemId]);
 
-  // Locate the attached .md file (same rule as wiki_update_page).
   MdFile := nil;
   for F in Item.Files do
     if Assigned(F.FileType) and SameText(F.FileType.Ext, '.md') then
@@ -610,7 +583,6 @@ begin
       'Item %d has no .md file — not a wiki page. Use list_files(%d) to ' +
       'inspect attachments.', [ItemId, ItemId]);
 
-  // Read the .md body as bytes; only markdown is decoded as UTF-8.
   RemotePath := Format('Projects/%s/%s/%s', [
     CleanFileName(Project.FileFolder),
     CleanFileName(Item.FolderName),
@@ -623,7 +595,6 @@ begin
   if (Length(BodyMd) > 0) and (BodyMd[1] = #$FEFF) then
     Delete(BodyMd, 1, 1);
 
-  // Response
   Result := TJSONObject.Create;
   Result.AddPair('item_id',      TJSONNumber.Create(Item.Id));
   Result.AddPair('title',        Item.Title);
@@ -640,7 +611,6 @@ begin
   Result.AddPair('md_file_name', MdFile.FullName);
   Result.AddPair('body_md',      BodyMd);
 
-  // Non-.md attachments
   AttachmentsArr := TJSONArray.Create;
   for F in Item.Files do
   begin
@@ -680,7 +650,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- Registration ---- }
 
 procedure RegisterWikiTools(Registry: TToolRegistry);
 begin

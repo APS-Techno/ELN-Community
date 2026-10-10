@@ -1,7 +1,5 @@
 unit unit_HypothesisStatusChange;
 
-{ Status history of a hypothesis. A copy of TProtocolStatusChange plus the
-  device that made the change (null for desktop). }
 
 interface
 

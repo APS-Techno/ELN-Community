@@ -1,9 +1,7 @@
 unit unit_HypothesisGuard;
 
-{ Is this item cited (as a run or as evidence) by a hypothesis that is In
-  review or Accepted? Such items cannot be deleted (spec 6.5): the approver
-  is being asked to accept exactly that evidence, or already has. A READ;
-  safe for every client. }
+{ Deleting cited items in review or accepted would change the evidence
+  a human is asked to accept, or has already accepted. }
 
 interface
 
@@ -29,10 +27,7 @@ var
   H: THypothesis;
   WasCached: Boolean;
 begin
-  // Same "refresh only if already cached" pattern as THypothesisModel.Load
-  // (R3): Find already hit the DB for an id this manager had not seen before,
-  // so a second round trip (Refresh) is only needed when the instance came
-  // back from the identity map instead.
+  // Find queries uncached IDs already; only cached instances need Refresh.
   WasCached := Manager.IsCached<THypothesis>(HypId);
   H := Manager.Find<THypothesis>(HypId);
   // The manager may be long-lived (MCP session, desktop): judge the status

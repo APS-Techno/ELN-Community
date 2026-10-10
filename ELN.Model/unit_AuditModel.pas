@@ -63,7 +63,6 @@ uses
   unit_ItemTypes,
   unit_TimeHelper;
 
-{ TAuditReport }
 
 constructor TAuditReport.Create;
 begin
@@ -77,7 +76,6 @@ begin
   inherited;
 end;
 
-{ TAuditModel }
 
 constructor TAuditModel.Create(Manager: TObjectManager);
 begin
@@ -177,7 +175,6 @@ begin
   Result := TAuditReport.Create;
   Result.RunDate := UTCNow;
 
-  // Query items in scope (unconditional — needed for health checks)
   WhereExpr :=
     (FItemDic.ProjectID = ProjectId) and
     (FItemDic.IsDeleted = False);
@@ -190,13 +187,11 @@ begin
     Result.TotalItemsChecked := Items.Count;
     Result.TargetTitle := BuildProjectPath(ProjectId, FolderId);
 
-    // --- Phase 1: Virtual health checks (always run) ---
     for Item in Items do
     begin
       if not (Item.Level in [TItemLevel.Proc, TItemLevel.Action]) then
         Continue;
 
-      // Missing values: Proc and Action
       if Item.Values.Count = 0 then
       begin
         Violation := Default(TAuditViolation);
@@ -212,7 +207,6 @@ begin
         Result.Violations.Add(Violation);
       end;
 
-      // Missing files: Action only
       if (Item.Level = TItemLevel.Action) and (Item.Files.Count = 0) then
       begin
         Violation := Default(TAuditViolation);
@@ -229,7 +223,6 @@ begin
       end;
     end;
 
-    // --- Phase 2: Rule-based checks ---
     RuleMap := nil;
     Rules := FManager.Find<TAuditRule>
       .Where(Linq['IsActive'] = True)
@@ -237,7 +230,6 @@ begin
     try
       if Rules.Count > 0 then
       begin
-        // Build rule lookup: ActionTypeId|EquipmentId -> list of rules
         RuleMap := TObjectDictionary<string, TList<TAuditRule>>.Create([doOwnsValues]);
         UniqueKeys := TDictionary<string, Boolean>.Create;
         try
@@ -269,7 +261,6 @@ begin
           if not RuleMap.TryGetValue(Key, MatchedRules) then
             Continue;
 
-          // Build set of file type IDs on this item
           ItemFileTypeIds := TDictionary<Integer, Boolean>.Create;
           try
             for F in Item.Files do
@@ -278,7 +269,6 @@ begin
                 ItemFileTypeIds.AddOrSetValue(F.FileType.Id, True);
             end;
 
-            // Build set of value type IDs on this item
             ItemValueTypeIds := TDictionary<Integer, Boolean>.Create;
             try
               for V in Item.Values do
@@ -287,7 +277,6 @@ begin
                   ItemValueTypeIds.AddOrSetValue(V.ValueType.Id, True);
               end;
 
-              // Check each matching rule
               for Rule in MatchedRules do
               begin
                 MissingFiles := '';

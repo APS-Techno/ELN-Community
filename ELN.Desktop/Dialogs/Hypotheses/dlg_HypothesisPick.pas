@@ -1,20 +1,6 @@
 unit dlg_HypothesisPick;
 
-{
-  Picks a hypothesis to attach an item to, plus the role: Run or Reference
-  (Task 7, spec 10).
-
-  AChoices may mix Approved hypotheses (either role can apply, once approved
-  runs are meant to test them) and the author's own Proposed hypotheses
-  (pre-flight C21: Plan 1 CanChangeReferences lets the author attach
-  References while still Proposed). While the highlighted hypothesis is not
-  Approved, only Reference is offered: the model refuses a Run row before
-  Approved (unit_HypothesisRules.CanChangeRunsOrEvidence), so this mirrors
-  that rule instead of letting the user pick a role that will be refused.
-
-  Lives in ELN.Desktop\Dialogs\Hypotheses: allowed to name the view model
-  (unit_HypothesesVM, for StatusCaption's wording), never the gate model.
-}
+{ Proposed hypotheses accept References only; Runs require approval. }
 
 interface
 
@@ -37,8 +23,6 @@ type
     FChoices: TArray<THypothesisSummary>;
     procedure UpdateRoleForSelection;
   public
-    /// <summary>AHint replaces the list's caption (the Hypotheses view names
-    /// the item being attached there).</summary>
     class function Execute(const AChoices: TArray<THypothesisSummary>;
       out AHypothesisId: Integer; out ARole: THypothesisRunRole;
       const AHint: string = ''): Boolean; static;
@@ -59,9 +43,9 @@ begin
   Idx := lstHypotheses.ItemIndex;
   ApprovedNow := (Idx >= 0) and (Idx <= High(FChoices)) and
     (FChoices[Idx].Status = hsApproved);
-  rgRole.Buttons[0].Enabled := ApprovedNow;    // 'Run'
+  rgRole.Buttons[0].Enabled := ApprovedNow;    
   if not ApprovedNow then
-    rgRole.ItemIndex := 1;                     // force 'Reference' (C21)
+    rgRole.ItemIndex := 1;                     
 end;
 
 procedure TdlgHypothesisPick.lstHypothesesClick(Sender: TObject);

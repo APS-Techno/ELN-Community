@@ -16,7 +16,6 @@ type
   public
     procedure DisplayText(const Caption, Text: string); override;
 
-    { IProtocolEditor }
     procedure LoadTemplate(const TemplateHtml: string; const FormData: string);
     procedure LoadFreeText(const FormData: string);
     function  GetFormData: string;
@@ -87,7 +86,6 @@ begin
       ModifiedDate, FormData, EquipModel, EquipManufacturer, EquipLocation);
 end;
 
-{ IProtocolEditor }
 
 procedure TELNProtocolViewerPlugin.LoadTemplate(const TemplateHtml: string;
   const FormData: string);

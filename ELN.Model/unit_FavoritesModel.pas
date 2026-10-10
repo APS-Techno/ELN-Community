@@ -37,7 +37,6 @@ uses
   Aurelius.Criteria.Base,
   unit_TimeHelper;
 
-{ TFavoritesModel }
 
 constructor TFavoritesModel.Create(Manager: TObjectManager);
 begin

@@ -42,7 +42,6 @@ uses
 
 {$R *.dfm}
 
-{ TdlgRecycleBin }
 
 procedure TdlgRecycleBin.LoadItems;
 var
@@ -127,7 +126,6 @@ begin
   end
   else
   begin
-    // Nothing was deleted. The list may be stale: reload it.
     LoadItems;
     MessageDlg('Nothing was deleted: this item (or an item inside it) was ' +
       'restored by someone else meanwhile, or is cited by a hypothesis that ' +
@@ -147,15 +145,12 @@ begin
 
   Ok := Model.RecycleBin.EmptyBin(Model.User.Id, KeptRootCount, Refused);
   // Reload in both outcomes: even a False result may have purged everything
-  // unrelated to the kept (guarded) subtrees (R1).
+  // unrelated to the guarded subtrees.
   FChanged := True;
   LoadItems;
   if Ok then
     Exit;
   if Refused then
-    // Race path: between the walk and the purge another session restored a
-    // binned item, or moved a hypothesis citing one to review/accepted, and
-    // the purge (one transaction) rolled back - nothing at all was deleted.
     MessageDlg('Nothing was deleted: while the bin was being emptied, one ' +
       'of its items was restored, or a hypothesis citing one of them was ' +
       'submitted for review or accepted. Please try again.',

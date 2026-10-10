@@ -1,15 +1,5 @@
 unit unit_MarkdownLinkRewriter;
 
-// Pre-processes wiki-link syntax in markdown source before it reaches markdown-it.
-//
-// Link scheme: "eln://{kind}/{ref}" - a freshly-defined scheme.
-// The existing ELN desktop app does NOT currently expose a URL-based navigation
-// mechanism; Task 7 will intercept navigation to eln:// URLs inside the markdown
-// viewer's WebView and fire a Delphi event back to the host.
-//
-// Tokens supported:
-//   [[item:<digits>]]         ->  <a class="eln-link" href="eln://item/<N>">item:<N></a>
-//   [[specimen:<code>]]       ->  <a class="eln-link" href="eln://specimen/<CODE>">specimen:<CODE></a>
 
 interface
 

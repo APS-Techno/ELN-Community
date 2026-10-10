@@ -20,7 +20,6 @@ type
     constructor Create(Manager: TObjectManager);
     destructor Destroy; override;
 
-    // Tag CRUD
     function AddTag(const Name, Color: string; CreatedBy: Integer): TTag;
     procedure UpdateTag(Tag: TTag);
     procedure DeleteTag(TagId: Integer);
@@ -28,7 +27,6 @@ type
     function GetTag(TagId: Integer): TTag;
     function FindTagsByName(const AName: string): TTags;
 
-    // Item-Tag assignment
     procedure AssignTag(ItemId, TagId: Integer);
     procedure UnassignTag(ItemId, TagId: Integer);
     function GetTagsForItem(ItemId: Integer): TTags;
@@ -42,7 +40,6 @@ uses
   Aurelius.Criteria.Base,
   unit_TimeHelper;
 
-{ TTagModel }
 
 constructor TTagModel.Create(Manager: TObjectManager);
 begin
@@ -81,7 +78,6 @@ var
   Links: TItemTags;
   Link: TItemTag;
 begin
-  // Remove all item-tag links first
   Links := FManager.Find<TItemTag>
     .Where(FItemTagDic.TagId = TagId)
     .List;
@@ -117,11 +113,8 @@ var
   Tag: TTag;
   Target: string;
 begin
-  // Matching is done in Delphi rather than with a SQL WHERE on purpose: '='
-  // is case-SENSITIVE on SQLite but case-INSENSITIVE under MySQL's default
-  // collation, so a query would behave differently in the test suite than in
-  // production. Tag counts are small (tens), so the full scan is free.
-  // Callers rely on the id ordering to report duplicate candidates stably.
+  // SQLite and default MySQL collations disagree on case sensitivity. Match
+  // in Delphi and preserve ID ordering for stable duplicate candidates.
   Result := TTags.Create;
   try
     Target := Trim(AName);

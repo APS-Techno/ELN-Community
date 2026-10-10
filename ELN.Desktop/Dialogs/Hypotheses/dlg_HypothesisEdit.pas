@@ -1,15 +1,5 @@
 unit dlg_HypothesisEdit;
 
-{
-  Title / statement / change / headline-quantity editor, shared by proposing
-  a hypothesis and editing a Proposed one (Task 7, spec 10). The visible
-  refusal here only mirrors unit_HypothesisRules.CheckProposal so the user
-  finds out before the round trip; the model re-checks and is the only
-  authority.
-
-  Lives in ELN.Desktop\Dialogs\Hypotheses: allowed to name the view model
-  (unit_HypothesesVM) for shared wording, never the gate model.
-}
 
 interface
 

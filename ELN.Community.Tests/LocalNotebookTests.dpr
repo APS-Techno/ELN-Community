@@ -19,7 +19,6 @@ uses
   Bcrypt in '..\ELN.Model\Bcrypt.pas';
 
 const
-  // Synthetic fixture input; no existing identity or notebook is accessed.
   SigningPassword = 'Synthetic-Notebook-Test-Only!';
 
 var
@@ -120,7 +119,6 @@ begin
     end;
   finally
     FreeAndNil(Notebook);
-    // Only this test's newly created GUID temp tree is removed.
     if DirectoryExists(FixtureDir) then
       TDirectory.Delete(FixtureDir, True);
   end;

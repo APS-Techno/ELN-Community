@@ -29,7 +29,6 @@ type
 
 implementation
 
-{ TELNModel }
 
 constructor TELNModel.Create;
 begin

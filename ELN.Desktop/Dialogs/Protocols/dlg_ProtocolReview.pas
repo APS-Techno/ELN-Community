@@ -69,7 +69,6 @@ const
     'Draft', 'In Review', 'Approved', 'Rejected'
   );
 
-{ TdlgProtocolReview }
 
 class procedure TdlgProtocolReview.ShowQueue(const APlugin: IViewerPlugin);
 var
@@ -125,7 +124,6 @@ begin
     LSettings.Free;
   end;
 
-  // Return frame to ContentViewer's card
   if Assigned(FPlugin) then
   begin
     var Editor: IProtocolEditor;
@@ -165,7 +163,6 @@ begin
         FProtocols := Model.ProtocolStatus.GetProtocolsByStatus(vsRejected);
       fmAll:
       begin
-        // Merge InReview + Rejected lists
         FProtocols := Model.ProtocolStatus.GetProtocolsByStatus(vsInReview);
         FilteredProtocols := Model.ProtocolStatus.GetProtocolsByStatus(vsRejected);
         try
@@ -183,14 +180,12 @@ begin
       ListItem.Caption := Protocol.Title;
       ListItem.Data := Protocol;
 
-      // Look up parent Item via Entries association
       Item := Model.Items.GetItemForEntry(Protocol.Id);
       if Assigned(Item) then
         ListItem.SubItems.Add(Item.Title)
       else
         ListItem.SubItems.Add('');
 
-      // Look up creator
       if Protocol.CreatedBy.HasValue then
       begin
         User := Model.Authors.GetUser(Protocol.CreatedBy.Value);
@@ -203,7 +198,6 @@ begin
         ListItem.SubItems.Add('');
     end;
 
-    // Restore selection
     if (SelectedIdx >= 0) and (SelectedIdx < ListView.Items.Count) then
       ListView.Items[SelectedIdx].Selected := True
     else if ListView.Items.Count > 0 then

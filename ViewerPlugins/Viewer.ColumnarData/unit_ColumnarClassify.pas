@@ -1,12 +1,6 @@
-{ Decides whether a delimited-text file actually holds chartable columns.
-
-  The ColumnarData viewer is bound to '.dat;.csv;.txt;.ascii' — extensions that
-  carry instrument data most of the time and free prose the rest of it. Feeding
-  prose to the chart builder yields an empty chart and no error, so the viewer
-  needs to know which kind of file it has BEFORE it decides what to show.
-
-  The classification deliberately runs the same delimiter/comment/header/parse
-  rules the chart builder runs, so the two can never disagree about a file. }
+{ Prose shares the supported extensions with numeric data and can yield an empty
+  chart without an error. Classification and chart building must use the same
+  delimiter, comment, header and numeric parsing rules. }
 unit unit_ColumnarClassify;
 
 interface
@@ -15,9 +9,7 @@ uses
   System.SysUtils, System.Classes;
 
 type
-  { What a pass over the document found. When IsTabular is False the caller
-    should show the raw text; the remaining fields are still filled in as far
-    as parsing got, which is what the status bar reports. }
+  { Fields remain partially populated for status reporting when IsTabular=False. }
   TColumnarClassification = record
     IsTabular: Boolean;
     Delimiter: Char;
@@ -41,6 +33,8 @@ function IsCommentLine(const ALine: string): Boolean;
 function SplitLine(const ALine: string; ADelimiter: Char): TArray<string>;
 function IsHeaderLine(const ALine: string; ADelimiter: Char): Boolean;
 function ClassifyColumnarText(ALines: TStrings): TColumnarClassification;
+function ColumnarTableToText(ALines: TStrings;
+  const AClassification: TColumnarClassification): string;
 
 implementation
 
@@ -86,7 +80,6 @@ var
   Raw: TArray<string>;
 begin
   if ADelimiter = ' ' then
-    // Space delimiter: split on any run of whitespace, skip empties
     Result := ALine.Split([' ', #9], TStringSplitOptions.ExcludeEmpty)
   else
   begin
@@ -129,7 +122,6 @@ begin
   if not Assigned(ALines) then
     Exit;
 
-  // The first line with content decides the delimiter for the whole document
   FirstDataLine := '';
   FirstDataLineFound := False;
   for I := 0 to ALines.Count - 1 do
@@ -156,7 +148,6 @@ begin
 
     if not DataStarted then
     begin
-      // First non-comment line: a row of labels names the columns
       if not HeaderFound and IsHeaderLine(Line, Result.Delimiter) then
       begin
         Result.ColumnNames := SplitLine(Line, Result.Delimiter);
@@ -171,7 +162,6 @@ begin
     if Length(Parts) < 2 then
       Continue;
 
-    // The first data row fixes the column count for every series
     if Result.ColCount = 0 then
     begin
       Result.ColCount := Length(Parts);
@@ -193,6 +183,54 @@ begin
       Result.MaxSeriesPoints := PointCounts[J];
 
   Result.IsTabular := Result.MaxSeriesPoints >= MinPlottablePoints;
+end;
+
+function ColumnarTableToText(ALines: TStrings;
+  const AClassification: TColumnarClassification): string;
+var
+  Output: TStringBuilder;
+  Parts: TArray<string>;
+  I, J: Integer;
+  X: Double;
+  SkipHeader: Boolean;
+begin
+  Output := TStringBuilder.Create;
+  try
+    for J := 0 to AClassification.ColCount - 1 do
+    begin
+      if J > 0 then Output.Append(#9);
+      if J < Length(AClassification.ColumnNames) then
+        Output.Append(AClassification.ColumnNames[J])
+      else if J = 0 then
+        Output.Append('X')
+      else
+        Output.Append('Column ' + IntToStr(J));
+    end;
+    Output.AppendLine;
+    SkipHeader := AClassification.HasHeader;
+    for I := 0 to ALines.Count - 1 do
+    begin
+      if IsCommentLine(ALines[I]) then Continue;
+      if SkipHeader then
+      begin
+        SkipHeader := False;
+        Continue;
+      end;
+      Parts := SplitLine(ALines[I], AClassification.Delimiter);
+      if (Length(Parts) = 0) or not TryStrToFloat(Parts[0], X) then Continue;
+      // Export source rows, not independently compacted chart series. Keep
+      // repeated X values, missing cells and nonnumeric measurement markers.
+      for J := 0 to AClassification.ColCount - 1 do
+      begin
+        if J > 0 then Output.Append(#9);
+        if J < Length(Parts) then Output.Append(Parts[J]);
+      end;
+      Output.AppendLine;
+    end;
+    Result := Output.ToString;
+  finally
+    Output.Free;
+  end;
 end;
 
 end.

@@ -58,7 +58,6 @@ type
 
 implementation
 
-{ TItemLink }
 
 function TItemLink.GetLinkType: TLinkType;
 begin

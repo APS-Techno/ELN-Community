@@ -74,8 +74,6 @@ begin
       end;
     end;
   finally
-    // Only the GUID directory created by this test is removed. Tests never
-    // create junctions or operate on an existing notebook/user directory.
     Storage := nil;
     LocalStorage := nil;
     if DirectoryExists(FixtureDir) then
@@ -329,8 +327,6 @@ begin
     RunTest('move traversal rejected', TestMoveRejectsTraversal);
     RunTest('repair inspection distinguishes present empty and missing', TestStorageInspection);
     WriteLn(Format('%d passed; %d failed', [Passed, Failed]));
-    // No junctions are created: reparse-point rejection needs a separate
-    // platform fixture, kept outside this RTL-only test-first executable.
     if Failed > 0 then
       ExitCode := 1;
   except

@@ -1,22 +1,7 @@
 unit unit_ViewerExtMatch;
 
-{ Scores how specifically a viewer plugin's GetParams.Ext declaration claims a
-  file. Tokens are tested as suffixes of the file NAME rather than compared to
-  ExtractFileExt, so compound extensions work:
-
-    ExtMatchScore('Deposition_RuC_2026-08-12_09-14-03.depo.json',
-                  '.tsv;.depo.json')  = 10
-    ExtMatchScore(same, '.json')                                =  5
-
-  Hosts pick the highest-scoring plugin, so '.depo.json' beats '.json' and BPL
-  load order no longer decides routing.
-
-  A bare extension is a valid input - ExtMatchScore('.html', '.html;.htm') = 5 -
-  so existing FindPlugin('.html') callers keep working unchanged.
-
-  Every declared token starts with '.', which is what keeps suffix matching from
-  aliasing: 'run.metadata' does not end with '.data', and 'build.cmd' does not
-  end with '.md'. See test_ViewerExtMatch. }
+{ Match dotted suffixes, not ExtractFileExt, so compound extensions win over
+  generic ones independently of package load order. The leading dot prevents partial-extension matches. }
 
 interface
 

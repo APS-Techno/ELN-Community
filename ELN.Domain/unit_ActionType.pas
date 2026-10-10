@@ -95,7 +95,6 @@ type
   
 implementation
 
-{ TActionType }
 
 function TActionType.GetEquipmentType: TEquipmentType;
 begin

@@ -1,15 +1,6 @@
 unit unit_ElnFileEnumerator;
 
-// Host-side IElnFileEnumerator implementation. Returns the bare
-// "[ID]name.ext" filenames attached to an item, sourced from the
-// DB via Aurelius. Lets Viewer.Markdown's resolver rewrite ![](foo.png) ->
-// ![](%5BID%5Dfoo.png) without depending on the temp-folder happening to
-// contain the sibling images (it never does — the host downloads only the
-// .md being viewed).
-//
-// EnsureItemFilesInDir additionally downloads any siblings missing from the
-// .md's temp folder so the file:/// references the browser then resolves
-// actually exist on disk.
+// Enumerate siblings from the database: the viewer initially downloads only the Markdown file.
 
 interface
 
@@ -35,7 +26,6 @@ uses
   Aurelius.Engine.ObjectManager,
   unit_Item, unit_DataModel;
 
-{ TElnFileEnumerator }
 
 function TElnFileEnumerator.GetItemFiles(ItemId: Integer): TArray<string>;
 var
@@ -93,7 +83,6 @@ begin
       List[Idx] := F.FullName;
       Inc(Idx);
 
-      // Materialize siblings in the viewer's working directory only.
       LocalPath := TPath.Combine(TargetDir, F.FullName);
       if System.IOUtils.TFile.Exists(LocalPath) then Continue;
 

@@ -15,24 +15,21 @@ uses
 type
   TELNFilePreview = class(TRzPanel)
   private
-    { Private declarations }
     lblFileName: TRzLabel;
     Preview: TImage;
 
     FFileName: string;
-    FId: integer;
+    FId: Int64;
     procedure SetSelected(const Value: Boolean);
     procedure SetFileCaption(const Value: string);
     procedure SetStyleName(const Value: string); reintroduce;
 
   protected
-    { Protected declarations }
     procedure FOnClick(Sender: TObject);
     procedure FOnDoubleClick(Sender: TObject);
     procedure FOnMouseUp(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
   public
-    { Public declarations }
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
 
@@ -40,11 +37,10 @@ type
     procedure LoadfromStream(const FileName: string; var Stream: TStream);
     procedure Clear;
 
-    property ID: integer read FId write FId ;
+    property ID: Int64 read FId write FId ;
     property Selected: Boolean write SetSelected;
     property FileCaption: string write SetFileCaption;
   published
-    { Published declarations }
     property StyleName: string write SetStyleName;
   end;
 
@@ -60,7 +56,6 @@ begin
   RegisterComponents('ELN.Components', [TELNFilePreview]);
 end;
 
-{ eLabImagePanel }
 
 procedure TELNFilePreview.Clear;
 begin
@@ -71,7 +66,6 @@ constructor TELNFilePreview.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
 
-    //rzpPanel
 
   Width := 193;
   Height := 177;
@@ -82,19 +76,15 @@ begin
   BorderWidth := 1;
   ParentBackground := True;
 
-  //RzLabel1
   lblFileName := TRzLabel.Create(Self);
 
-  //Preview
   Preview := TImage.Create(Self);
 
-  //RzLabel1
   lblFileName.Parent := Self;
   lblFileName.Alignment := taCenter;
   lblFileName.Caption := '<noname>';
   lblFileName.Align := alBottom;
 
-  //Preview
   Preview.Name := 'Preview';
   Preview.Parent := Self;
   Preview.AlignWithMargins := True;
@@ -183,8 +173,6 @@ end;
 procedure TELNFilePreview.FOnMouseUp(Sender: TObject; Button: TMouseButton;
   Shift: TShiftState; X, Y: Integer);
 begin
-  // The main form selects the file and opens the tree's file popup at the
-  // cursor, so the gallery offers the same actions as the tree node.
   if Button = mbRight then
     ImageContextMenu(Self.ID);
 end;

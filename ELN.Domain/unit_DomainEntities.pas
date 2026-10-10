@@ -1,43 +1,17 @@
 unit unit_DomainEntities;
 
 {
-  The one list of every Aurelius entity in ELN.Domain.
+  Aurelius registers only linked entity units. Add every shared entity to
+  both the uses clause and DomainEntityClasses so host mappings do not vary
+  with incidental linkage.
 
-  Aurelius builds its default mapping from the RTTI of the entity classes
-  LINKED INTO THE RUNNING EXE; a unit's own "RegisterEntity" only runs if some
-  linked unit uses that unit. So without this list the set of tables a host
-  knows - and creates in TDatabaseManager.UpdateDatabase - depends on what the
-  host happens to link. The 2026-09-27 v8->v9 dry run: the desktop linked no
-  unit that names THypothesisStatusChange, so it created three of the four
-  v9 tables and reported ClientLog / SubmissionIdempotency as "Removed".
-
-  ELN.DB\ConnectionModule (desktop, MCP server, tests) and
-  ELN.WebAPI\unit_DBContext use this unit, so every host maps the same shared
-  set (the WebAPI additionally maps its own two tables, see below).
-  ELN.Tests\test_DomainEntities scans ELN.Domain\*.pas for [Entity] classes
-  and fails if one is neither listed here nor deliberately excluded: a new
-  entity goes into BOTH the uses clause and DomainEntityClasses below, or
-  into that test's exclusion list with a reason. (Scan limits: top-level
-  ELN.Domain\*.pas only, and [Entity] / [Entity, ...] must be an attribute
-  line of its own before the "TName = class" declaration.)
-
-  Deliberately NOT listed - WebAPI-owned tables whose DDL is hand-written in
-  the WebAPI runbook, with constraints the mapping does not carry
-  (uk_key_user, fk_clientlog_user); only the WebAPI maps them:
-    TClientLog              (unit_ClientLog)
-    TSubmissionIdempotency  (unit_SubmissionIdempotency)
-  Dry run #2 (2026-09-27): once the desktop mapped them, its schema update
-  dropped both hand-written constraints.
-
-  Entities only - no model units (keeps the linkage rules in
-  test_HypothesisLinkage trivially satisfied).
+  TClientLog and TSubmissionIdempotency are WebAPI-owned and excluded here:
+  their hand-written constraints are not represented in these mappings.
+  Keep this unit entity-only to preserve the MCP human-gate boundary.
 }
 
 interface
 
-/// <summary>Every shared entity class in ELN.Domain (the WebAPI-owned ones
-/// are excluded, see above). Naming them here links them into every host
-/// that uses this unit.</summary>
 function DomainEntityClasses: TArray<TClass>;
 
 implementation

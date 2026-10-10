@@ -63,30 +63,18 @@ type
     procedure SetReadOnly(Value: Boolean);
     function  GetReadOnly: Boolean;
     procedure PrepareForReparent;
-    // Host installs a callback fired once after the first user edit in the
-    // embedded form (input/change event from the WebView). The host uses
-    // this to flip its dirty flag for the unsaved-changes prompt.
+    // Fires once on the first user edit, not on programmatic form loading.
     procedure SetOnDirty(const AHandler: TNotifyEvent);
     property  ReadOnly: Boolean read GetReadOnly write SetReadOnly;
   end;
 
-  // Plugins (e.g. Viewer.Markdown) intercept clicks on eln:// links and forward
-  // them to the host through this interface. The host registers an
-  // implementation by assigning the global ElnLinkHandler variable below.
   IElnLinkHandler = interface
   ['{6A0F2D7C-1E4B-4C3F-9B2D-7E5A8F1C0931}']
     function HandleLink(const Url: string): Boolean;
   end;
 
-  // Plugin -> Host: enumerate the files attached to an item, returning bare
-  // "[ID]name.ext" strings as they exist on WebDAV. Viewer.Markdown uses this
-  // so its attachment resolver can rewrite ![](foo.png) -> ![](%5BID%5Dfoo.png)
-  // even when the host has only downloaded the .md to %TEMP% (sibling images
-  // are not on disk; querying the DB is the source of truth).
-  //
-  // EnsureItemFilesInDir additionally downloads any sibling files missing
-  // from TargetDir, so the rendered .md's relative file:/// references
-  // actually resolve. Returns the same list as GetItemFiles.
+  // Bare "[ID]name.ext" names are authoritative even when sibling files have
+  // not been downloaded. EnsureItemFilesInDir also makes them available locally.
   IElnFileEnumerator = interface
   ['{8B3D5F2A-9C1E-4D7B-A0F8-2E6C4A1D9B73}']
     function GetItemFiles(ItemId: Integer): TArray<string>;
@@ -100,24 +88,19 @@ type
   // server, and upload pasted/dropped attachments. The host owns WebDAV;
   // the plugin only edits the local file the host placed for it.
   IElnFileService = interface
-  ['{15D50F46-E581-48CE-96A1-1221A8BD380F}']
-    // Plugin has just rewritten the local file at LocalPath. Host re-uploads
-    // to WebDAV with If-Match using the captured ETag. The host resolves the
-    // remote path from FileId via Aurelius (TRemoteFileTracker is consulted
-    // first; DB lookup is the fallback for files that bypass the tracker,
-    // e.g. wiki body downloads).
-    // srConflict = HTTP 412 (server file changed since last download).
-    // srError = anything else; ErrorMsg populated.
-    function SaveLocalFile(FileId: Integer; const LocalPath: string;
+  ['{67D322FB-63D8-482E-9D9D-DF5185834D22}']
+    // Return the complete, version-bound editable working copy for this file.
+    // Never return a partial preview. Reopening must retain an existing draft.
+    function PrepareLocalFile(FileId: Int64): string;
+    // Uses the working copy's captured version; srConflict preserves the draft.
+    function SaveLocalFile(FileId: Int64; const LocalPath: string;
                            out ErrorMsg: string): TSaveResult;
     // Same as SaveLocalFile but bypasses If-Match (user picked
     // "Save Anyway" after a conflict).
-    function SaveLocalFileForce(FileId: Integer; const LocalPath: string;
+    function SaveLocalFileForce(FileId: Int64; const LocalPath: string;
                                 out ErrorMsg: string): TSaveResult;
-    // Re-download the server's current copy into LocalPath (the same path
-    // the host originally provided to the plugin). Used by editor's "Reload"
-    // path on conflict.
-    function ReloadLocalFile(FileId: Integer; const LocalPath: string;
+    // Replaces the local working copy with the current stored version.
+    function ReloadLocalFile(FileId: Int64; const LocalPath: string;
                              out ErrorMsg: string): Boolean;
     // Upload an attachment for paste/drop. Returns the bare server filename
     // (the resolver adds the [ID] prefix at render time). Raises on failure.
@@ -125,29 +108,18 @@ type
                               const LocalPath, SuggestedName: string): string;
   end;
 
-  // Host -> Plugin (or plugin -> other-plugin): launch the markdown editor
-  // for a file already loaded into Viewer.Markdown.
   IMarkdownEditorLauncher = interface
-  ['{FECA1A29-0B4A-4E3E-9E08-2B651C17479D}']
-    // Opens (or focuses) an editor window for the given local file.
-    // FileId is the host identifier (used by IElnFileService to find the
-    // WebDAV remote path + saved ETag).
-    // ItemId routes paste-uploads to the right item.
-    // OnSaved fires after a successful save so the caller (viewer) can
-    // re-render with the new body. Pass nil if no callback wanted.
+  ['{F997ADDA-0A60-45D3-ACFD-F33A1C12125E}']
+    // OnSaved receives the new body only after a successful save.
     procedure LaunchEditor(const LocalPath: string;
-                           ItemId, FileId: Integer;
-                           OnSaved: TProc<string>);  // arg = new body text
+                           ItemId: Integer; FileId: Int64;
+                           OnSaved: TProc<string>);
   end;
 
-  // Host -> Plugin: tell the plugin which item/file it is showing. The host
-  // calls this BEFORE LoadFromFile when the plugin implements the interface,
-  // so plugins can use the routing context during initial render (e.g.
-  // Viewer.Markdown asks IElnFileEnumerator for sibling files keyed on
-  // ItemId). Plugins that don't care simply don't implement the interface.
+  // The host must set context BEFORE LoadFromFile for initial attachment routing.
   IItemContextAware = interface
-  ['{162F8646-73A5-4A22-8D46-6469D2AD0849}']
-    procedure SetItemContext(ItemId, FileId: Integer);
+  ['{713CE1D0-1C35-4755-9CDD-5B75F894C2B4}']
+    procedure SetItemContext(ItemId: Integer; FileId: Int64);
   end;
 
   TColumnDType = (cdNumeric, cdText);
@@ -170,27 +142,22 @@ type
 
   TColumnStats = record
     DType: TColumnDType;
-    // Numeric:
     MinV, MaxV, Mean, StdDev, FirstV, LastV: Double;
     MinRow, MaxRow, NonZeroCount, RowCount: Integer;
     MinTime, MaxTime: string;
-    // Text:
     DistinctCount: Integer;
     FirstText, LastText: string;
   end;
 
   TColumnarRequest = record
     Mode:          TColumnarMode;
-    Columns:       TArray<Integer>;       // resolved indices, in request order
+    Columns:       TArray<Integer>;
     MaxRows:       Integer;               // downsample only; <2 falls back to 500
     RowStart:      Integer;               // -1 = from beginning
     RowEnd:        Integer;               // -1 = to end (exclusive)
     TimeAxisIndex: Integer;               // -1 = no time axis
   end;
 
-  // Plugin -> Host: tabular data extraction. Plugins for tab-delimited or
-  // otherwise rectangular file formats opt in by implementing this interface.
-  // Used by MCP tools list_file_columns and get_file_columns.
   IColumnarDataProvider = interface
   ['{C1A4B8E2-7D3F-4E5A-9C6B-1F2D8E0A3B47}']
     function GetTotalRows: Integer;
@@ -236,7 +203,6 @@ type
 
 procedure RegisterViewerPlugin(APlugin: TupfVisualPlugin);
 
-{ Chart state helpers — shared by all chart-based plugins }
 function SaveChartState(Chart: TObject): string;
 procedure RestoreChartState(Chart: TObject; const AState: string);
 
@@ -245,13 +211,8 @@ var
   // ELNPluginCore BPL so the host EXE and every plugin BPL see the same
   // instance. Nil until the host registers itself.
   ElnLinkHandler: IElnLinkHandler;
-  // Globals, mirror the existing ElnLinkHandler pattern. Nil until the host
-  // (ElnFileService) or the Editor.Markdown plugin (MarkdownEditorLauncher)
-  // installs an implementation.
   ElnFileService:         IElnFileService;
   MarkdownEditorLauncher: IMarkdownEditorLauncher;
-  // Set by the host so plugins can query an item's attachment list without
-  // touching the DB or downloading files.
   ElnFileEnumerator:      IElnFileEnumerator;
 
 implementation
@@ -259,7 +220,6 @@ implementation
 uses
   System.JSON, VCLTee.Chart;
 
-{ TELNBaseViewerPlugin }
 
 procedure TELNBaseViewerPlugin.upfVisualPluginCreate(Sender: TObject);
 begin
@@ -293,7 +253,6 @@ end;
 
 procedure TELNBaseViewerPlugin.DisplayText(const Caption, Text: string);
 begin
-  // no-op by default
 end;
 
 procedure RegisterViewerPlugin(APlugin: TupfVisualPlugin);

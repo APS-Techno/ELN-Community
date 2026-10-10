@@ -12,28 +12,23 @@ uses
   unit_HypothesisModel, unit_HypothesesVM;
 
 const
-  // Section accent colors (Delphi BGR)
-  clAccentRecentItems = $00B0803A;  // Steel blue
-  clAccentProtocols   = $000080D0;  // Amber
-  clAccentProjects    = $00809040;  // Teal
-  clAccentActivity    = $00996070;  // Purple/slate
-  clAccentApprovals   = $00A05090;  // Plum
+  clAccentRecentItems = $00B0803A;  
+  clAccentProtocols   = $000080D0;  
+  clAccentProjects    = $00809040;  
+  clAccentActivity    = $00996070;  
+  clAccentApprovals   = $00A05090;  
 
-  // Activity dots
-  clDotCreate         = $0040B040;  // Green
-  clDotUpdate         = $00C08020;  // Blue-ish
-  clDotDelete         = $002020D0;  // Red
+  clDotCreate         = $0040B040;  
+  clDotUpdate         = $00C08020;  
+  clDotDelete         = $002020D0;  
 
-  // Protocol status dots
-  clStatusDraft       = $000080D0;  // Amber
-  clStatusInReview    = $00C07020;  // Blue
+  clStatusDraft       = $000080D0;  
+  clStatusInReview    = $00C07020;  
 
-  // Recent items age dots
-  clDotToday          = $0040B040;  // Green
-  clDotThisWeek       = $00B0803A;  // Steel blue
-  clDotOlder          = $00A0A0A0;  // Gray
+  clDotToday          = $0040B040;  
+  clDotThisWeek       = $00B0803A;  
+  clDotOlder          = $00A0A0A0;  
 
-  // Project squares palette
   clProjectColors: array[0..5] of TColor = (
     $00B0803A, $00809040, $000080D0, $00996070, $00C07020, $002F4F4F
   );
@@ -116,8 +111,7 @@ type
     FAvatarColor: TColor;
     FUserNameCache: TDictionary<Integer, string>;
     FProjectNameCache: TDictionary<Integer, string>;
-    FScalePct: Integer;  // combined DPI + user scale percentage
-    // Supervisor filter state
+    FScalePct: Integer;  
     FFilterUserId: Integer;
     FFilterDateFrom: TDateTime;
     FFilterUserIds: TList<Integer>;
@@ -136,7 +130,6 @@ type
     function MaxVisibleItems(AListBox: TListBox): Integer;
     procedure BuildProjectNameCache;
     procedure BuildUserNameCache;
-    // Drawing helpers
     procedure DrawSectionHeader(ACanvas: TCanvas; ARect: TRect;
       const ATitle: string; AAccentColor: TColor; ACount: Integer);
     procedure DrawRowBackground(ACanvas: TCanvas; ARect: TRect;
@@ -152,9 +145,6 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure LoadData(UserRole: TDBRole);
-    /// <summary>Reloads the "Waiting for You" list only (cheap), without
-    /// touching the rest of the dashboard - called after a gate, Submit, a
-    /// proposal or Abandon (frm_Main.HypothesisDecisionsChanged).</summary>
     procedure RefreshApprovals;
     /// <summary>Logout: call before Model is freed. Drops every list that
     /// points at manager-owned entities and empties the list boxes, so a
@@ -201,7 +191,6 @@ begin
     B1 + MulDiv(B2 - B1, Ratio, 255));
 end;
 
-{ TframeDashboard }
 
 constructor TframeDashboard.Create(AOwner: TComponent);
 var
@@ -216,7 +205,6 @@ begin
   OnResize := FrameResize;
   pnlWelcome.OnResize := WelcomeResize;
 
-  // Load user scale preference
   Settings := TNotebookSettings.Create;
   try
     UserPct := Settings.DashboardScale;
@@ -224,20 +212,17 @@ begin
     Settings.Free;
   end;
 
-  // Combined scale: DPI normalization * user preference
   // Drawing code uses 96-PPI baseline values; scale up for actual DPI
   FScalePct := MulDiv(UserPct, Screen.PixelsPerInch, 96);
 
-  // Set combo to match saved value
   Idx := cbScale.Items.IndexOf(IntToStr(UserPct) + '%');
   if Idx >= 0 then
     cbScale.ItemIndex := Idx
   else
-    cbScale.ItemIndex := 1; // 100%
+    cbScale.ItemIndex := 1; 
 
   ApplyScale;
 
-  // Apply themed panel color to listboxes
   BgColor := StyledColor(clBtnFace);
   lbRecentItems.Color := BgColor;
   lbProtocols.Color := BgColor;
@@ -262,14 +247,12 @@ end;
 
 procedure TframeDashboard.ApplyScale;
 begin
-  // Section header paintbox heights
   pbHeaderRecent.Height    := S(32);
   pbHeaderProtocols.Height := S(32);
   pbHeaderProjects.Height  := S(32);
   pbHeaderActivity.Height  := S(32);
   pbHeaderApprovals.Height := S(32);
 
-  // Listbox item heights
   lbRecentItems.ItemHeight := S(52);
   lbProtocols.ItemHeight   := S(52);
   lbProjects.ItemHeight    := S(48);
@@ -335,10 +318,9 @@ begin
   lbProjects.Invalidate;
   lbActivity.Count := 0;
   lbActivity.Invalidate;
-  UpdateListCounts;   // Approvals keeps its one "Nothing waits for you." row
+  UpdateListCounts;   
 end;
 
-{ --- Welcome Bar --- }
 
 procedure TframeDashboard.UpdateWelcome;
 var
@@ -349,14 +331,11 @@ begin
   User := unit_DataModel.Model.User;
   if not Assigned(User) then Exit;
 
-  // Greeting
   lblGreeting.Caption := 'Welcome back, ' + User.DisplayName;
 
-  // Role + date
   lblRoleDate.Caption := User.RoleString +
     ' '#183' ' + FormatDateTime('dddd, mmmm d, yyyy', Now);
 
-  // Avatar initials
   S := User.DisplayName;
   FInitials := '';
   if Length(S) > 0 then
@@ -367,7 +346,6 @@ begin
       FInitials := FInitials + UpperCase(S[p + 1]);
   end;
 
-  // Avatar color based on role
   case User.Role of
     dbAdmin: FAvatarColor := $001E96C8;
     dbSuper: FAvatarColor := $00996633;
@@ -397,7 +375,6 @@ begin
     G.SetSmoothingMode(SmoothingModeAntiAlias);
     G.SetTextRenderingHint(TextRenderingHintAntiAlias);
 
-    // Rounded rectangle background
     Brush := TGPSolidBrush.Create(MakeColor(255, GetRValue(C), GetGValue(C), GetBValue(C)));
     try
       Path := TGPGraphicsPath.Create;
@@ -418,7 +395,6 @@ begin
       Brush.Free;
     end;
 
-    // Initials text
     if FInitials <> '' then
     begin
       GFont := TGPFont.Create('Segoe UI', S(15), FontStyleBold);
@@ -440,7 +416,6 @@ begin
   end;
 end;
 
-{ --- List Count Limiting (no scrollbars) --- }
 
 function TframeDashboard.MaxVisibleItems(AListBox: TListBox): Integer;
 begin
@@ -456,7 +431,6 @@ procedure TframeDashboard.UpdateListCounts;
 var
   N: Integer;
 begin
-  // Recent Items
   if Assigned(FRecentItems) then
   begin
     N := Min(FRecentItems.Count, MaxVisibleItems(lbRecentItems));
@@ -467,7 +441,6 @@ begin
     end;
   end;
 
-  // Protocols
   if Assigned(FProtocols) then
   begin
     N := Min(FProtocols.Count, MaxVisibleItems(lbProtocols));
@@ -478,7 +451,6 @@ begin
     end;
   end;
 
-  // Projects
   if Assigned(FProjectStats) then
   begin
     N := Min(FProjectStats.Count, MaxVisibleItems(lbProjects));
@@ -489,7 +461,6 @@ begin
     end;
   end;
 
-  // Activity
   if Assigned(FAuditLogs) then
   begin
     N := Min(Min(FAuditLogs.Count, 50), MaxVisibleItems(lbActivity));
@@ -500,11 +471,7 @@ begin
     end;
   end;
 
-  // Approvals: unlike the other lists here, clamp to a minimum Count of 1
-  // when empty, so index 0 is still drawn and lbApprovalsDrawItem's "Nothing
-  // waits for you." branch actually paints (the other lists' owner-draw
-  // empty-state branches are currently unreachable at Count = 0 - not fixed
-  // here, out of this task's scope).
+  // Keep one virtual row when empty so owner-draw can paint the empty-state message.
   N := Max(1, Min(Length(FApprovals), MaxVisibleItems(lbApprovals)));
   if lbApprovals.Count <> N then
     lbApprovals.Count := N;
@@ -513,7 +480,6 @@ end;
 
 procedure TframeDashboard.WelcomeResize(Sender: TObject);
 begin
-  // The aligned refresh button, not the streamed anchors, defines the right edge.
   cbScale.Left := btnRefresh.Left - btnRefresh.Margins.Left - cbScale.Width;
   lblScale.Left := cbScale.Left - btnRefresh.Margins.Left - lblScale.Width;
 end;
@@ -523,7 +489,6 @@ begin
   UpdateListCounts;
 end;
 
-{ --- Section Headers --- }
 
 procedure TframeDashboard.DrawSectionHeader(ACanvas: TCanvas; ARect: TRect;
   const ATitle: string; AAccentColor: TColor; ACount: Integer);
@@ -532,16 +497,13 @@ var
   CountStr: string;
   CountWidth: Integer;
 begin
-  // Background
   ACanvas.Brush.Color := StyledColor(clBtnFace);
   ACanvas.FillRect(ARect);
 
-  // Left accent strip
   AccentRect := Rect(ARect.Left, ARect.Top + S(4), ARect.Left + S(4), ARect.Bottom - S(4));
   ACanvas.Brush.Color := AAccentColor;
   ACanvas.FillRect(AccentRect);
 
-  // Title text
   ACanvas.Font.Name := 'Segoe UI';
   ACanvas.Font.Height := -S(13);
   ACanvas.Font.Style := [fsBold];
@@ -549,7 +511,6 @@ begin
   ACanvas.Brush.Style := bsClear;
   ACanvas.TextOut(ARect.Left + S(12), ARect.Top + S(7), ATitle);
 
-  // Count badge (right-aligned)
   if ACount >= 0 then
   begin
     CountStr := IntToStr(ACount) + IfThen(ACount = 1, ' item', ' items');
@@ -562,7 +523,6 @@ begin
 
   ACanvas.Brush.Style := bsSolid;
 
-  // Bottom border line
   ACanvas.Pen.Color := BlendColor(StyledColor(clBtnFace), StyledColor(clBtnShadow), 40);
   ACanvas.MoveTo(ARect.Left, ARect.Bottom - 1);
   ACanvas.LineTo(ARect.Right, ARect.Bottom - 1);
@@ -614,13 +574,11 @@ end;
 
 procedure TframeDashboard.pbHeaderApprovalsPaint(Sender: TObject);
 begin
-  // Pre-flight C9 dashboard wording.
   DrawSectionHeader(pbHeaderApprovals.Canvas,
     Rect(0, 0, pbHeaderApprovals.Width, pbHeaderApprovals.Height),
     'Waiting for You', clAccentApprovals, Length(FApprovals));
 end;
 
-{ --- Drawing Helpers --- }
 
 procedure TframeDashboard.DrawRowBackground(ACanvas: TCanvas; ARect: TRect;
   Index: Integer; State: TOwnerDrawState);
@@ -729,33 +687,29 @@ begin
   FUserNameCache.AddOrSetValue(UserID, Result);
 end;
 
-{ --- Supervisor Filter Bar --- }
 
 function TframeDashboard.GetDateFromForRange(Index: Integer): TDateTime;
 begin
   case Index of
-    0: Result := UTCNow - 7;       // 1 Week
-    1: Result := UTCNow - 30;      // 1 Month
-    2: Result := UTCNow - 90;      // 3 Months
-    3: Result := UTCNow - 180;     // 6 Months
-    4: Result := UTCNow - 365;     // 1 Year
+    0: Result := UTCNow - 7;       
+    1: Result := UTCNow - 30;      
+    2: Result := UTCNow - 90;      
+    3: Result := UTCNow - 180;     
+    4: Result := UTCNow - 365;     
   else
-    Result := 0;                // All Time
+    Result := 0;                
   end;
 end;
 
 procedure TframeDashboard.FilterChanged(Sender: TObject);
 begin
-  // Update filter user ID
   if cbFilterUser.ItemIndex <= 0 then
     FFilterUserId := -1
   else if Assigned(FFilterUserIds) and (cbFilterUser.ItemIndex - 1 < FFilterUserIds.Count) then
     FFilterUserId := FFilterUserIds[cbFilterUser.ItemIndex - 1];
 
-  // Update date filter
   FFilterDateFrom := GetDateFromForRange(cbFilterTimeRange.ItemIndex);
 
-  // Reload all data with new filters
   ClearData;
   LoadRecentItems;
   if FUserRole <> dbGuest then
@@ -780,7 +734,6 @@ begin
   pbHeaderApprovals.Invalidate;
 end;
 
-{ --- Data Loading --- }
 
 procedure TframeDashboard.LoadData(UserRole: TDBRole);
 var
@@ -788,7 +741,6 @@ var
   UserList: TList<TUser>;
 begin
   FUserRole := UserRole;
-  // Guest: hide protocols, activity feed and approvals
   pnlProtocols.Visible := UserRole <> dbGuest;
   Splitter1.Visible := UserRole <> dbGuest;
   pnlActivity.Visible := UserRole <> dbGuest;
@@ -796,12 +748,10 @@ begin
   pnlApprovals.Visible := UserRole <> dbGuest;
   Splitter4.Visible := UserRole <> dbGuest;
 
-  // Supervisor/Admin filter bar
   if UserRole in [dbSuper, dbAdmin] then
   begin
     pnlFilters.Visible := True;
 
-    // Populate user combo (exclude Supervisor/Admin)
     cbFilterUser.Items.Clear;
     cbFilterUser.Items.Add('All Users');
     if not Assigned(FFilterUserIds) then
@@ -823,7 +773,6 @@ begin
     if cbFilterTimeRange.ItemIndex < 0 then
       cbFilterTimeRange.ItemIndex := 0;
 
-    // Set defaults
     FFilterUserId := -1;
     FFilterDateFrom := GetDateFromForRange(cbFilterTimeRange.ItemIndex);
   end
@@ -851,7 +800,6 @@ begin
   UpdateWelcome;
   UpdateListCounts;
 
-  // Repaint section headers
   pbHeaderRecent.Invalidate;
   pbHeaderProtocols.Invalidate;
   pbHeaderProjects.Invalidate;
@@ -931,7 +879,7 @@ begin
     DateFrom := UTCNow - 7;
 
   if DateFrom <= 0 then
-    DateFrom := EncodeDate(2000, 1, 1);  // "All Time" floor
+    DateFrom := EncodeDate(2000, 1, 1);  
 
   FAuditLogs := unit_DataModel.Model.AuditLog.GetLogs(DateFrom, UTCNow, -1, -1, FFilterUserId);
 end;
@@ -960,7 +908,6 @@ begin
   LoadData(FUserRole);
 end;
 
-{ --- Owner-draw: Recent Items --- }
 
 procedure TframeDashboard.lbRecentItemsDrawItem(Control: TWinControl;
   Index: Integer; Rect: TRect; State: TOwnerDrawState);
@@ -974,7 +921,6 @@ var
 begin
   Canvas := lbRecentItems.Canvas;
 
-  // Empty state
   if not Assigned(FRecentItems) or (FRecentItems.Count = 0) then
   begin
     if Index = 0 then
@@ -986,7 +932,6 @@ begin
   Item := FRecentItems[Index];
   DrawRowBackground(Canvas, Rect, Index, State);
 
-  // Age dot
   if Item.ModifiedDate.HasValue then
   begin
     DaysDiff := Trunc(UTCNow - Item.ModifiedDate.Value);
@@ -999,7 +944,6 @@ begin
 
   DrawColorDot(Canvas, Rect.Left + S(16), Rect.Top + S(18), S(4), DotColor);
 
-  // Line 1: bold title + relative time (right)
   Canvas.Font.Name := 'Segoe UI';
   Canvas.Font.Height := -S(12);
   Canvas.Font.Style := [fsBold];
@@ -1019,7 +963,6 @@ begin
     Canvas.TextOut(Rect.Right - TimeWidth - S(8), Rect.Top + S(7), TimeStr);
   end;
 
-  // Line 2: project name
   ProjName := GetProjectName(Item.ProjectID);
   Canvas.Font.Style := [];
   Canvas.Font.Height := -S(11);
@@ -1030,7 +973,6 @@ begin
   DrawItemSeparator(Canvas, Rect);
 end;
 
-{ --- Owner-draw: Protocols --- }
 
 procedure TframeDashboard.lbProtocolsDrawItem(Control: TWinControl;
   Index: Integer; Rect: TRect; State: TOwnerDrawState);
@@ -1042,7 +984,6 @@ var
 begin
   Canvas := lbProtocols.Canvas;
 
-  // Empty state
   if not Assigned(FProtocols) or (FProtocols.Count = 0) then
   begin
     if Index = 0 then
@@ -1054,7 +995,6 @@ begin
   P := FProtocols[Index];
   DrawRowBackground(Canvas, Rect, Index, State);
 
-  // Status dot
   case P.ValidationStatus of
     vsDraft:
     begin
@@ -1073,7 +1013,6 @@ begin
 
   DrawColorDot(Canvas, Rect.Left + S(16), Rect.Top + S(18), S(4), StatusColor);
 
-  // Line 1: bold title
   Canvas.Font.Name := 'Segoe UI';
   Canvas.Font.Height := -S(12);
   Canvas.Font.Style := [fsBold];
@@ -1081,7 +1020,6 @@ begin
   Canvas.Brush.Style := bsClear;
   Canvas.TextOut(Rect.Left + S(28), Rect.Top + S(6), P.Title);
 
-  // Line 2: status badge + date
   Canvas.Font.Style := [];
   Canvas.Font.Height := -S(11);
   Canvas.Font.Color := StatusColor;
@@ -1098,7 +1036,6 @@ begin
   DrawItemSeparator(Canvas, Rect);
 end;
 
-{ --- Owner-draw: Projects --- }
 
 procedure TframeDashboard.lbProjectsDrawItem(Control: TWinControl;
   Index: Integer; Rect: TRect; State: TOwnerDrawState);
@@ -1113,7 +1050,6 @@ var
 begin
   Canvas := lbProjects.Canvas;
 
-  // Empty state
   if not Assigned(FProjectStats) or (FProjectStats.Count = 0) then
   begin
     if Index = 0 then
@@ -1125,11 +1061,9 @@ begin
   Stats := FProjectStats[Index];
   DrawRowBackground(Canvas, Rect, Index, State);
 
-  // Colored square
   SquareColor := clProjectColors[Index mod Length(clProjectColors)];
   DrawColorSquare(Canvas, Rect.Left + S(12), Rect.Top + S(10), S(10), SquareColor);
 
-  // Line 1: bold project name + optional [Archived] badge
   Canvas.Font.Name := 'Segoe UI';
   Canvas.Font.Height := -S(12);
   Canvas.Font.Style := [fsBold];
@@ -1147,23 +1081,19 @@ begin
     Canvas.TextOut(Rect.Left + S(30) + ArchivedWidth + S(4), Rect.Top + S(7), ArchivedStr);
   end;
 
-  // Line 2: proc count + sub-item count
   SubLine := Format('%d procs '#183' %d sub-items', [Stats.ItemCount, Stats.FileCount]);
   Canvas.Font.Style := [];
   Canvas.Font.Height := -S(11);
   Canvas.Font.Color := clGray;
   Canvas.TextOut(Rect.Left + S(30), Rect.Top + S(26), SubLine);
 
-  // Mini progress bar (thin colored line showing ratio)
   TotalItems := Stats.ItemCount + Stats.FileCount;
   if TotalItems > 0 then
   begin
     BarWidth := Min(Rect.Right - Rect.Left - S(50), S(120));
     FilledWidth := MulDiv(BarWidth, Stats.ItemCount, TotalItems);
-    // Background bar
     Canvas.Brush.Color := BlendColor(StyledColor(clBtnFace), StyledColor(clBtnShadow), 40);
     Canvas.FillRect(Bounds(Rect.Right - BarWidth - S(10), Rect.Top + S(30), BarWidth, S(4)));
-    // Filled portion
     if FilledWidth > 0 then
     begin
       Canvas.Brush.Color := SquareColor;
@@ -1175,7 +1105,6 @@ begin
   DrawItemSeparator(Canvas, Rect);
 end;
 
-{ --- Owner-draw: Activity --- }
 
 // Repairs UTF-8 bytes that were stored through a non-UTF8 column and read
 // back as garbled codepoints. Targets the two known patterns in legacy
@@ -1203,7 +1132,6 @@ var
 begin
   Canvas := lbActivity.Canvas;
 
-  // Empty state
   if not Assigned(FAuditLogs) or (FAuditLogs.Count = 0) then
   begin
     if Index = 0 then
@@ -1215,7 +1143,6 @@ begin
   Log := FAuditLogs[Index];
   DrawRowBackground(Canvas, Rect, Index, State);
 
-  // Operation dot
   case Log.Operation of
     aoCreate: DotColor := clDotCreate;
     aoUpdate: DotColor := clDotUpdate;
@@ -1225,7 +1152,6 @@ begin
   end;
   DrawColorDot(Canvas, Rect.Left + S(16), Rect.Top + S(13), S(4), DotColor);
 
-  // Line 1: description
   Canvas.Font.Name := 'Segoe UI';
   Canvas.Font.Height := -S(11);
   Canvas.Font.Style := [];
@@ -1233,7 +1159,6 @@ begin
   Canvas.Brush.Style := bsClear;
   Canvas.TextOut(Rect.Left + S(28), Rect.Top + S(3), FixAuditMojibake(Log.Description));
 
-  // Line 2: user + relative time
   UserStr := GetUserName(Log.UserId) + ' '#183' ' + RelativeTimeStr(Log.Timestamp);
   Canvas.Font.Color := clGray;
   Canvas.Font.Height := -S(10);
@@ -1243,19 +1168,17 @@ begin
   DrawItemSeparator(Canvas, Rect);
 end;
 
-{ --- Owner-draw: Approvals ("Waiting for You", pre-flight C9) --- }
 
 procedure TframeDashboard.lbApprovalsDrawItem(Control: TWinControl;
   Index: Integer; Rect: TRect; State: TOwnerDrawState);
 var
   Canvas: TCanvas;
-  H: THypothesisSummary;   // not "S": S() is the frame's scaling method
+  H: THypothesisSummary;   
   What, Line2: string;
   WhenUtc: TDateTime;
 begin
   Canvas := lbApprovals.Canvas;
 
-  // Empty state
   if Length(FApprovals) = 0 then
   begin
     if Index = 0 then
@@ -1268,7 +1191,6 @@ begin
   DrawRowBackground(Canvas, Rect, Index, State);
   DrawColorDot(Canvas, Rect.Left + S(16), Rect.Top + S(18), S(4), clAccentApprovals);
 
-  // Line 1: bold title
   Canvas.Font.Name := 'Segoe UI';
   Canvas.Font.Height := -S(12);
   Canvas.Font.Style := [fsBold];
@@ -1276,7 +1198,6 @@ begin
   Canvas.Brush.Style := bsClear;
   Canvas.TextOut(Rect.Left + S(28), Rect.Top + S(6), H.Title);
 
-  // Line 2: "Approve proposal / Accept conclusion . <project> . <author> . <age>"
   if H.Status = hsProposed then
     What := 'Approve proposal'
   else
@@ -1298,7 +1219,6 @@ begin
   DrawItemSeparator(Canvas, Rect);
 end;
 
-{ --- Navigation handlers --- }
 
 procedure TframeDashboard.lbRecentItemsClick(Sender: TObject);
 var
@@ -1379,7 +1299,7 @@ begin
         Exit;
       end;
   else
-    Exit;  // project/folder/group/setting rows: nothing item-shaped to open
+    Exit;  
   end;
 
   Item := nil;

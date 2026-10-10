@@ -48,7 +48,6 @@ begin
   PasswordRef := Password;
 
   Result := ExecuteDialog(TdlgSign,
-    // Setup
     procedure(Dialog: TForm)
     var
       D: TdlgSign;
@@ -59,7 +58,6 @@ begin
       D.edComment.Text := '';
       D.edPassword.Text := '';
     end,
-    // Extract
     procedure(Dialog: TForm)
     var
       D: TdlgSign;
@@ -79,7 +77,6 @@ begin
   end;
 end;
 
-{ TdlgSign }
 
 procedure TdlgSign.FormCreate(Sender: TObject);
 begin

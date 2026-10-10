@@ -30,7 +30,6 @@ type
   TValue = class;
   TValues = TList<TValue>;
 
-  {Table Itmes}
 
   [Entity]
   [Table('Items')]
@@ -58,11 +57,8 @@ type
     [Description('Activity or material type: Synthesis, Treatment, Measurement, Specimen, Model, etc.')]
     FType_: TItemType;
 
-    // The explicit 255 is what Aurelius already defaults to when no length is
-    // given, so this changes no DDL — it just stops the width being invisible.
-    // MySQL/MariaDB in STRICT mode rejects an over-long value outright (error
-    // 1406) instead of truncating it, so callers must check before saving; see
-    // MAX_TITLE_LEN / MAX_DESC_LEN in ELN.MCPServer\unit_ToolHelpers.pas.
+    // STRICT-mode MySQL/MariaDB rejects overlong values rather than truncating
+    // them; callers must check the stored width before saving.
     [Column('Title', [TColumnProp.Required, TColumnProp.Lazy], 255)]
     [Description('Item name displayed in the item tree')]
     FTitle:  string;
@@ -86,10 +82,7 @@ type
     [ManyValuedAssociation([], CascadeTypeAllRemoveOrphan, 'FItem')]
     FFilesList: Proxy<TFiles>;
 
-    // Mirror the FFilesList pattern: back-reference to TValue.FItem enables
-    // orphan removal so a hard-deleted TItem also deletes its DataValues
-    // rows. Previously CascadeTypeAllButRemove left orphans in DataValues
-    // on hard-delete (soft-delete path was unaffected).
+    // The back-reference enables orphan removal when an item is hard-deleted.
     [ManyValuedAssociation([], CascadeTypeAllRemoveOrphan, 'FItem')]
     FValues : Proxy<TValues>;
 
@@ -191,10 +184,8 @@ type
   [Id('FId', TIdGenerator.IdentityOrSequence)]
   TFile = class
   private
-    // High-volume table in multi-user deployments (one row per attached file,
-    // no reuse on delete). Promoted to 64-bit to avoid identity exhaustion
-    // over the product lifetime. ItemID FK stays 32-bit because Items.Id is
-    // still Integer.
+    // Attachment identities are never reused; 64-bit avoids exhaustion.
+    // ItemID remains 32-bit to match Items.Id.
     [Column('Id', [TColumnProp.Required, TColumnProp.NoInsert, TColumnProp.NoUpdate])]
     [Description('Primary key')]
     FId: Int64;
@@ -277,12 +268,8 @@ type
     [JoinColumn('ItemID', [TColumnProp.Required])]
     FItem: Proxy<TItem>;
 
-    // No cascade: TValueType is a shared row of the ValueTypes dictionary, not
-    // a child owned by this value. Cascading here detached the dictionary row
-    // whenever an item was evicted (TCascadeType.Evict is in CascadeTypeAll),
-    // leaving a stale instance behind while the next Find mapped a fresh one --
-    // two live instances of one Id, so the following Save/Update cascade raised
-    // EObjectAlreadyPersistent. Matches TFile.FFileType, the same lookup case.
+    // TValueType is shared, not owned here. Cascading Evict would leave a
+    // stale dictionary instance and cause EObjectAlreadyPersistent on save.
     [Association([TAssociationProp.Lazy, TAssociationProp.Required], [])]
     [JoinColumn('TypeID', [TColumnProp.Required], 'Id')]
     [Description('Value type defining the unit and measurement context')]
@@ -345,7 +332,6 @@ type
 
 implementation
 
-{ TItem }
 
 constructor TItem.Create;
 begin
@@ -422,7 +408,6 @@ begin
   FEquipment.Value := Value;
 end;
 
-{ TFile }
 
 function TFile.FullName: string;
 begin
@@ -449,7 +434,6 @@ begin
   FItem.Value := Value;
 end;
 
-{ TValue }
 
 function TValue.GetValueType: TValueType;
 begin

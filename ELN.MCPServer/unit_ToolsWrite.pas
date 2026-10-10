@@ -8,8 +8,8 @@ uses
 
 procedure RegisterWriteTools(Registry: TToolRegistry);
 
-// Exposed for reuse by sibling tool units (e.g. unit_ToolsWiki).
 function GetReqInt(const Params: TJSONObject; const Key: string): Integer;
+function GetReqInt64(const Params: TJSONObject; const Key: string): Int64;
 function GetReqStr(const Params: TJSONObject; const Key: string): string;
 function GetOptStr(const Params: TJSONObject; const Key: string;
   out Value: string): Boolean;
@@ -23,9 +23,6 @@ procedure CheckProjectWriteAccess(const Context: TToolContext; ProjectId: Intege
 procedure RequireWriteUser(const Context: TToolContext);
 function ComputeFileMD5(const FilePath: string): string;
 
-// Exposed for the length-limit contract tests in ELN.Tests\test_ToolsWriteLimits,
-// following the same pattern as the tag and navigation tool units, which also
-// surface the handlers they are tested through.
 function HandleCreateProject(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 function HandleCreateFolder(const Params: TJSONObject;
@@ -35,14 +32,11 @@ function HandleCreateItem(const Params: TJSONObject;
 function HandleUpdateItem(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 
-// Exposed for ELN.Tests	est_RepairFiles, which drives the repair pair against
-// a real temp database with an in-memory storage provider.
 function HandleRepairFiles(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 function HandleReattachFile(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 
-// Exposed for ELN.Tests\test_MoveFileReparent.
 function HandleMoveFile(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 function HandleReparentItem(const Params: TJSONObject;
@@ -50,7 +44,7 @@ function HandleReparentItem(const Params: TJSONObject;
 
 type
   TAttachedFileInfo = record
-    Id: Integer;
+    Id: Int64;
     Title: string;
     FullName: string;
     Hash: string;
@@ -70,6 +64,7 @@ uses
   System.StrUtils, System.DateUtils,
   System.Generics.Collections, System.TypInfo, System.Rtti,
   Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq,
+  Aurelius.Drivers.Interfaces,
   IdHashMessageDigest,
   unit_User, unit_Project, unit_Item, unit_ItemTypes,
   unit_FileLocator,
@@ -88,13 +83,19 @@ uses
   unit_ToolHelpers,
   unit_Hypothesis, unit_HypothesisGuard, unit_HypothesisEvidence;
 
-{ ---- Helpers ---- }
 
 function GetReqInt(const Params: TJSONObject; const Key: string): Integer;
 begin
   if (Params = nil) or (Params.FindValue(Key) = nil) then
     raise Exception.CreateFmt('Missing required parameter: %s', [Key]);
   Result := Params.GetValue<Integer>(Key);
+end;
+
+function GetReqInt64(const Params: TJSONObject; const Key: string): Int64;
+begin
+  if (Params = nil) or (Params.FindValue(Key) = nil) then
+    raise Exception.CreateFmt('Missing required parameter: %s', [Key]);
+  Result := Params.GetValue<Int64>(Key);
 end;
 
 function GetReqStr(const Params: TJSONObject; const Key: string): string;
@@ -123,10 +124,7 @@ end;
 function GetOptInt(const Params: TJSONObject; const Key: string;
   out Value: Integer): Boolean;
 begin
-  // Task 3 review carry-in (Task 4 ruling 5): an explicit JSON null (e.g.
-  // "file_id": null) used to fall through to GetValue<Integer>, which raises
-  // EJSONException -> an opaque "internal error" at the client. Guarded the
-  // same way GetOptStr already is: a literal null reads as "absent".
+  // JSON null means absent, not an infrastructure parsing error.
   Result := (Params <> nil) and (Params.FindValue(Key) <> nil) and
             not (Params.FindValue(Key) is TJSONNull);
   if Result then
@@ -168,7 +166,6 @@ begin
     Value := Params.GetValue<Double>(Key);
 end;
 
-{ ---- Path confinement ---- }
 
 procedure CheckUploadPathAllowed(const Context: TToolContext;
   const FilePath: string);
@@ -185,7 +182,6 @@ begin
     TPath.GetFullPath(Context.UploadRoot));
   NormFile := TPath.GetFullPath(FilePath);
 
-  // Canonical paths must remain below the explicitly allowed source root.
   if not StartsText(NormRoot, NormFile) then
     raise Exception.Create(
       'file_path is outside the allowed upload root.');
@@ -219,7 +215,6 @@ begin
   end;
 end;
 
-{ ---- Permission check ---- }
 
 // Identity is required here; project write permission is decided by the
 // injected access policy in CheckProjectWriteAccess.
@@ -243,7 +238,6 @@ begin
   // about an out-of-scope project.
   RequireProjectRead(Context, ProjectId);
 
-  // The injected policy decides access; this consumer supplies refusal text.
   case Context.AccessPolicy.CheckWrite(Context.Manager, Context.User, ProjectId) of
     pwAllowed: ;
     pwProjectNotFound:
@@ -261,7 +255,6 @@ begin
   end;
 end;
 
-{ ---- create_project ---- }
 
 function BuildItemStoragePath(const ProjectFileFolder, ItemFolderName,
   FileFullName: string): string;
@@ -277,7 +270,6 @@ var
   HasDesc: Boolean;
   Project: TProject;
 begin
-  // Project creation always attributes ownership to this local principal.
   RequireWriteUser(Context);
   if not Context.AccessPolicy.CanCreateProjects(Context.Manager, Context.User) then
     raise Exception.Create('Access denied: cannot create projects.');
@@ -341,7 +333,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- create_folder ---- }
 
 function HandleCreateFolder(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -434,7 +425,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- create_item helpers ---- }
 
 function StrToItemType(const S: string; out AType: TItemType): Boolean;
 var V: Integer;
@@ -462,7 +452,6 @@ begin
   Result := TRttiEnumerationType.GetName<TItemLevel>(ALevel);
 end;
 
-{ ---- create_item ---- }
 
 function HandleCreateItem(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -493,9 +482,7 @@ begin
   HasAT := GetOptInt(Params, 'action_type_id', ActionTypeId);
   HasEq := GetOptInt(Params, 'equipment_id', EquipmentId);
 
-  // Before anything is saved. Items.Title/Description are VARCHAR(255) and the
-  // server is in STRICT mode, so an over-long value is a hard error mid-flush,
-  // which used to commit the item row and skip the audit row (items 933-936).
+  // Validate before saving: strict VARCHAR limits can fail after the item row commits.
   CheckMaxLen(Title, 'title', MAX_TITLE_LEN);
   if HasDesc then
     CheckMaxLen(Description, 'description', MAX_DESC_LEN);
@@ -512,9 +499,9 @@ begin
     raise Exception.CreateFmt('Folder %d not found in project %d',
       [FolderId, ProjectId]);
 
-  // If adding under a parent, verify it exists in the same project and is not signed
   if HasParent and (ParentId > 0) then
   begin
+    RequireItemRead(Context, ParentId);
     ParentItem := Context.Manager.Find<TItem>(ParentId);
     if not Assigned(ParentItem) then
       raise Exception.CreateFmt('Parent item not found: %d', [ParentId]);
@@ -642,20 +629,16 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- update_item ---- }
 
 function HandleUpdateItem(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
   ItemId: Integer;
   NewTitle, NewDescription, NewProperties: string;
-  HasTitle, HasDesc, HasProps: Boolean;
+  HasTitle, HasDesc, HasProps, Changed: Boolean;
   Item: TItem;
-  OldTitle, OldDescription, OldProperties: string;
-  Changes: TStringList;
-  AuditMsg: string;
-  i: Integer;
   Items: TItemModel;
+  Relocator: IFileRelocator;
 begin
   ItemId := GetReqInt(Params, 'item_id');
   HasTitle := GetOptStr(Params, 'title', NewTitle);
@@ -686,82 +669,50 @@ begin
   if IsItemSignedCheck(Context.Manager, ItemId) then
     raise Exception.Create('Item is signed and cannot be modified.');
 
-  OldTitle := Item.Title;
-  OldDescription := Item.Description;
-  OldProperties := Item.Properties;
+  Changed := False;
+  if HasTitle and (Item.Title <> NewTitle) then
+  begin
+    Changed := True;
+    Item.Title := NewTitle;
+  end;
+  if HasDesc and (Item.Description <> NewDescription) then
+  begin
+    Changed := True;
+    Item.Description := NewDescription;
+  end;
+  if HasProps and (Item.Properties <> NewProperties) then
+  begin
+    Changed := True;
+    Item.Properties := NewProperties;
+  end;
 
-  Changes := TStringList.Create;
+  if not Changed then
+  begin
+    // No-op: preserve ModifiedDate and do not write an audit row.
+    Result := TJSONObject.Create;
+    Result.AddPair('id', TJSONNumber.Create(Item.Id));
+    Result.AddPair('url', MakeElnItemUrl(Item));
+    Result.AddPair('title', Item.Title);
+    Result.AddPair('description', Item.Description);
+    Result.AddPair('properties', Item.Properties);
+    if Item.ModifiedDate.HasValue then
+      Result.AddPair('modified_date',
+        TJSONString.Create(DateToISO8601(Item.ModifiedDate.Value, False)))
+    else
+      Result.AddPair('modified_date', TJSONNull.Create);
+    Result.AddPair('changed', TJSONBool.Create(False));
+    Exit;
+  end;
+
+  Relocator := nil;
+  if Context.Storage <> nil then
+    Relocator := TNotebookFileRelocator.Create(Context.Storage);
+  Items := TItemModel.Create(Context.Manager);
   try
-    if HasTitle and (Item.Title <> NewTitle) then
-    begin
-      Changes.Add(Format('title "%s" -> "%s"', [OldTitle, NewTitle]));
-      Item.Title := NewTitle;
-    end;
-    if HasDesc and (Item.Description <> NewDescription) then
-    begin
-      Changes.Add('description');
-      Item.Description := NewDescription;
-    end;
-    if HasProps and (Item.Properties <> NewProperties) then
-    begin
-      Changes.Add('properties');
-      Item.Properties := NewProperties;
-    end;
-
-    if Changes.Count = 0 then
-    begin
-      // No-op: provided fields matched current values. Return current state
-      // without touching ModifiedDate or writing an audit row.
-      Result := TJSONObject.Create;
-      Result.AddPair('id', TJSONNumber.Create(Item.Id));
-      Result.AddPair('url', MakeElnItemUrl(Item));
-      Result.AddPair('title', Item.Title);
-      Result.AddPair('description', Item.Description);
-      Result.AddPair('properties', Item.Properties);
-      if Item.ModifiedDate.HasValue then
-        Result.AddPair('modified_date',
-          TJSONString.Create(DateToISO8601(Item.ModifiedDate.Value, False)))
-      else
-        Result.AddPair('modified_date', TJSONNull.Create);
-      Result.AddPair('changed', TJSONBool.Create(False));
-      Exit;
-    end;
-
-    // Attachments live under Projects/<project>/[id]<title>/, so the
-    // title change has to move them or every existing file 404s (items 1078
-    // and 1080, 2026-09-02). Move BEFORE the flush: the model rolls a failed
-    // move back, and reverting the in-memory fields leaves nothing dirty for
-    // a later flush to pick up.
-    if (Item.Title <> OldTitle) and Assigned(Context.Storage) then
-    begin
-      Items := TItemModel.Create(Context.Manager);
-      try
-        try
-          Items.RelocateFilesForRename(Item, OldTitle,
-            TNotebookFileRelocator.Create(Context.Storage));
-        except
-          Item.Title := OldTitle;
-          Item.Description := OldDescription;
-          Item.Properties := OldProperties;
-          raise;
-        end;
-      finally
-        Items.Free;
-      end;
-    end;
-
-    Item.ModifiedDate := UTCNow;
-    Item.ModifiedBy := Context.User.Id;
-    Context.Manager.Update(Item);
-    TConflictHandler.SafeFlush(Context.Manager);
-
-    AuditMsg := 'MCP: Updated item "' + OldTitle + '" — ' + Changes[0];
-    for i := 1 to Changes.Count - 1 do
-      AuditMsg := AuditMsg + '; ' + Changes[i];
-    RecordAudit(Context.Manager, aetItem, Item.Id, aoUpdate,
-      Context.User.Id, AuditMsg);
+    if not Items.UpdateItemDurable(Item, Context.User.Id, Relocator) then
+      raise Exception.Create('Item update refused: signed or changed by another user.');
   finally
-    Changes.Free;
+    Items.Free;
   end;
 
   Result := TJSONObject.Create;
@@ -812,7 +763,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- upload_file ---- }
 
 function ComputeFileMD5(const FilePath: string): string;
 var
@@ -838,7 +788,7 @@ end;
 // Item.Files first so the collection keeps no dangling reference, then Remove.
 // Never raises: the caller is already unwinding a failure and needs to report
 // the original cause, so a secondary failure is returned as text instead.
-function RemoveOrphanFileRow(const Context: TToolContext; FileId: Integer): string;
+function RemoveOrphanFileRow(const Context: TToolContext; FileId: Int64): string;
 var
   F: TFile;
 begin
@@ -846,7 +796,6 @@ begin
     F := Context.Manager.Find<TFile>(FileId);
     if not Assigned(F) then
     begin
-      // Nothing to roll back — the row never made it to the database.
       Result := 'rolled back';
       Exit;
     end;
@@ -874,7 +823,7 @@ var
   Project: TProject;
   FType: TFileType;
   F: TFile;
-  FileId: Integer;
+  FileId: Int64;
   Hash, RemotePath, CleanupMsg: string;
 begin
   Item := Context.Manager.Find<TItem>(ItemId);
@@ -896,14 +845,8 @@ begin
   Item.Files.Add(F);
   Context.Manager.Update(Item);
 
-  // The flush is INSIDE the guard, not before it. Aurelius issues the INSERT
-  // during the flush and MySQL autocommits it per statement, so a flush that
-  // fails for an UNRELATED reason — another entity in the process-wide manager
-  // that cannot be written — still leaves a committed Files row behind. With
-  // the flush outside the guard, control never reached the storage block at
-  // all: no MKCOL, no PUT, and no compensating delete either. That is exactly
-  // how files 1573-1578 became phantom records on 2026-08-10 (DB rows with
-  // plausible titles, sizes and MD5s, and nothing whatsoever in storage).
+  // Flush belongs inside compensation: MySQL can commit this INSERT before
+  // an unrelated managed entity fails, leaving a file row with no bytes.
   FileId := 0;
   try
     TConflictHandler.SafeFlush(Context.Manager);
@@ -970,7 +913,6 @@ begin
   if not FileExists(FilePath) then
     raise Exception.CreateFmt('File not found: %s', [FilePath]);
 
-  // Scope first - see HandleUpdateItem.
   RequireItemRead(Context, ItemId);
 
   Item := Context.Manager.Find<TItem>(ItemId);
@@ -1037,12 +979,12 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- rename_file ---- }
 
 function HandleRenameFile(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
-  FileId, FileTypeId: Integer;
+  FileId: Int64;
+  FileTypeId: Integer;
   NewTitle, OldTitle, OldExt, OldPath, NewPath, NewFullName, AuditMsg: string;
   HasTitle, HasType: Boolean;
   F: TFile;
@@ -1050,8 +992,10 @@ var
   Item: TItem;
   Project: TProject;
   UsedTitle, UsedExt: string;
+  Transaction: IDBTransaction;
+  BytesMoved: Boolean;
 begin
-  FileId := GetReqInt(Params, 'file_id');
+  FileId := GetReqInt64(Params, 'file_id');
   HasTitle := GetOptStr(Params, 'new_title', NewTitle);
   HasType := GetOptInt(Params, 'file_type_id', FileTypeId);
   FType := nil;
@@ -1059,7 +1003,6 @@ begin
   if (not HasTitle) and (not HasType) then
     raise Exception.Create('At least one of new_title or file_type_id is required.');
 
-  // Scope first - see HandleUpdateItem.
   RequireFileRead(Context, FileId);
 
   F := Context.Manager.Find<TFile>(FileId);
@@ -1086,7 +1029,6 @@ begin
   OldTitle := F.Title;
   OldExt := F.FileType.Ext;
 
-  // Build old storage path
   OldPath := Format('Projects/%s/%s/%s', [
     CleanFileName(Project.FileFolder),
     CleanFileName(Item.FolderName),
@@ -1101,27 +1043,57 @@ begin
     CleanFileName(Item.FolderName),
     NewFullName]);
 
-  // Move bytes before changing database metadata.
-  if OldPath <> NewPath then
-    Context.Storage.MoveFile(OldPath, NewPath);
+  if Context.Storage = nil then
+    raise Exception.Create('rename_file needs notebook storage.');
+  BytesMoved := False;
+  Transaction := Context.Manager.Connection.BeginTransaction;
+  try
+    if OldPath <> NewPath then
+    begin
+      Context.Storage.MoveFile(OldPath, NewPath);
+      BytesMoved := True;
+    end;
+    if HasTitle then
+      F.Title := NewTitle;
+    if HasType then
+      F.FileType := FType;
+    F.ModifiedDate := UTCNow;
+    F.ModifiedBy := Context.User.Id;
+    if not TConflictHandler.SafeFlush(Context.Manager) then
+      raise Exception.Create('File changed elsewhere; rename refused.');
 
-  // Update DB fields
-  if HasTitle then
-    F.Title := NewTitle;
-  if HasType then
-    F.FileType := FType;
-  F.ModifiedDate := UTCNow;
-  F.ModifiedBy := Context.User.Id;
-  TConflictHandler.SafeFlush(Context.Manager);
-
-  // Audit
-  AuditMsg := 'MCP: Updated file';
-  if HasTitle then
-    AuditMsg := AuditMsg + Format(' title "%s" -> "%s"', [OldTitle, F.Title]);
-  if HasType then
-    AuditMsg := AuditMsg + Format(' type -> %s', [F.FileType.Ext]);
-  RecordAudit(Context.Manager, aetFile, F.Id, aoUpdate,
-    Context.User.Id, AuditMsg);
+    AuditMsg := 'MCP: Updated file';
+    if HasTitle then
+      AuditMsg := AuditMsg + Format(' title "%s" -> "%s"', [OldTitle, F.Title]);
+    if HasType then
+      AuditMsg := AuditMsg + Format(' type -> %s', [F.FileType.Ext]);
+    RecordAudit(Context.Manager, aetFile, F.Id, aoUpdate,
+      Context.User.Id, AuditMsg);
+    Transaction.Commit;
+  except
+    on E: Exception do
+    begin
+      try
+        Transaction.Rollback;
+      finally
+        // Compensation must run even if the DB connection was lost.
+        if BytesMoved then
+          try
+            Context.Storage.MoveFile(NewPath, OldPath);
+          except
+            on E2: Exception do
+            begin
+              MCPLog(Format('rename_file %d: %s; compensation failed: %s',
+                [FileId, E.Message, E2.Message]));
+              raise Exception.Create(
+                'File rename failed and its bytes could not be restored; run repair_files.');
+            end;
+          end;
+        Context.Manager.Refresh(F);
+      end;
+      raise;
+    end;
+  end;
 
   Result := TJSONObject.Create;
   Result.AddPair('id', TJSONNumber.Create(F.Id));
@@ -1162,7 +1134,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- add_value ---- }
 
 function HandleAddValue(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -1183,8 +1154,7 @@ begin
   HasDesc := GetOptStr(Params, 'description', Description);
   HasRecType := GetOptStr(Params, 'rec_type', RecTypeStr);
 
-  // Parse rec_type
-  RecType := TEST_RESULT;  // default
+  RecType := TEST_RESULT;
   if HasRecType then
   begin
     if SameText(RecTypeStr, 'EXP_CONDITION') then
@@ -1196,7 +1166,6 @@ begin
         [RecTypeStr]);
   end;
 
-  // Scope first - see HandleUpdateItem.
   RequireItemRead(Context, ItemId);
 
   Item := Context.Manager.Find<TItem>(ItemId);
@@ -1293,7 +1262,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- move_item ---- }
 
 function HandleMoveItem(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -1316,7 +1284,6 @@ begin
   RequireItemRead(Context, ItemId);
   RequireProjectRead(Context, TargetProjectId);
 
-  // Load and validate item (MCP-specific: friendlier errors than the model returns).
   Item := Context.Manager.Find<TItem>(ItemId);
   if not Assigned(Item) then
     raise Exception.CreateFmt('Item not found: %d', [ItemId]);
@@ -1331,12 +1298,10 @@ begin
   OldProjectId := Item.ProjectID;
   IsCrossProject := OldProjectId <> TargetProjectId;
 
-  // Permission checks on both source and destination.
   CheckProjectWriteAccess(Context, OldProjectId);
   if IsCrossProject then
     CheckProjectWriteAccess(Context, TargetProjectId);
 
-  // Validate destination folder exists in target project.
   NewProject := Context.Manager.Find<TProject>(TargetProjectId);
   if not Assigned(NewProject) then
     raise Exception.CreateFmt('Target project not found: %d', [TargetProjectId]);
@@ -1345,7 +1310,6 @@ begin
     raise Exception.CreateFmt('Folder %d not found in project %d',
       [TargetFolderId, TargetProjectId]);
 
-  // The model translates its virtual paths through the neutral relocator.
   Relocator := TNotebookFileRelocator.Create(Context.Storage);
   Items := TItemModel.Create(Context.Manager);
   try
@@ -1396,13 +1360,11 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- move_folder ---- }
 
 function FindFolderProject(Manager: TObjectManager; FolderId: Integer): TProject;
 var
   Projects: TList<TProject>;
 begin
-  // Find the project that owns this folder via Aurelius join
   Projects := Manager.Find<TProject>
     .CreateAlias('FFolders', 'f')
     .Where(Linq['f.Id'] = FolderId)
@@ -1440,7 +1402,6 @@ begin
   // missing folder must be indistinguishable from an out-of-scope one.
   RequireProjectRead(Context, TargetProjectId);
 
-  // Find folder + its source project (MCP-specific friendly error).
   SrcProject := FindFolderProject(Context.Manager, FolderId);
   if not Assigned(SrcProject) then
   begin
@@ -1454,12 +1415,10 @@ begin
   RequireProjectRead(Context, SrcProjectId);
   IsCrossProject := SrcProjectId <> TargetProjectId;
 
-  // Permission checks on both source and destination.
   CheckProjectWriteAccess(Context, SrcProjectId);
   if IsCrossProject then
     CheckProjectWriteAccess(Context, TargetProjectId);
 
-  // Validate destination project + parent folder.
   if IsCrossProject then
   begin
     DstProject := Context.Manager.Find<TProject>(TargetProjectId);
@@ -1501,9 +1460,6 @@ begin
     end;
   end;
 
-  // Delegate to the model. The model handles signed-item rejection,
-  // file relocation via the relocator, item reparent, folder reparent,
-  // flush, and audit.
   Relocator := TNotebookFileRelocator.Create(Context.Storage);
   Projects := TProjectsModel.Create(Context.Manager, Context.AccessPolicy);
   try
@@ -1552,7 +1508,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- relocate_item_files ---- }
 
 function HandleRelocateItemFiles(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -1578,7 +1533,6 @@ begin
     raise Exception.Create('item_ids must contain at least one id');
 
   SourceProjectId := GetReqInt(Params, 'source_project_id');
-  // Scope first, with the uniform refusal.
   RequireProjectRead(Context, SourceProjectId);
 
   SrcProject := Context.Manager.Find<TProject>(SourceProjectId);
@@ -1587,12 +1541,10 @@ begin
 
   Items := TList<TItem>.Create;
   try
-    // Load items, validate same-destination invariant
     DstProjectId := 0;
     for i := 0 to Arr.Count - 1 do
     begin
       ItemId := (Arr.Items[i] as TJSONNumber).AsInt;
-      // Scope first - see HandleUpdateItem.
       RequireItemRead(Context, ItemId);
       Item := Context.Manager.Find<TItem>(ItemId);
       if not Assigned(Item) then
@@ -1626,7 +1578,6 @@ begin
     if not Assigned(DstProject) then
       raise Exception.CreateFmt('Destination project not found: %d', [DstProjectId]);
 
-    // Permission on both sides — matches HandleMoveItem/HandleMoveFolder
     CheckProjectWriteAccess(Context, SourceProjectId);
     CheckProjectWriteAccess(Context, DstProjectId);
 
@@ -1664,7 +1615,6 @@ begin
         end;
       end;
 
-    // Audit per item so the operation is traceable per-id in the log.
     TotalFiles := 0;
     for Item in Items do
     begin
@@ -1684,8 +1634,6 @@ begin
     Result.AddPair('target_project_id', TJSONNumber.Create(DstProjectId));
     Result.AddPair('relocated_item_count', TJSONNumber.Create(Items.Count));
     Result.AddPair('relocated_file_count', TJSONNumber.Create(TotalFiles));
-    // Partial-progress breakdown: how many of the attempted moves succeeded and
-    // a per-file list of any that failed (empty when all moved).
     Result.AddPair('moved_file_count', TJSONNumber.Create(MovedFileCount));
     Result.AddPair('failed_file_count', TJSONNumber.Create(FailedArr.Count));
     Result.AddPair('failed_files', FailedArr);
@@ -1746,54 +1694,46 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- repair_files ---- }
 
-{
-  Why this tool exists, and why the hunt is shaped the way it is.
-
-  A file's bytes live at
-    Projects/<Project.FileFolder>/<Item.FolderName>/<TFile.FullName>
-  and nothing in that path comes from the ELN folder tree. So moving an item
-  between FOLDERS cannot strand its files, and only three things can: a
-  cross-project move whose relocation did not run, a rename from before
-  renames relocated their files, or bytes that never landed at all.
-
-  The first two leave the bytes on storage under a stale name. Every stored
-  name is built id-first ('[0060]Indentation', '[0040]Title.mit'), so the id
-  token survives every rename and every move, and unit_FileLocator matches on
-  it. That is the whole hunt: walk one level at a time down from Projects,
-  keep the folders and names whose token matches, and refuse to act when more
-  than one candidate turns up.
-
-  The third case cannot be repaired here - there is nothing to move - so it is
-  reported as 'lost', and reattach_file is the way back.
-}
+{ Attachment paths follow project/item/file identities, not the ELN folder tree.
+  Cross-project moves and renames can leave bytes under stale names; id tokens
+  survive both. Search by those tokens and refuse ambiguous matches. Missing
+  bytes cannot be relocated: report lost and use reattach_file. }
 
 type
   TRepairCache = class
   private
     FStorage: INotebookStorageInspection;
     FListings: TDictionary<string, TArray<string>>;
+    FProjects: TList<TProject>;
+    FContext: TToolContext;
   public
-    constructor Create(const Storage: INotebookStorage);
+    constructor Create(const Context: TToolContext);
     destructor Destroy; override;
     // One listing per collection per call, however many files need it. An
     // item's files all share a folder, and every file in the run shares the
     // project listing, so an uncached hunt would re-walk the whole tree once
     // per missing file.
     function List(const ACollection: string): TArray<string>;
+    function SourceProjectId(const Folder: string): Integer;
   end;
 
-constructor TRepairCache.Create(const Storage: INotebookStorage);
+constructor TRepairCache.Create(const Context: TToolContext);
 begin
   inherited Create;
-  if not Supports(Storage, INotebookStorageInspection, FStorage) then
+  if not Supports(Context.Storage, INotebookStorageInspection, FStorage) then
     raise Exception.Create('Storage provider does not support attachment inspection.');
   FListings := TDictionary<string, TArray<string>>.Create;
+  FContext := Context;
+  RequireToolPrincipal(Context);
+  // UI project lists can omit readable projects owned by other accounts.
+  // SourceProjectId applies the access policy and device scope before traversal.
+  FProjects := Context.Manager.Find<TProject>.List;
 end;
 
 destructor TRepairCache.Destroy;
 begin
+  FProjects.Free;
   FListings.Free;
   inherited Destroy;
 end;
@@ -1807,12 +1747,24 @@ begin
   FListings.Add(ACollection, Result);
 end;
 
+function TRepairCache.SourceProjectId(const Folder: string): Integer;
+var
+  Project: TProject;
+begin
+  Result := 0;
+  // Unknown historical folders are not an authority to inspect or move bytes.
+  for Project in FProjects do
+    if ((Folder = CleanFileName(Project.FileFolder)) or
+        StartsStr(ProjectFolderToken(Project.Id), Folder)) and
+       IsProjectVisible(FContext, Project.Id) then
+      Exit(Project.Id);
+end;
+
 const
   PROJECTS_ROOT = 'Projects';
 
-{ Every stored path carrying both this item's and this file's id token. }
 function HuntForStrays(Cache: TRepairCache;
-  ItemId, FileId: Integer): TArray<string>;
+  ItemId: Integer; FileId: Int64): TArray<string>;
 var
   ProjectFolders, ItemFolders, FileNames: TArray<string>;
   ProjectFolder, ItemFolder, FileName: string;
@@ -1823,6 +1775,8 @@ begin
   ProjectFolders := Cache.List(PROJECTS_ROOT);
   for ProjectFolder in ProjectFolders do
   begin
+    if Cache.SourceProjectId(ProjectFolder) = 0 then
+      Continue;
     ItemFolders := FindNamesWithToken(
       Cache.List(PROJECTS_ROOT + '/' + ProjectFolder), ItemFolderToken(ItemId));
     for ItemFolder in ItemFolders do
@@ -1847,7 +1801,6 @@ begin
   SetLength(Result, N);
 end;
 
-{ An item plus, optionally, every descendant of it. }
 procedure CollectItemTree(const Context: TToolContext; RootId: Integer;
   Recursive: Boolean; Target: TList<TItem>);
 var
@@ -1970,7 +1923,7 @@ begin
     CheckProjectWriteAccess(Context, ProjectId);
 
     FilesArr := TJSONArray.Create;
-    Cache := TRepairCache.Create(Context.Storage);
+    Cache := TRepairCache.Create(Context);
     try
       for Item in Items do
       begin
@@ -2035,6 +1988,10 @@ begin
               else
               begin
                 try
+                  CheckProjectWriteAccess(Context, Cache.SourceProjectId(
+                    Copy(Found, Length(PROJECTS_ROOT) + 2,
+                      PosEx('/', Found, Length(PROJECTS_ROOT) + 2) -
+                        Length(PROJECTS_ROOT) - 2)));
                   Context.Storage.MoveFile(Found, Expected);
                   Status := 'relocated';
                   Inc(CountRelocated);
@@ -2155,12 +2112,11 @@ begin
   Result.AddPair('properties', Props);
 end;
 
-{ ---- reattach_file ---- }
 
 function HandleReattachFile(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
-  FileId: Integer;
+  FileId: Int64;
   FilePath: string;
   Force, Existed: Boolean;
   F: unit_Item.TFile;
@@ -2171,7 +2127,7 @@ var
   Inspection: INotebookStorageInspection;
   ContentLength: Int64;
 begin
-  FileId := GetReqInt(Params, 'file_id');
+  FileId := GetReqInt64(Params, 'file_id');
   FilePath := GetReqStr(Params, 'file_path');
   Force := GetOptBool(Params, 'force', False);
 
@@ -2217,13 +2173,8 @@ begin
 
   Hash := ComputeFileMD5(FilePath);
 
-  // Storage FIRST, database second - the reverse of upload_file, deliberately.
-  // There the row had to exist before the path could be built from its id;
-  // here the row is already there, so nothing forces a premature commit and a
-  // failed PUT cannot leave the database claiming a file that is not in
-  // storage (the 2026-08-10 phantom-record shape). A failure here also leaves
-  // the row ALONE: unlike upload_file this tool did not create it, and it may
-  // carry links, values and history.
+  // Store bytes first: this existing row already supplies the path id. A failed
+  // write must preserve the row and its links, values and history.
   Context.Storage.CopyIn(FilePath, RemotePath);
 
   F.Hash := Hash;
@@ -2279,12 +2230,12 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- move_file ---- }
 
 function HandleMoveFile(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
-  FileId, TargetId, SourceId, HypId: Integer;
+  FileId: Int64;
+  TargetId, SourceId, HypId: Integer;
   HypStatus: THypothesisStatus;
   F: unit_Item.TFile;
   Source, Target: TItem;
@@ -2293,10 +2244,9 @@ var
   OldPath, NewPath, FileTitle, TargetTitle: string;
   Relocator: IFileRelocator;
 begin
-  FileId := GetReqInt(Params, 'file_id');
+  FileId := GetReqInt64(Params, 'file_id');
   TargetId := GetReqInt(Params, 'target_item_id');
 
-  // Scope first, both ends - see HandleMoveItem.
   RequireFileRead(Context, FileId);
   RequireItemRead(Context, TargetId);
 
@@ -2354,8 +2304,6 @@ begin
     Cites.Free;
   end;
 
-  // The bytes live under the item's folder, so a row moved without them is
-  // Bytes must move with the row.
   if not Assigned(Context.Storage) then
     raise Exception.Create('move_file needs notebook storage; this server has none.');
 
@@ -2365,7 +2313,6 @@ begin
   FileTitle := F.Title;
   TargetTitle := Target.Title;
 
-  // Bytes first: a failed MOVE raises and changes nothing.
   Relocator := TNotebookFileRelocator.Create(Context.Storage);
   try
     Relocator.MoveFile(OldPath, NewPath);
@@ -2416,10 +2363,8 @@ begin
         [FileId, TargetId, E.Message]);
   end;
 
-  // Both items' cached Files lists are now wrong; evict so the next access
-  // reloads them (a later rename of either item walks that list).
-  // ponytail: evicted objects are detached, not freed - a few objects leak per
-  // call in the long-lived server; free them if the batch sizes ever grow.
+  // Evict both cached Files lists so later renames reload the moved file.
+  // Evict detaches these objects; it does not free them.
   try
     // Items first: their Files lists may cascade-evict F already.
     Context.Manager.Evict(Source);
@@ -2466,7 +2411,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- reparent_item ---- }
 
 function HandleReparentItem(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -2514,7 +2458,6 @@ begin
         'Parent item %d is in folder %d, the item in folder %d; use move_item ' +
         'to move a root item between folders first.',
         [NewParentId, NewParent.FolderID, Item.FolderID]);
-    // Same targets the desktop Move-to dialog offers (dlg_ItemMove).
     if NewParent.Level = TItemLevel.Folder then
       raise Exception.Create('A Folder-level item cannot be a parent.');
     // The new parent must not sit inside the item's own subtree, nor under a
@@ -2610,7 +2553,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ ---- Registration ---- }
 
 procedure RegisterWriteTools(Registry: TToolRegistry);
 begin

@@ -9,9 +9,6 @@ uses
   unit_LabEntry;
 
 type
-  /// <summary>
-  /// Type of protocol/procedure being documented
-  /// </summary>
   [Enumeration(TEnumMappingType.emInteger)]
   TProtocolType = (
     ptExperiment,
@@ -23,9 +20,6 @@ type
     ptNote
   );
 
-  /// <summary>
-  /// Validation/approval status for formal protocols
-  /// </summary>
   [Enumeration(TEnumMappingType.emInteger)]
   TValidationStatus = (
     vsDraft,
@@ -34,19 +28,15 @@ type
     vsRejected
   );
 
-  /// <summary>
-  /// Formal, structured scientific protocol with HTML template-based forms.
-  /// Supports predefined fields, validation workflow, and optional templates.
-  /// </summary>
   [Entity]
   [DiscriminatorValue('Protocol')]
   TProtocol = class(TLabEntry)
   private
     [Column('TemplateId', [])]
-    FTemplateId: Nullable<Integer>;  // Future: FK to TTemplate entity
+    FTemplateId: Nullable<Integer>;
 
     [Column('FormData', [TColumnProp.Lazy], 65536)]
-    FFormData: string;  // JSON/XML serialized field values from HTML form
+    FFormData: string;  // Serialized HTML form values; JSON or XML.
 
     [Column('ProtocolType', [])]
     FProtocolType: Nullable<TProtocolType>;
@@ -76,12 +66,11 @@ type
 
 implementation
 
-{ TProtocol }
 
 constructor TProtocol.Create;
 begin
   inherited;
-  FValidationStatus := vsDraft;  // Default to draft status
+  FValidationStatus := vsDraft;
 end;
 
 initialization

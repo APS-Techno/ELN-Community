@@ -1,14 +1,5 @@
 unit unit_FileTypeIconSeeder;
 
-{
-  Windows-only helper that scrapes shell icons via SHGetFileInfo and writes
-  them into TFileType.Icon blobs. Lives in ELN.Model.Win because of its
-  VCL.Graphics / VCL.Controls dependencies. The web API (Linux) does not
-  need icons, so it does not reference this unit.
-
-  Extracted from TFileTypeModel.GetIcons during the Option C surgery that
-  broke ELN.Model's VCL dependency.
-}
 
 interface
 
@@ -30,7 +21,6 @@ uses
   unit_FileType,
   unit_FileAssociationDetails;
 
-{ TFileTypeIconSeeder }
 
 class procedure TFileTypeIconSeeder.SeedIcons(Model: TFileTypeModel);
 var
@@ -53,8 +43,6 @@ begin
       FileType.Icon.LoadFromStream(Stream);
       Stream.Clear;
     end;
-    // Identical semantics to the original GetIcons which called FManager.Flush.
-    // Model.Manager exposes the same TObjectManager instance.
     Model.Manager.Flush;
   finally
     FreeAndNil(Icons);

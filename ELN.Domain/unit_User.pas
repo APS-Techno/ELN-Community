@@ -133,7 +133,6 @@ begin
     Result := Format('Unknown(%d)', [Ord(Role)]);
 end;
 
-{ TUser }
 
 constructor TUser.Create;
 begin

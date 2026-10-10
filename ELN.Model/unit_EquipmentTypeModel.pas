@@ -38,7 +38,6 @@ type
 
 implementation
 
-{ TEquipmentTypeModel }
 
 procedure TEquipmentTypeModel.AddType(const EType, Description: string);
 var

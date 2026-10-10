@@ -1,11 +1,6 @@
 unit editor_LinkTypes;
 
-// Dictionary editor for the item-link relationship vocabulary.
-//
-// Every type carries both a forward and a reverse caption ("derived from" /
-// "precursor of") so a link reads correctly from either end. For a relation
-// that reads the same both ways, put the same text in both fields — the link
-// dialog then offers it once instead of twice.
+// Symmetric relations must store the same caption in both directions to avoid duplicate choices.
 
 interface
 

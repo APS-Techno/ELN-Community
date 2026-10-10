@@ -1,12 +1,6 @@
 unit unit_Hypothesis;
 
 {
-  Experiment tree (spec 2026-09-26-experiment-tree-design.md 5.1).
-
-  A hypothesis node: an expectation, the runs made to test it, the evidence
-  cited from them, and a conclusion. Two human gates move it (approve the
-  proposal, accept the conclusion); see unit_HypothesisRules.
-
   Every enum here is stored as an integer ordinal. APPEND ONLY: reordering or
   inserting a member silently changes the meaning of every stored row.
 
@@ -32,7 +26,6 @@ type
   [Enumeration(TEnumMappingType.emInteger)]
   THypothesisRunRole = (hrrRun, hrrReference);
 
-  /// <summary>The two human gates. Not stored; used by the approval policy.</summary>
   THypothesisGate = (hgApproveProposals, hgAcceptConclusions);
 
 const

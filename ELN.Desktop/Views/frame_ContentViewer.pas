@@ -14,6 +14,7 @@ type
     Frame: IViewerPlugin;
     Params : TPluginParams;
     Tab  : TCard;
+    PluginClass: TComponentClass;
   end;
 
   TframeContentViewer = class(TFrame)
@@ -31,6 +32,9 @@ type
     barDownload: TProgressBar;
     HypothesesCard: TCard;
     frmHypotheses: TframeHypotheses;
+    NoteCard: TCard;
+    NoteContent: TRichEdit;
+    PreviewHost: TPanel;
     procedure btnOpenClick(Sender: TObject);
     procedure btnExtractValuesClick(Sender: TObject);
     procedure btnResetViewClick(Sender: TObject);
@@ -40,7 +44,6 @@ type
         string);
     procedure upfPluginManagerPluginRegistered(Sender, APlugin: TObject);
   private
-    { Private declarations }
     Frames: array of TViewerFrameRec;
     BlankCard: TCard;
     FDashboard: TFrame;
@@ -48,7 +51,7 @@ type
     FOnUpdateFile: TNotifyEvent;
     FOnUpdatePreview: TNotifyEvent;
     FOnExtractValues: TNotifyEvent;
-    FCurrentFileId: Integer;
+    FCurrentFileId: Int64;
     FCurrentItemId: Integer;
 
     procedure AddCard(APlugin: IViewerPlugin);
@@ -56,32 +59,30 @@ type
     procedure HideDownloadProgress;
     function GetActivePlugin: IViewerPlugin;
     procedure ApplyHostToolbarPolicy(APlugin: IViewerPlugin);
+  protected
+    procedure CreateParams(var Params: TCreateParams); override;
   public
-    { Public declarations }
     procedure Init(const APluginsDir: string = '');
-    procedure DisplayFile(const FileName: string; AFileId: Integer = 0);
-    function IsFileDisplayed(FileId: Integer): Boolean;
+    procedure DisplayFile(const FileName: string; AFileId: Int64 = 0);
+    function IsFileDisplayed(FileId: Int64): Boolean;
     // The plugin contract has no dirty query. Confirm before replacing loaded
     // viewer content, and require separate editors to be resolved by the user.
-    function ConfirmFileReload(FileId: Integer; DiscardDraft: Boolean): Boolean;
+    function ConfirmFileReload(FileId: Int64; DiscardDraft: Boolean): Boolean;
     procedure DisplayNote(const Title, Text: string);
     procedure DisplayProtocol(const Title, ProtocolType, Status, CreatedDate,
       ModifiedDate, FormData, TemplateHtml,
       EquipModel, EquipManufacturer, EquipLocation: string);
     function FindPlugin(const AFileNameOrExt: string): IViewerPlugin;
+    function LoadPreviewPlugin(const FileName: string; ItemId: Integer; FileId: Int64;
+      AOwner: TComponent): IViewerPlugin;
     destructor Destroy; override;
     procedure Clear;
     procedure ResetSession;
     procedure ShowFileButtons(AVisible: Boolean);
     procedure SetDashboard(ADashboard: TFrame);
     procedure ShowDashboard;
-    /// <summary>Shows the Hypotheses view for a project, selecting
-    /// AHypothesisId when it is not 0.</summary>
     procedure ShowHypotheses(AProjectId, AHypothesisId: Integer);
-    /// <summary>True while the Hypotheses view is the visible card.</summary>
     function HypothesesShowing: Boolean;
-    /// <summary>Brings the Hypotheses view back without reloading it (after
-    /// something else, e.g. an item-tree refresh, replaced the card).</summary>
     procedure ReturnToHypotheses;
     /// <summary>Before logout frees Model: frees the view's VM and leaves
     /// the card if it is showing.</summary>
@@ -104,20 +105,31 @@ implementation
 
 uses
   Winapi.ShellAPI,
-  Vcl.Imaging.pngimage, // Required for TPngImage
+  Vcl.Imaging.pngimage, 
   unit_DataModel,
   unit_Item,
   unit_Helpers,
   unit_ViewerExtMatch,
   unit_ViewerState;
 
-{ TframeContentViewer }
+
+procedure TframeContentViewer.CreateParams(var Params: TCreateParams);
+begin
+  inherited;
+  // The embedded native page control requests a handle while its DFM streams,
+  // before the caller can assign this frame's Parent. Use the supplied host,
+  // rather than requiring an application window (absent in a console host).
+  if Parent = nil then
+    if ParentWindow <> 0 then
+      Params.WndParent := ParentWindow
+    else if Owner is TWinControl then
+      Params.WndParent := TWinControl(Owner).Handle;
+end;
 
 destructor TframeContentViewer.Destroy;
 var
   I: Integer;
 begin
-  // Release interface references to plugin objects
   SetLength(Frames, 0);
   // Do NOT call upfPluginManager.UnloadPlugins here.
   // Unloading BPLs during Application shutdown invalidates VMTs of
@@ -125,13 +137,16 @@ begin
   // causing _BeforeDestruction AV in DoneApplication.DestroyComponents.
   // Clear module handles so the plugin manager destructor also skips UnloadPackage.
   // Process exit automatically unloads all loaded packages.
-  for I := 0 to upfPluginManager.Packages.Count - 1 do
-    upfPluginManager.Packages.HModules[I] := 0;
+  // DFM construction can fail before its final component, the manager, exists.
+  // Do not replace that original exception with a destructor access violation.
+  if Assigned(upfPluginManager) and Assigned(upfPluginManager.Packages) then
+    for I := 0 to upfPluginManager.Packages.Count - 1 do
+      upfPluginManager.Packages.HModules[I] := 0;
   inherited;
 end;
 
 procedure TframeContentViewer.DisplayFile(const FileName: string;
-  AFileId: Integer);
+  AFileId: Int64);
 var
   I, BestIdx, BestScore, Score: Integer;
   Rec: TViewerFrameRec;
@@ -144,10 +159,8 @@ begin
   // Save current plugin state before switching (uses OLD FCurrentFileId)
   SaveCurrentState;
 
-  // Now update to new file ID
   FCurrentFileId := AFileId;
 
-  // Resolve owning item ID for plugins that implement IItemContextAware.
   // Lookup is best-effort — failure leaves FCurrentItemId = 0, which is the
   // documented "unknown" sentinel for SetItemContext.
   FCurrentItemId := 0;
@@ -165,8 +178,6 @@ begin
 
   HideDownloadProgress;
   FCurrentFilePath := FileName;
-  // Highest score wins, so a compound extension ('.depo.json') beats the
-  // generic one ('.json') regardless of BPL load order.
   BestIdx   := -1;
   BestScore := 0;
   for I := 0 to High(Frames) do
@@ -195,11 +206,8 @@ begin
       Cards.ActiveCard := Rec.Tab;
     Found := True;
 
-    // Toolbar visibility: plugins implementing IHostToolbarAware may
-    // suppress ButtonsPanel. Default (no interface) keeps it visible.
     ApplyHostToolbarPolicy(Rec.Frame);
 
-    // Restore state for new file
     if (AFileId > 0) and Assigned(Model) and
        Supports(Rec.Frame, IStatefulViewer, Stateful) then
     begin
@@ -213,7 +221,6 @@ begin
       end;
     end;
   end;
-  // Fallback: try the FileViewer plugin (shell preview, Ext = '')
   if not Found then
     for Rec in Frames do
       if (Rec.Params.PType = ptFile) and (Rec.Params.Ext = '') then
@@ -234,10 +241,6 @@ begin
   if not Found then
   begin
     ButtonsPanel.Visible := True;
-    // No viewer matched, but the file is still open: re-assert the buttons.
-    // ShowDownloadProgress hid them, and without this the panel comes back
-    // empty - so "Update Preview" is missing for exactly those file types that
-    // have no plugin. Same reason ApplyHostToolbarPolicy re-asserts them.
     ShowFileButtons(True);
     Cards.ActiveCard := BlankCard;
   end;
@@ -245,23 +248,20 @@ end;
 
 procedure TframeContentViewer.DisplayNote(const Title, Text: string);
 var
-  Rec : TViewerFrameRec;
+  Stream: TStringStream;
 begin
-  SaveCurrentState;
-  FCurrentFileId := 0;
-  FCurrentItemId := 0;
-  ButtonsPanel.Visible := True;
-  Cards.ActiveCard := BlankCard;
-  for Rec in Frames do
-  begin
-    if Rec.Params.PType = ptText then
-    begin
-      Rec.Frame.DisplayText(Title, Text);
-      Cards.ActiveCard := Rec.Tab;
-      ApplyHostToolbarPolicy(Rec.Frame);
-      Break;
-    end;
+  Clear;
+  ShowFileButtons(False);
+  HideDownloadProgress;
+  NoteContent.Clear;
+  Stream := TStringStream.Create(Text);
+  try
+    NoteContent.Lines.LoadFromStream(Stream);
+  finally
+    Stream.Free;
   end;
+  NoteContent.SelStart := 0;
+  Cards.ActiveCard := NoteCard;
 end;
 
 procedure TframeContentViewer.Init(const APluginsDir: string);
@@ -302,6 +302,8 @@ begin
   if Supports(APlugin, IViewerPlugin, ATabSheetPlugin) then
   begin
     AddCard(ATabsheetPlugin);
+    if APlugin is TComponent then
+      Frames[High(Frames)].PluginClass := TComponentClass(APlugin.ClassType);
     ATabSheetPlugin := nil;
   end;
 end;
@@ -313,6 +315,7 @@ begin
   Rec.Frame  := APlugin;
   Rec.Tab    := ACard;
   Rec.Params := APlugin.Params;
+  Rec.PluginClass := nil;
   Frames := Frames + [Rec];
 end;
 
@@ -355,6 +358,9 @@ begin
   SaveCurrentState;
   FCurrentFileId := 0;
   FCurrentItemId := 0;
+  FCurrentFilePath := '';
+  HideDownloadProgress;
+  ShowFileButtons(False);
   // Encode fields with #1 separator for the Protocol Viewer plugin
   Encoded := ProtocolType + #1 + Status + #1 + CreatedDate + #1 +
              ModifiedDate + #1 + FormData + #1 + TemplateHtml + #1 +
@@ -368,10 +374,38 @@ begin
     begin
       Rec.Frame.DisplayText(Title, Encoded);
       Cards.ActiveCard := Rec.Tab;
-      ApplyHostToolbarPolicy(Rec.Frame);
+      ShowFileButtons(False);
       Break;
     end;
   end;
+end;
+
+function TframeContentViewer.LoadPreviewPlugin(const FileName: string;
+  ItemId: Integer; FileId: Int64; AOwner: TComponent): IViewerPlugin;
+var
+  Source: IViewerPlugin;
+  Rec: TViewerFrameRec;
+  Instance: TComponent;
+  Context: IItemContextAware;
+begin
+  Result := nil;
+  if not Assigned(AOwner) then
+    raise EArgumentNilException.Create('Preview owner is required');
+  Source := FindPlugin(FileName);
+  if not Assigned(Source) then Exit;
+  for Rec in Frames do
+    if (Rec.Frame = Source) and Assigned(Rec.PluginClass) then
+    begin
+      // Never load preview bytes into the registered, interactive instance.
+      Instance := Rec.PluginClass.Create(AOwner);
+      if not Supports(Instance, IViewerPlugin, Result) then Exit;
+      Result.Frame.Parent := PreviewHost;
+      if Supports(Result, IItemContextAware, Context) then
+        Context.SetItemContext(ItemId, FileId);
+      if not Result.LoadFromFile(FileName) then
+        Result := nil;
+      Exit;
+    end;
 end;
 
 function TframeContentViewer.FindPlugin(const AFileNameOrExt: string): IViewerPlugin;
@@ -406,13 +440,13 @@ begin
       Exit(Rec.Frame);
 end;
 
-function TframeContentViewer.IsFileDisplayed(FileId: Integer): Boolean;
+function TframeContentViewer.IsFileDisplayed(FileId: Int64): Boolean;
 begin
   Result := (FileId > 0) and (FCurrentFileId = FileId) and
     (FCurrentFilePath <> '');
 end;
 
-function TframeContentViewer.ConfirmFileReload(FileId: Integer;
+function TframeContentViewer.ConfirmFileReload(FileId: Int64;
   DiscardDraft: Boolean): Boolean;
 var
   I: Integer;
@@ -469,9 +503,6 @@ end;
 
 procedure TframeContentViewer.btnOpenClick(Sender: TObject);
 begin
-  // SimpleShellExecute auto-quotes paths with spaces and consistently passes
-  // a parent window handle — matches every other ShellExecute call site in
-  // the app instead of bypassing the wrapper.
   if (FCurrentFilePath <> '') and FileExists(FCurrentFilePath) then
     SimpleShellExecute(Handle, FCurrentFilePath);
 end;
@@ -551,7 +582,7 @@ begin
   FCurrentFilePath := '';
   HideDownloadProgress;
   ShowFileButtons(False);
-  ButtonsPanel.Visible := False;       // file buttons make no sense here
+  ButtonsPanel.Visible := False;       
   frmHypotheses.OpenProject(AProjectId, AHypothesisId);
   Cards.ActiveCard := HypothesesCard;
 end;
@@ -619,7 +650,7 @@ end;
 
 procedure TframeContentViewer.ResetViewerState;
 var
-  FileId: Integer;
+  FileId: Int64;
 begin
   if FCurrentFileId <= 0 then
     Exit;
@@ -634,7 +665,6 @@ begin
       OutputDebugString(PChar('ViewerState reset error: ' + E.Message));
   end;
 
-  // Reload the file without state restoration
   if FCurrentFilePath <> '' then
   begin
     FCurrentFileId := 0;  // Prevent SaveCurrentState from re-saving

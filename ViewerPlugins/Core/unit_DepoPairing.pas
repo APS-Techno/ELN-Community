@@ -1,15 +1,8 @@
 unit unit_DepoPairing;
 
-{ Pairing logic for the deposition control software's two-file runs:
-    <YYYY-MM-DD_HH-MM-SS>_<recipe>.tsv                     - time-series log
-    Deposition_<specimen>_<YYYY-MM-DD_HH-MM-SS>.depo.json  - run snapshot
-  Primary rule: the JSON's "outcome.dataFile" field names its TSV
-                (written when the run finalizes).
-  Fallback:     filename timestamps within +-PairToleranceSec seconds
-                (aborted/unfinalized runs have no outcome block).
-  Attached ELN files carry a "[NNNN]" ID prefix which is stripped before
-  comparison. No VCL, no DB - shared by the desktop attach dialog and the
-  Viewer.Deposition plugin; unit-tested in ELNTests. }
+{ Finalized runs name their TSV in outcome.dataFile. Aborted runs can lack
+  outcome, so only those use the filename-timestamp fallback. Attachment ID
+  prefixes are not part of the instrument filename. }
 
 interface
 
@@ -54,7 +47,6 @@ begin
     StripAttachmentIdPrefix(ExtractFileName(FileName)));
 end;
 
-// 'YYYY-MM-DD_HH-MM-SS' (19 chars) -> TDateTime
 function TryParseStamp(const S: string; out DT: TDateTime): Boolean;
 var
   Y, Mo, D, H, Mi, Sec: Integer;
@@ -123,7 +115,6 @@ begin
   Root.Free;
 end;
 
-// "outcome.dataFile" - bare TSV name recorded when the run finalized.
 function TryGetDataFileRef(const JsonText: string; out TsvName: string): Boolean;
 var
   Root, Outc: TJSONObject;
@@ -150,13 +141,15 @@ var
 begin
   Result := '';
 
-  // 1) Explicit "outcome.dataFile" reference.
   if TryGetDataFileRef(JsonText, Ref) then
+  begin
     for Cand in CandidateNames do
       if SameText(StripAttachmentIdPrefix(ExtractFileName(Cand)), Ref) then
         Exit(Cand);
+    // A recorded partner is authoritative, even when it is not available.
+    Exit;
+  end;
 
-  // 2) Filename-timestamp fallback: closest .tsv within tolerance.
   if not TryParseDepoJsonTimestamp(JsonFileName, JDt) then Exit;
   Best := '';
   BestDiff := PairToleranceSec + 1;
@@ -200,7 +193,7 @@ begin
       JsonText := TFile.ReadAllText(Files[I], TEncoding.UTF8);
       Candidates := TDirectory.GetFiles(ExtractFilePath(Files[I]), '*.tsv');
     except
-      Continue;  // unreadable - the JSON uploads alone, silently
+      Continue;
     end;
     Partner := FindPairedTsv(JsonText, ExtractFileName(Files[I]), Candidates);
     if Partner = '' then Continue;

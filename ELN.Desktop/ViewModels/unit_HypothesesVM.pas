@@ -1,38 +1,8 @@
 unit unit_HypothesesVM;
 
-{
-  State and commands behind the desktop Hypotheses view (spec 10).
-
-  Lives in ELN.Desktop\ViewModels - NOT ELN.Desktop\Units (both MCP servers
-  put that folder on their unit search path) nor ELN.Model: it executes the
-  human gates through unit_HypothesisGateModel, which only desktop, WebAPI
-  and test code may name (test_HypothesisLinkage; pre-flight C1, C2).
-  Non-visual, so it is unit-tested (test_HypothesesVM).
-
-  All decisions stay in the models: the gate model is used for Transition
-  only; allowed gate targets and the seal come from THypothesisModel
-  (AllowedGateTargetsFor, SealStateOf - pre-flight C8), and edit/attach
-  rights from unit_HypothesisRules over THypothesisModel.ActorsFor.
-
-  Commands never raise for a refusal: they return a TVMOutcome the view
-  shows. A stale version (someone else changed the hypothesis) reloads the
-  view and keeps the gate comment the user typed.
-
-  Per-selection facts (actors, gate targets, seal, policy validity) are
-  computed once when the detail loads, not on every Can* call: the view asks
-  for several of them per repaint, over a remote database.
-
-  Unreadable foreign items (pre-flight C7): a run or evidence row whose item
-  lives in a project the user cannot read is redacted in Detail (no item
-  id, title, note, file/value ids or badges) and reported by RunReadable /
-  EvidenceReadable; it is never offered by the evidence picker. The same
-  trade-off the web made: no existence oracle.
-
-  User-visible wording (pre-flight C9) is the web's, verbatim
-  (ELN.WebApp/src/lib/hypView.ts, hypotheses.ts gateLabel, and
-  screens/experimentParts.ts). Non-ASCII characters are #$ escapes, so this
-  unit needs no BOM.
-}
+{ Keep this unit out of the MCP search paths: it executes human review gates.
+  Cache per-selection policy facts to avoid repeated database queries during repaint.
+  Redact unreadable foreign items completely; their existence must not leak. }
 
 interface
 
@@ -55,8 +25,8 @@ type
 
   TVMOutcome = record
     Ok: Boolean;
-    Reloaded: Boolean;      // the view was refreshed because the data changed underneath
-    Message: string;        // empty when Ok
+    Reloaded: Boolean;      
+    Message: string;        
   end;
 
   TEvidenceChoiceKind = (eckWholeItem, eckFile, eckValue);
@@ -69,27 +39,23 @@ type
     Caption: string;
   end;
 
-  /// <summary>One row of the evidence picker's item list: a readable, live
-  /// run or reference item (Depth 0) or one of its live descendants.</summary>
   TEvidenceSource = record
     ItemId: Integer;
     Depth: Integer;
     Caption: string;
   end;
 
-  /// <summary>One line of the History list, ready to show.</summary>
   THypHistoryRow = record
     When: TDateTime;        // local time
     WhenText: string;       // 'yyyy-mm-dd hh:nn', local
-    Who: string;            // display name, plus '(device #N)' when N > 0
-    What: string;           // HistorySentence
+    Who: string;            
+    What: string;           
     Comment: string;
   end;
 
 const
   DECISION_LABEL = 'Your decision';
   NOT_READABLE_TEXT = 'Not readable';
-  // The web's sentence, word for word (unit_HypothesisHttp POLICY_INVALID_MESSAGE).
   POLICY_INVALID_TEXT = 'The approval policy is invalid; an administrator must ' +
     'fix it in Administration > Approval Policy.';
   STALE_VERSION_TEXT = 'Someone else changed this hypothesis. The view was ' +
@@ -123,17 +89,17 @@ type
     FRunReadable: TArray<Boolean>;
     FRunItemIds: TArray<Integer>;                 // before redaction; never exposed
     FEvidenceReadable: TArray<Boolean>;
-    FReadable: TDictionary<Integer, Boolean>;     // project id -> CanRead
+    FReadable: TDictionary<Integer, Boolean>;     
     FUserNames: TDictionary<Integer, string>;
     FGateComment: string;
-    FHasDraft: Boolean;           // the user is typing a conclusion for FDraftId
+    FHasDraft: Boolean;           
     FDraftId: Integer;
     FDraftVersion: Integer;       // the Version the draft can still be submitted against
-    FDraftText: string;           // the draft as last typed
-    FDraftDiscarded: Boolean;     // the last load dropped the draft: the node changed
-    FDiscardedDraftText: string;  // what that dropped draft said, for the view to save
+    FDraftText: string;           
+    FDraftDiscarded: Boolean;     
+    FDiscardedDraftText: string;  
     FDiscardedDraftSaved: Boolean;
-    FSelectionLost: Boolean;      // the last Reload lost the selected node
+    FSelectionLost: Boolean;      
     FOnChanged: TNotifyEvent;
     function Run(const AAction: TFunc<Integer>): TVMOutcome;
     procedure BuildShape;
@@ -162,33 +128,21 @@ type
     function ChildIndexes(ANodeIndex: Integer): TArray<Integer>;
     function IndexOfId(AId: Integer): Integer;
 
-    // UI state (for the selected node; all False / empty without one)
     function CanPropose: Boolean;
     function CanEditSelected: Boolean;
-    /// <summary>Run rows and evidence: any writer, while Approved.</summary>
     function CanChangeRuns: Boolean;
-    /// <summary>Reference rows: the author while Proposed, any writer while
-    /// Approved (Plan 1 CanChangeReferences; pre-flight C21).</summary>
     function CanAttachReferences: Boolean;
     function CanSubmit: Boolean;
-    /// <summary>The user started a conclusion draft (typed a conclusion or
-    /// picked an outcome) for the selected node. The view keeps showing it
-    /// only while HasConclusionDraft: a draft lives while it can still be
-    /// submitted as-is - same node, CanSubmit, and no change but the user's
-    /// own since it began. Any other change drops it (DraftDiscarded), so
-    /// a read-only conclusion always shows what is stored. Call it on every
-    /// edit: AText is the conclusion as typed so far.</summary>
+    /// <summary>A draft stays valid only for the same node and version, except for the user's own writes.
+    /// Call on every edit; other changes discard the draft.</summary>
     procedure BeginConclusionDraft(const AText: string);
     function CanAbandon: Boolean;
     function GateTargets: TArray<THypothesisStatus>;
     function GateCaption(ATo: THypothesisStatus): string; overload;
     function GateNeedsComment(ATo: THypothesisStatus): Boolean;
     function SealState: THypSealState;
-    /// <summary>The stored approval policy cannot be parsed: no gate is
-    /// offered to anyone until an administrator fixes it (spec 6.2, C16).</summary>
     function PolicyInvalid: Boolean;
 
-    // Rows of the selected node (index into Detail.Runs / Detail.Evidence)
     function RunReadable(AIndex: Integer): Boolean;
     function RunCaption(AIndex: Integer): string;
     /// <summary>The item to open for run row AIndex; 0 when it is not
@@ -197,24 +151,17 @@ type
     function EvidenceReadable(AIndex: Integer): Boolean;
     function EvidenceItemCaption(AIndex: Integer): string;
     function EvidenceNavigateItemId(AIndex: Integer): Integer;
-    /// <summary>File name, "name: value unit", or "Item" (whole item).</summary>
     function EvidenceWhat(AIndex: Integer): string;
     function HistoryRows: TArray<THypHistoryRow>;
     function ReturnedNoticeText: string;
     function KeyValueText(const S: THypothesisSummary): string;
 
-    // Evidence picker (pre-flight C6): live queries, never TItem.Files/Values
+    // Use live evidence queries, never the manager-cached TItem.Files or Values.
     function EvidenceSources: TArray<TEvidenceSource>;
     function EvidenceChoicesFor(AItemId: Integer): TArray<TEvidenceChoice>;
     function ApprovedInProject(AProjectId: Integer): TArray<THypothesisSummary>;
-    /// <summary>Approved hypotheses in the project (attach as Run or
-    /// Reference), plus AUser's own Proposed hypotheses there (Reference
-    /// only: Plan 1 CanChangeReferences, pre-flight C21). Feeds the item
-    /// tree's "Attach to hypothesis..." picker; dlg_HypothesisPick forces
-    /// Reference for any row that is not Approved.</summary>
     function AttachableInProject(AProjectId: Integer): TArray<THypothesisSummary>;
 
-    // Wording (pre-flight C9), shared with the web
     class function StatusCaption(const S: THypothesisSummary): string; static;
     class function OutcomeCaption(const D: THypothesisDetail): string; static;
     class function WaitingText(AStatus: THypothesisStatus): string; static;
@@ -225,7 +172,6 @@ type
     class function HistorySentence(AOld, ANew: THypothesisStatus): string; static;
     class function SealText(AState: THypSealState): string; static;
     class function EvidenceBadge(const E: THypothesisEvidenceView): string; static;
-    /// <summary>"missing" when the run's item is gone, else ''.</summary>
     class function RunBadge(const R: THypothesisRunView): string; static;
     class function LastReturn(const D: THypothesisDetail;
       out H: THypothesisHistoryView): Boolean; static;
@@ -238,13 +184,10 @@ type
     /// buckets, not calendar-day ones, exactly as the web computes them.</summary>
     class function AgeText(AWhenUtc, ANowUtc: TDateTime): string; static;
 
-    // Commands (all return an outcome; none raises for a refusal)
     function ProposeRoot(const ATitle, AStatement: string;
       AKeyValueTypeId: Integer): TVMOutcome;
     function ProposeChild(AParentId: Integer; const ATitle, AStatement,
       AChange: string; AKeyValueTypeId: Integer): TVMOutcome;
-    /// <summary>A new root with the item attached as a Reference (spec 10;
-    /// pre-flight C10). Never approves it.</summary>
     function ProposeFromItem(AItemId: Integer; const ATitle, AStatement: string;
       AKeyValueTypeId: Integer): TVMOutcome;
     function SaveEdit(const ATitle, AStatement, AChange: string;
@@ -269,23 +212,14 @@ type
     property ProjectId: Integer read FProjectId;
     property GateComment: string read FGateComment write FGateComment;  // survives a failed gate
     property HasConclusionDraft: Boolean read FHasDraft;
-    /// <summary>The last reload dropped the user's draft because the node
-    /// changed underneath, or vanished (access removed, deleted) while the
-    /// user was on it (DRAFT_DISCARDED_TEXT); False after any other load.</summary>
     property DraftDiscarded: Boolean read FDraftDiscarded;
-    /// <summary>The text of a draft dropped because its node changed or
-    /// vanished (lost access, deleted) under the user - when it was not blank
-    /// and differs from the stored conclusion; '' otherwise. The view saves
-    /// it instead of losing what the user typed. It outlives later reloads
-    /// (a view that could not copy it keeps showing it) and ends when the
-    /// user edits the conclusion or selects another node.</summary>
+    /// <summary>Keep discarded draft text until the user edits or selects another node.
+    /// Later reloads must not erase text the view has not saved.</summary>
     property DiscardedDraftText: string read FDiscardedDraftText;
     /// <summary>The view sets it once it has saved DiscardedDraftText, so a
     /// repaint within the same load does not save it again.</summary>
     property DiscardedDraftSaved: Boolean read FDiscardedDraftSaved
       write FDiscardedDraftSaved;
-    /// <summary>The last Reload lost the node that was selected: it is gone
-    /// or no longer readable (e.g. the user's access was removed).</summary>
     property SelectionLost: Boolean read FSelectionLost;
     property OnChanged: TNotifyEvent read FOnChanged write FOnChanged;
   end;
@@ -348,7 +282,6 @@ begin
     Result := Result + Ext;
 end;
 
-// "name: value unit" - hypView.ts formatValueEvidence.
 function ValueText(const AName, AUnits: string; AHasValue: Boolean;
   AValue: Double): string;
 begin
@@ -361,7 +294,6 @@ end;
 
 function ValueTypeName(VT: TValueType): string;
 begin
-  // As the WebAPI names a value type: Title, then Symbol, then the word.
   Result := '';
   if VT <> nil then
   begin
@@ -373,7 +305,6 @@ begin
     Result := 'Value';
 end;
 
-{ THypothesesVM }
 
 constructor THypothesesVM.Create(AManager: TObjectManager; AUser: TUser;
   const AAccess: IProjectAccessPolicy);
@@ -472,7 +403,7 @@ procedure THypothesesVM.OpenProject(AProjectId, ASelectId: Integer);
 begin
   FProjectId := AProjectId;
   if ASelectId <> FSelectedId then
-    ClearDiscardedDraft;               // navigating elsewhere ends a kept text
+    ClearDiscardedDraft;               
   FSelectedId := ASelectId;
   FGateComment := '';
   Reload;
@@ -512,7 +443,7 @@ begin
   FSelectedId := AId;
   FGateComment := '';
   FSelectionLost := False;
-  ClearDiscardedDraft;                 // the user moved on
+  ClearDiscardedDraft;                 
   LoadDetail;
   CheckDraft(False);
   Changed;
@@ -547,13 +478,11 @@ begin
   except
     on EHypothesisAccess do
     begin
-      // Gone or unreadable between the tree read and this one.
       FDetail := Default(THypothesisDetail);
       FSelectedId := 0;
       Exit;
     end;
   end;
-  // Get has just refreshed the cached row, so Find sees it as committed now.
   H := FManager.Find<THypothesis>(FSelectedId);
   FActors := FModel.ActorsFor(FUser, H);
   FGateTargets := THypothesisModel.AllowedGateTargetsFor(FManager, FUser, H, FAccess);
@@ -594,11 +523,11 @@ end;
 
 procedure THypothesesVM.BeginConclusionDraft(const AText: string);
 begin
-  ClearDiscardedDraft;                 // the user took the kept text up again
+  ClearDiscardedDraft;                 
   if not FHasDraft then
   begin
     if not CanSubmit then
-      Exit;                            // cannot be sent: no draft
+      Exit;                            
     FHasDraft := True;
     FDraftId := FSelectedId;
     FDraftVersion := FDetail.Summary.Version;
@@ -616,7 +545,6 @@ begin
   for I := 0 to High(FDetail.Runs) do
   begin
     FRunItemIds[I] := FDetail.Runs[I].ItemId;
-    // ItemProjectId 0 = the item row is gone: nothing to show either (web).
     Ok := CanReadProject(FDetail.Runs[I].ItemProjectId);
     FRunReadable[I] := Ok;
     if not Ok then
@@ -706,7 +634,6 @@ begin
     for I := 0 to High(FNodes) do
       if FIsRoot[I] and not Reached[I] then
         Reach(I);
-    // Whatever the real roots did not reach sits on (or hangs off) a cycle.
     for I := 0 to High(FNodes) do
       if not Reached[I] then
       begin
@@ -727,7 +654,7 @@ begin
   try
     for I := 0 to High(FIsRoot) do
       if FIsRoot[I] then
-        L.Add(I);                                // incl. orphans and rescued cycles
+        L.Add(I);                                
     Result := L.ToArray;
   finally
     L.Free;
@@ -761,7 +688,7 @@ begin
   // underneath), reloads it so the buttons match what is true now. Reload
   // never touches FGateComment.
   Result := Success;
-  OwnId := FDetail.Summary.Id;          // FDetail is the one the action was made on
+  OwnId := FDetail.Summary.Id;          
   OwnVersion := FDetail.Summary.Version;
   try
     NewId := AAction();
@@ -776,17 +703,16 @@ begin
   except
     on E: EHypothesisConflict do
       Result := Fail(STALE_VERSION_TEXT, True);
-    on E: EHypothesisOtherRecordChanged do     // before EHypothesisError: reload
+    on E: EHypothesisOtherRecordChanged do     
       Result := Fail(E.Message, True);
     on E: EHypothesisError do
       Exit(Fail(E.Message));
-    on E: EHypothesisAccess do                 // incl. NotFound, NotApprover
+    on E: EHypothesisAccess do                 
       Result := Fail(E.Message, True);
   end;
   Reload;
 end;
 
-{ UI state }
 
 function THypothesesVM.CanPropose: Boolean;
 begin
@@ -813,8 +739,6 @@ end;
 
 function THypothesesVM.CanSubmit: Boolean;
 begin
-  // Approved -> InReview needs the author or a writer, and the model's
-  // RequireWrite makes that "a writer".
   Result := FHasDetail and (FDetail.Summary.Status = hsApproved) and
     (haWriter in FActors);
 end;
@@ -828,7 +752,7 @@ end;
 
 function THypothesesVM.GateTargets: TArray<THypothesisStatus>;
 begin
-  Result := FGateTargets;          // empty without a node or on an invalid policy
+  Result := FGateTargets;          
 end;
 
 function THypothesesVM.GateCaption(ATo: THypothesisStatus): string;
@@ -853,7 +777,6 @@ begin
   Result := FPolicyInvalid;
 end;
 
-{ Rows }
 
 function THypothesesVM.RunReadable(AIndex: Integer): Boolean;
 begin
@@ -904,7 +827,7 @@ var
 begin
   Fl := FManager.Find<unit_Item.TFile>(AFileId);
   if Fl = nil then
-    Result := 'File'                    // the row is gone; the badge says "missing"
+    Result := 'File'                    
   else
     Result := FileDisplayName(Fl);
 end;
@@ -961,8 +884,6 @@ begin
     Exit(nil);
   L := TList<THypHistoryRow>.Create;
   try
-    // The history always opens with who proposed the node, even when no
-    // status-change row says so (web 7b64ab4); never twice.
     HasProposedRow := False;
     for H in FDetail.History do
       if H.NewStatus = hsProposed then
@@ -994,7 +915,6 @@ var
   VT: TValueType;
   Name, Units: string;
 begin
-  // hypView.ts formatKeyValue.
   if S.KeyValueTypeId = 0 then
     Exit('');
   VT := FManager.Find<TValueType>(S.KeyValueTypeId);
@@ -1018,7 +938,6 @@ begin
     Result := Result + Format(' (mean of %d)', [S.KeyValue.N]);
 end;
 
-{ Evidence picker }
 
 function THypothesesVM.EvidenceSources: TArray<TEvidenceSource>;
 var
@@ -1035,12 +954,12 @@ var
 
   // Every live, readable descendant of ARoot, level by level (one query per
   // level and IN_CHUNK ids), into Kids (parent id -> children in tree order).
-  // A Folder-level item cannot be cited (the model refuses it, review U60):
+  // Folder-level items cannot be cited:
   // it is walked through but not listed, its children shown in its place.
   procedure LoadSubtree(ARoot: Integer);
   var
     Frontier, Next: TList<Integer>;
-    ListedParent: TDictionary<Integer, Integer>;   // folder id -> the parent its children list under
+    ListedParent: TDictionary<Integer, Integer>;   
     Chunk: TArray<Variant>;
     I, N, K, Id, Pid, Up, ProjectId: Integer;
     Rows: TObjectList<TCriteriaResult>;
@@ -1184,7 +1103,7 @@ begin
     L.Add(C);
 
     // Queried by item id and Refreshing - never TItem.Files/Values, which
-    // this long-lived manager loads once and never updates (pre-flight C6).
+    // this session-long manager loads once and does not update.
     Files := FManager.Find<unit_Item.TFile>
       .CreateAlias('Item', 'i')
       .Where(Linq['i.Id'] = AItemId)
@@ -1258,11 +1177,9 @@ begin
   Result := Result + OwnProposed;
 end;
 
-{ Wording }
 
 class function THypothesesVM.StatusCaption(const S: THypothesisSummary): string;
 begin
-  // hypView.ts statusChip.
   case S.Status of
     hsProposed: Result := 'Needs approval';
     hsInReview: Result := 'Needs acceptance';
@@ -1284,7 +1201,7 @@ end;
 class function THypothesesVM.OutcomeCaption(const D: THypothesisDetail): string;
 begin
   // The outcome belongs to a submitted or accepted conclusion; an Approved
-  // node carrying one is a returned draft (13C ruling).
+  // node carrying one is a returned draft.
   if D.HasOutcome and (D.Summary.Status in [hsInReview, hsAccepted]) then
     Result := HypothesisOutcomeNames[D.Outcome]
   else
@@ -1293,7 +1210,6 @@ end;
 
 class function THypothesesVM.WaitingText(AStatus: THypothesisStatus): string;
 begin
-  // experimentParts.ts WAITING_TEXT.
   case AStatus of
     hsProposed: Result := 'Waiting for an approver.';
     hsInReview: Result := 'Waiting for the conclusion to be accepted.';
@@ -1305,7 +1221,6 @@ end;
 
 class function THypothesesVM.GateCaption(AFrom, ATo: THypothesisStatus): string;
 begin
-  // hypotheses.ts gateLabel.
   case ATo of
     hsRejected: Result := 'Reject';
     hsAccepted: Result := 'Accept';
@@ -1321,7 +1236,6 @@ end;
 
 class function THypothesesVM.GateHelp(AFrom, ATo: THypothesisStatus): string;
 begin
-  // hypView.ts gateHelp.
   case ATo of
     hsRejected: Result := 'Closes it. A reason is required.';
     hsAccepted: Result := 'Seals the result: it can no longer change, and cited items can''t be deleted.';
@@ -1338,7 +1252,6 @@ end;
 class function THypothesesVM.GateCommentHint(AFrom: THypothesisStatus;
   ANeedsComment: Boolean): string;
 begin
-  // experimentParts.ts commentPlaceholder.
   if not ANeedsComment then
     Result := 'Comment (optional)'
   else if AFrom = hsProposed then
@@ -1349,13 +1262,11 @@ end;
 
 class function THypothesesVM.CommentRequired(AFrom, ATo: THypothesisStatus): Boolean;
 begin
-  // hypotheses.ts commentRequired.
   Result := (ATo = hsRejected) or ((AFrom = hsInReview) and (ATo = hsApproved));
 end;
 
 class function THypothesesVM.HistorySentence(AOld, ANew: THypothesisStatus): string;
 begin
-  // hypView.ts historySentence - same order of tests.
   if ANew = hsProposed then Exit('proposed it');
   if (AOld = hsProposed) and (ANew = hsApproved) then Exit('approved the proposal');
   if (AOld = hsInReview) and (ANew = hsApproved) then Exit('returned it for more work');
@@ -1390,7 +1301,6 @@ end;
 
 class function THypothesesVM.RunBadge(const R: THypothesisRunView): string;
 begin
-  // The web's run row: only a "missing" chip.
   if R.Missing then
     Result := 'missing'
   else
@@ -1412,7 +1322,6 @@ end;
 
 class function THypothesesVM.FormatShortDate(ALocal, ANowLocal: TDateTime): string;
 begin
-  // hypView.ts formatShortDate: "15 Mar", or "15 Mar 2025" in another year.
   Result := Format('%d %s', [DayOf(ALocal), MONTHS[MonthOf(ALocal)]]);
   if YearOf(ALocal) <> YearOf(ANowLocal) then
     Result := Result + ' ' + IntToStr(YearOf(ALocal));
@@ -1453,15 +1362,12 @@ end;
 
 class function THypothesesVM.FormatNumber(AValue: Double): string;
 begin
-  // hypView.ts num: whole numbers from 100 up, else 4 significant digits
-  // with trailing zeros dropped.
   if Abs(AValue) >= 100 then
     Result := FormatFloat('0', AValue, TFormatSettings.Invariant)
   else
     Result := FloatToStrF(AValue, ffGeneral, 4, 0, TFormatSettings.Invariant);
 end;
 
-{ Commands }
 
 function THypothesesVM.ProposeRoot(const ATitle, AStatement: string;
   AKeyValueTypeId: Integer): TVMOutcome;
@@ -1469,7 +1375,7 @@ begin
   Result := Run(
     function: Integer
     begin
-      // Device 0: the desktop has no device key (spec D9).
+      // Device 0: the desktop has no device key.
       Result := FModel.Propose(FUser, 0, FProjectId, 0, ATitle, AStatement, '',
         AKeyValueTypeId).Id;
     end);
@@ -1509,8 +1415,6 @@ begin
     end);
   if not Result.Ok then
     Exit;
-  // The author may attach References while Proposed (Plan 1
-  // CanChangeReferences), so the starting item becomes a real Reference row.
   Result := AttachItem(FSelectedId, AItemId, hrrReference);
   if not Result.Ok then
     Result.Message := 'The hypothesis was proposed, but the item could not be ' +
@@ -1618,7 +1522,7 @@ begin
     function: Integer
     begin
       FModel.SubmitConclusion(FUser, 0, Id, V, AConclusion, Outcome);
-      FHasDraft := False;               // sent: the stored conclusion from now on
+      FHasDraft := False;               
       ClearDiscardedDraft;
       Result := 0;
     end);
@@ -1636,7 +1540,7 @@ begin
     function: Integer
     begin
       FModel.Abandon(FUser, 0, Id, V, AComment);
-      FHasDraft := False;               // our own step ended it; nothing to report
+      FHasDraft := False;               
       ClearDiscardedDraft;
       Result := 0;
     end);
@@ -1647,7 +1551,7 @@ function THypothesesVM.Gate(ATo: THypothesisStatus;
 var
   Id, V: Integer;
 begin
-  FGateComment := AComment;             // kept if anything below fails
+  FGateComment := AComment;             
   if not FHasDetail then
     Exit(Fail('Select a hypothesis first.'));
   if GateNeedsComment(ATo) and (Trim(AComment) = '') then

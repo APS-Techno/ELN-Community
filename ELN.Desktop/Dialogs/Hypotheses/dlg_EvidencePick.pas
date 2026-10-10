@@ -1,20 +1,7 @@
 unit dlg_EvidencePick;
 
-{
-  Cites evidence for the selected hypothesis: whole item, a file, or a value
-  (Task 7, spec 10).
-
-  Pre-flight C6/C7: the left list is built from THypothesesVM.EvidenceSources,
-  never from Detail.Runs directly - it already carries only readable, live
-  run/reference items plus their live descendants, indented by depth, and
-  the right list from EvidenceChoicesFor's live queries (never TItem.Files/
-  Values, which a long-lived TObjectManager loads once and never updates).
-  An unreadable foreign item is never offered here (C7): EvidenceSources
-  omits it entirely, so there is no title to leak.
-
-  Lives in ELN.Desktop\Dialogs\Hypotheses: allowed to name the view model
-  (unit_HypothesesVM), never the gate model.
-}
+{ Use live, readable evidence queries, not cached TItem.Files or Values.
+  A session-long manager does not refresh those collections, and unreadable titles must not leak. }
 
 interface
 
@@ -48,7 +35,7 @@ implementation
 {$R *.dfm}
 
 const
-  INDENT_UNIT = '    ';  // 4 spaces per depth level, one indent per generation
+  INDENT_UNIT = '    ';  
 
 procedure TdlgEvidencePick.lstItemsClick(Sender: TObject);
 var

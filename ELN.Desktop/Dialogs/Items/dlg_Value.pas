@@ -33,13 +33,21 @@ type
     procedure lbCategoryClick(Sender: TObject);
     procedure lbValueTypeClick(Sender: TObject);
     procedure edValueChange(Sender: TObject);
+    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
   private
     FValueTypes: TList<TValueType>;
     FFilteredIndices: TArray<Integer>;
     procedure PopulateValueTypes;
     procedure UpdateBaseValueHint;
     function GetSelectedValueType: TValueType;
+    function TryReadValue(out ValueType: TValueType; out Value: Double): Boolean;
+    function TryReadInput(out ValueType: TValueType;
+      out Value, Tolerance: Double): Boolean;
   public
+    destructor Destroy; override;
+    // Owns the list, not the managed value-type entities.
+    procedure LoadValueTypes(ValueTypes: TList<TValueType>);
+    procedure ApplyTo(Value: TValue);
   end;
 
   function ShowValueDialog(const Mode: TDlgMode; var AValue: TValue): Boolean;
@@ -63,7 +71,6 @@ begin
   ValueRef := AValue;
 
   Result := ExecuteDialog(TdlgValue,
-    // Setup
     procedure(Dialog: TForm)
     var
       D: TdlgValue;
@@ -71,13 +78,7 @@ begin
     begin
       D := TdlgValue(Dialog);
 
-      D.FValueTypes := Model.ValueTypes.GetTypes;
-
-      // Populate categories
-      D.lbCategory.Items.Clear;
-      D.lbCategory.Items.Add('(All)');
-      for I := 0 to ValueTypeCategories.Count - 1 do
-        D.lbCategory.Items.Add(ValueTypeCategories[I]);
+      D.LoadValueTypes(Model.ValueTypes.GetTypes);
 
       case Mode of
         dmNew:
@@ -96,7 +97,6 @@ begin
           begin
             D.Caption := 'Edit Value';
 
-            // Auto-select category from current ValueType
             if Assigned(ValueRef.ValueType) and
                (ValueRef.ValueType.CatID >= 0) and
                (ValueRef.ValueType.CatID < ValueTypeCategories.Count) then
@@ -106,7 +106,6 @@ begin
 
             D.PopulateValueTypes;
 
-            // Select the value type within filtered list
             D.lbValueType.ItemIndex := -1;
             if Assigned(ValueRef.ValueType) then
               for I := 0 to High(D.FFilteredIndices) do
@@ -118,7 +117,6 @@ begin
 
             D.rgRecType.ItemIndex := Ord(ValueRef.RecType);
 
-            // Show value in natural form (e.g., "20 nm" instead of "2E-8")
             if Assigned(ValueRef.ValueType) and (ValueRef.ValueType.Units <> '') then
               D.edValue.Text := FormatSIValue(ValueRef.Value, ValueRef.ValueType.Units)
             else
@@ -131,34 +129,92 @@ begin
 
       D.UpdateBaseValueHint;
     end,
-    // Extract
     procedure(Dialog: TForm)
-    var
-      D: TdlgValue;
-      VT: TValueType;
-      BaseVal: Double;
     begin
-      D := TdlgValue(Dialog);
-
-      VT := D.GetSelectedValueType;
-      if Assigned(VT) then
-        ValueRef.ValueType := VT;
-
-      ValueRef.RecType := TRecType(D.rgRecType.ItemIndex);
-
-      // Parse value with unit conversion (e.g., "20 nm" -> 2e-8)
-      if Assigned(VT) and ParseSIInput(D.edValue.Text, VT.Units, BaseVal) then
-        ValueRef.Value := BaseVal
-      else
-        ValueRef.Value := StrToFloatDef(D.edValue.Text, 0);
-
-      ValueRef.Tol := StrToFloatDef(D.edTolerance.Text, 0);
-      ValueRef.Description := D.edDescription.Text;
+      TdlgValue(Dialog).ApplyTo(ValueRef);
     end
   );
 end;
 
-{ TdlgValue }
+
+destructor TdlgValue.Destroy;
+begin
+  FValueTypes.Free;
+  inherited;
+end;
+
+procedure TdlgValue.LoadValueTypes(ValueTypes: TList<TValueType>);
+var
+  I: Integer;
+begin
+  FValueTypes.Free;
+  FValueTypes := ValueTypes;
+  lbCategory.Items.Clear;
+  lbCategory.Items.Add('(All)');
+  for I := 0 to ValueTypeCategories.Count - 1 do
+    lbCategory.Items.Add(ValueTypeCategories[I]);
+  lbCategory.ItemIndex := 0;
+  PopulateValueTypes;
+end;
+
+function TdlgValue.TryReadValue(out ValueType: TValueType;
+  out Value: Double): Boolean;
+begin
+  Result := False;
+  ValueType := GetSelectedValueType;
+  if not Assigned(ValueType) then
+  begin
+    lblBaseValue.Caption := 'Please select a value type.';
+    Exit;
+  end;
+  if not ParseSIInput(edValue.Text, ValueType.Units, Value) then
+  begin
+    lblBaseValue.Caption := 'Enter a valid number in units compatible with ' +
+      ValueType.Units + '.';
+    Exit;
+  end;
+  Result := True;
+end;
+
+function TdlgValue.TryReadInput(out ValueType: TValueType;
+  out Value, Tolerance: Double): Boolean;
+begin
+  Result := TryReadValue(ValueType, Value);
+  if not Result then Exit;
+  Tolerance := 0;
+  if (Trim(edTolerance.Text) <> '') and
+     not TryStrToFloat(edTolerance.Text, Tolerance) then
+  begin
+    lblBaseValue.Caption := 'Enter a valid tolerance, or leave it blank.';
+    Exit(False);
+  end;
+end;
+
+procedure TdlgValue.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+var
+  ValueType: TValueType;
+  Value, Tolerance: Double;
+begin
+  if ModalResult = mrOk then
+    CanClose := TryReadInput(ValueType, Value, Tolerance)
+  else
+    CanClose := True;
+end;
+
+procedure TdlgValue.ApplyTo(Value: TValue);
+var
+  ValueType: TValueType;
+  ParsedValue, ParsedTolerance: Double;
+begin
+  // Parse everything before changing even one property of a managed record.
+  if not TryReadInput(ValueType, ParsedValue, ParsedTolerance) then
+    raise EConvertError.Create(lblBaseValue.Caption);
+  Value.ValueType := ValueType;
+  Value.RecType := TRecType(rgRecType.ItemIndex);
+  Value.Value := ParsedValue;
+  Value.Tol := ParsedTolerance;
+  Value.Description := edDescription.Text;
+end;
 
 procedure TdlgValue.PopulateValueTypes;
 var
@@ -173,9 +229,9 @@ begin
 
   CatIdx := lbCategory.ItemIndex;
   if CatIdx <= 0 then
-    FilterCatID := -1  // "(All)" -- show all types
+    FilterCatID := -1  
   else
-    FilterCatID := CatIdx - 1;  // offset by 1 for "(All)" at index 0
+    FilterCatID := CatIdx - 1;  
 
   for I := 0 to FValueTypes.Count - 1 do
   begin
@@ -242,18 +298,9 @@ var
   CurrentVal, ResultVal: Double;
   CurrentUnit, ResultUnit: string;
 begin
-  VT := GetSelectedValueType;
-  if VT = nil then
-  begin
-    MessageDlg('Please select a value type first.', mtWarning, [mbOK], 0);
+  if not TryReadValue(VT, CurrentVal) then
     Exit;
-  end;
-
   CurrentUnit := VT.Units;
-
-  // Parse current input (may contain units like "20 nm")
-  if not ParseSIInput(edValue.Text, CurrentUnit, CurrentVal) then
-    CurrentVal := StrToFloatDef(edValue.Text, 0);
 
   if TdlgUnitConverter.ConvertValue(CurrentUnit, CurrentVal,
     ResultVal, ResultUnit) then

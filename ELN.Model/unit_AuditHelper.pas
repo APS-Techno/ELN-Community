@@ -9,7 +9,7 @@ uses
 /// ADescription longer than the 500-char column is cut here, never by the
 /// callers, and never through a surrogate pair.
 procedure RecordAudit(AManager: TObjectManager; AEntityType: TAuditEntityType;
-  AEntityId: Integer; AOperation: TAuditOperation; AUserId: Integer;
+  AEntityId: Int64; AOperation: TAuditOperation; AUserId: Integer;
   const ADescription: string);
 
 implementation
@@ -19,7 +19,7 @@ uses
   unit_TimeHelper;
 
 procedure RecordAudit(AManager: TObjectManager; AEntityType: TAuditEntityType;
-  AEntityId: Integer; AOperation: TAuditOperation; AUserId: Integer;
+  AEntityId: Int64; AOperation: TAuditOperation; AUserId: Integer;
   const ADescription: string);
 const
   MAX_DESCRIPTION = 500;   // TAuditLog.Description column length
@@ -45,11 +45,8 @@ begin
     AManager.Save(Entry);
     AManager.Flush;
   except
-    // A failed Save/Flush must not leave a half-saved entry in the manager's
-    // identity map: the next caller's Flush would otherwise re-raise against
-    // it (2026-08-10 shared-manager-poisoning incident). Evict can itself
-    // raise "object not attached" when Save never got far enough to attach
-    // it -- swallow that one and re-raise the original error regardless.
+    // Evict a failed audit write so a later shared-manager Flush cannot replay it.
+    // Evict can fail before Save attaches the entry; preserve the original error.
     try
       AManager.Evict(Entry);
     except

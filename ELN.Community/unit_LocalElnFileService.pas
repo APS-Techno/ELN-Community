@@ -37,16 +37,16 @@ type
     FWorkingResolver: TLocalNotebookStorage;
     FWorkingStorage: INotebookStorage;
     FStorageRoot: string;
-    FOpenFiles: TDictionary<Integer, TOpenFile>;
+    FOpenFiles: TDictionary<Int64, TOpenFile>;
     function RequireItem(Manager: TObjectManager; ItemId: Integer;
       RequireWrite: Boolean; out Project: TProject): TItem;
-    function RequireFile(Manager: TObjectManager; FileId: Integer;
+    function RequireFile(Manager: TObjectManager; FileId: Int64;
       RequireWrite: Boolean; out StoragePath: string): unit_Item.TFile;
-    function RequireWorkingPath(FileId: Integer; const LocalPath: string): TOpenFile;
+    function RequireWorkingPath(FileId: Int64; const LocalPath: string): TOpenFile;
     function ValidateSource(const LocalPath: string): string;
-    function SaveFile(FileId: Integer; const LocalPath: string; Force: Boolean;
+    function SaveFile(FileId: Int64; const LocalPath: string; Force: Boolean;
       out ErrorMsg: string): TSaveResult;
-    function RefreshFile(FileId: Integer; DiscardDraft, KeepWorkingPath: Boolean;
+    function RefreshFile(FileId: Int64; DiscardDraft, KeepWorkingPath: Boolean;
       out LocalPath, ErrorMsg: string): TSaveResult;
   public
     constructor Create(Manager: TObjectManager; PrincipalId: Integer;
@@ -55,19 +55,19 @@ type
     destructor Destroy; override;
     // First open copies the canonical bytes and captures that copy's baseline.
     // Selecting an already-open file returns its draft without replacing it.
-    function PrepareLocalFile(FileId: Integer): string;
+    function PrepareLocalFile(FileId: Int64): string;
     // A host notification refreshes only clean bytes unless the user has
     // explicitly resolved all editors and authorized discarding the draft.
-    function RefreshLocalFile(FileId: Integer; DiscardDraft: Boolean;
+    function RefreshLocalFile(FileId: Int64; DiscardDraft: Boolean;
       out LocalPath, ErrorMsg: string): TSaveResult;
-    procedure CaptureOpenBaseline(FileId: Integer);
+    procedure CaptureOpenBaseline(FileId: Int64);
     // The last copied/saved baseline, not a new read of canonical storage.
-    function GetOpenHash(FileId: Integer): string;
-    function SaveLocalFile(FileId: Integer; const LocalPath: string;
+    function GetOpenHash(FileId: Int64): string;
+    function SaveLocalFile(FileId: Int64; const LocalPath: string;
       out ErrorMsg: string): TSaveResult;
-    function SaveLocalFileForce(FileId: Integer; const LocalPath: string;
+    function SaveLocalFileForce(FileId: Int64; const LocalPath: string;
       out ErrorMsg: string): TSaveResult;
-    function ReloadLocalFile(FileId: Integer; const LocalPath: string;
+    function ReloadLocalFile(FileId: Int64; const LocalPath: string;
       out ErrorMsg: string): Boolean;
     function UploadAttachment(ItemId: Integer;
       const LocalPath, SuggestedName: string): string;
@@ -77,10 +77,10 @@ procedure InstallLocalElnFileService(Manager: TObjectManager; PrincipalId: Integ
   const Access: IProjectAccessPolicy; const Storage: INotebookStorage;
   const StorageRoot, WorkingRoot: string);
 procedure UninstallLocalElnFileService;
-function PrepareLocalElnFile(FileId: Integer): string;
-procedure CaptureLocalElnOpenBaseline(FileId: Integer);
-function GetLocalElnOpenHash(FileId: Integer): string;
-function RefreshLocalElnFile(FileId: Integer; DiscardDraft: Boolean;
+function PrepareLocalElnFile(FileId: Int64): string;
+procedure CaptureLocalElnOpenBaseline(FileId: Int64);
+function GetLocalElnOpenHash(FileId: Int64): string;
+function RefreshLocalElnFile(FileId: Int64; DiscardDraft: Boolean;
   out LocalPath, ErrorMsg: string): TSaveResult;
 
 implementation
@@ -131,6 +131,24 @@ begin
   end;
 end;
 
+function UpdateMD5(const Update: INotebookFileUpdate): string;
+var
+  Stream: TStream;
+  Hash: TIdHashMessageDigest5;
+begin
+  Stream := Update.OpenRead;
+  try
+    Hash := TIdHashMessageDigest5.Create;
+    try
+      Result := Hash.HashStreamAsHex(Stream);
+    finally
+      Hash.Free;
+    end;
+  finally
+    Stream.Free;
+  end;
+end;
+
 procedure ReleaseManager(var Manager: TObjectManager);
 var
   PriorShutdown: Boolean;
@@ -148,7 +166,7 @@ begin
   end;
 end;
 
-function NewBackupPath(FileId: Integer): string;
+function NewBackupPath(FileId: Int64): string;
 var
   Id: TGUID;
 begin
@@ -184,7 +202,7 @@ begin
   FPrincipalId := PrincipalId;
   FAccess := Access;
   FStorage := Storage;
-  FOpenFiles := TDictionary<Integer, TOpenFile>.Create;
+  FOpenFiles := TDictionary<Int64, TOpenFile>.Create;
 end;
 
 destructor TLocalElnFileService.Destroy;
@@ -228,7 +246,7 @@ begin
 end;
 
 function TLocalElnFileService.RequireFile(Manager: TObjectManager;
-  FileId: Integer; RequireWrite: Boolean;
+  FileId: Int64; RequireWrite: Boolean;
   out StoragePath: string): unit_Item.TFile;
 var
   Item: TItem;
@@ -245,7 +263,7 @@ begin
   FResolver.ResolvePath(StoragePath);
 end;
 
-function TLocalElnFileService.RequireWorkingPath(FileId: Integer;
+function TLocalElnFileService.RequireWorkingPath(FileId: Int64;
   const LocalPath: string): TOpenFile;
 var
   Expected: string;
@@ -277,7 +295,7 @@ begin
   end;
 end;
 
-function TLocalElnFileService.PrepareLocalFile(FileId: Integer): string;
+function TLocalElnFileService.PrepareLocalFile(FileId: Int64): string;
 var
   Manager: TObjectManager;
   AFile: unit_Item.TFile;
@@ -308,12 +326,12 @@ begin
   end;
 end;
 
-procedure TLocalElnFileService.CaptureOpenBaseline(FileId: Integer);
+procedure TLocalElnFileService.CaptureOpenBaseline(FileId: Int64);
 begin
   PrepareLocalFile(FileId);
 end;
 
-function TLocalElnFileService.GetOpenHash(FileId: Integer): string;
+function TLocalElnFileService.GetOpenHash(FileId: Int64): string;
 var
   OpenFile: TOpenFile;
 begin
@@ -323,7 +341,7 @@ begin
 end;
 
 
-function TLocalElnFileService.SaveFile(FileId: Integer; const LocalPath: string;
+function TLocalElnFileService.SaveFile(FileId: Int64; const LocalPath: string;
   Force: Boolean; out ErrorMsg: string): TSaveResult;
 var
   Manager: TObjectManager;
@@ -332,12 +350,13 @@ var
   OpenFile: TOpenFile;
   StoragePath, BackupPath, CurrentHash, NewHash, Failure: string;
   Transaction: IDBTransaction;
+  Updates: INotebookStorageUpdates;
+  FileUpdate: INotebookFileUpdate;
   Written, HadBytes, KeepBackup, RolledBack, Restored: Boolean;
+  CommitAttempted: Boolean;
 begin
-  Result := srError;
   ErrorMsg := '';
   try
-    // Missing baseline is a conflict, never permission for a silent overwrite.
     if not FOpenFiles.TryGetValue(FileId, OpenFile) then
     begin
       ErrorMsg := 'No open-time baseline; prepare or reload the file before saving';
@@ -350,6 +369,7 @@ begin
       Written := False;
       KeepBackup := False;
       HadBytes := False;
+      CommitAttempted := False;
       try
         // Authorization and signature reads belong to the same DB transaction
         // as the metadata write, not an earlier cached host-manager snapshot.
@@ -358,10 +378,13 @@ begin
           AFile := RequireFile(Manager, FileId, True, StoragePath);
           if not SameText(StoragePath, OpenFile.StoragePath) then
             raise ELocalFileConflict.Create('The attachment path changed; reload before saving');
-          HadBytes := FStorage.Exists(StoragePath);
+          if not Supports(FStorage, INotebookStorageUpdates, Updates) then
+            raise EInvalidOperation.Create('Storage cannot guard local attachment saves');
+          FileUpdate := Updates.BeginFileUpdate(StoragePath);
+          HadBytes := FileUpdate.Exists;
           if HadBytes then
           begin
-            FStorage.CopyOut(StoragePath, FWorkingResolver.ResolvePath(BackupPath));
+            FileUpdate.CopyOut(FWorkingResolver.ResolvePath(BackupPath));
             CurrentHash := FileMD5(FWorkingResolver.ResolvePath(BackupPath));
           end
           else
@@ -372,13 +395,17 @@ begin
             raise ELocalFileConflict.Create('The notebook file changed since it was opened');
           Items := TItemModel.Create(Manager);
           try
-            FStorage.CopyIn(FWorkingResolver.ResolvePath(OpenFile.WorkingPath), StoragePath);
+            // Mark the attempt before installation: a namespace collision can
+            // leave the protected original at its recovery name.
             Written := True;
-            NewHash := FileMD5(FResolver.ResolvePath(StoragePath));
+            FileUpdate.InstallFrom(FWorkingResolver.ResolvePath(OpenFile.WorkingPath));
+            NewHash := UpdateMD5(FileUpdate);
             AFile.Hash := NewHash;
             if not Items.UpdateFile(AFile, FPrincipalId) then
               raise ELocalFileConflict.Create('File metadata update conflicted');
+            CommitAttempted := True;
             Transaction.Commit;
+            FileUpdate.Commit;
           finally
             Items.Free;
           end;
@@ -389,21 +416,23 @@ begin
             RolledBack := False;
             try
               Transaction.Rollback;
-              RolledBack := True;
+              // Some drivers return successfully here after an already
+              // committed transaction. That cannot authorize compensation.
+              RolledBack := not CommitAttempted;
             except
               on R: Exception do
                 Failure := Failure + '; database rollback failed: ' + R.Message;
             end;
+            if CommitAttempted then
+              Failure := Failure + '; database commit outcome is uncertain; ' +
+                'installed bytes retained; reconcile metadata before retrying';
             Restored := not Written;
             if Written then
             begin
               KeepBackup := HadBytes;
               if RolledBack then
                 try
-                  if HadBytes then
-                    FStorage.CopyIn(FWorkingResolver.ResolvePath(BackupPath), StoragePath)
-                  else
-                    FStorage.DeleteFile(StoragePath);
+                  FileUpdate.Rollback;
                   KeepBackup := False;
                   Restored := True;
                 except
@@ -424,6 +453,9 @@ begin
         FOpenFiles.AddOrSetValue(FileId, OpenFile);
         Result := srOk;
       finally
+        // Release neither file identity until DB commit or all compensation
+        // has completed. No unprotected close/reopen interval is permitted.
+        FileUpdate := nil;
         if not KeepBackup then
           FWorkingStorage.DeleteFile(BackupPath);
       end;
@@ -444,19 +476,19 @@ begin
   end;
 end;
 
-function TLocalElnFileService.SaveLocalFile(FileId: Integer;
+function TLocalElnFileService.SaveLocalFile(FileId: Int64;
   const LocalPath: string; out ErrorMsg: string): TSaveResult;
 begin
   Result := SaveFile(FileId, LocalPath, False, ErrorMsg);
 end;
 
-function TLocalElnFileService.SaveLocalFileForce(FileId: Integer;
+function TLocalElnFileService.SaveLocalFileForce(FileId: Int64;
   const LocalPath: string; out ErrorMsg: string): TSaveResult;
 begin
   Result := SaveFile(FileId, LocalPath, True, ErrorMsg);
 end;
 
-function TLocalElnFileService.RefreshFile(FileId: Integer;
+function TLocalElnFileService.RefreshFile(FileId: Int64;
   DiscardDraft, KeepWorkingPath: Boolean;
   out LocalPath, ErrorMsg: string): TSaveResult;
 var
@@ -541,13 +573,13 @@ begin
   end;
 end;
 
-function TLocalElnFileService.RefreshLocalFile(FileId: Integer;
+function TLocalElnFileService.RefreshLocalFile(FileId: Int64;
   DiscardDraft: Boolean; out LocalPath, ErrorMsg: string): TSaveResult;
 begin
   Result := RefreshFile(FileId, DiscardDraft, False, LocalPath, ErrorMsg);
 end;
 
-function TLocalElnFileService.ReloadLocalFile(FileId: Integer;
+function TLocalElnFileService.ReloadLocalFile(FileId: Int64;
   const LocalPath: string; out ErrorMsg: string): Boolean;
 var
   RefreshedPath: string;
@@ -621,8 +653,7 @@ begin
           Manager.Save(FileType);
           Manager.Flush;
         end;
-        // AddFile supplies creation metadata, signature checks and the create audit.
-        // Its flush remains inside this transaction until the bytes are stored.
+        // AddFile's flush must stay inside this transaction until bytes are stored.
         AFile := Items.AddFile(FileType, Title, FPrincipalId, Item);
         if not Assigned(AFile) then
           raise EInvalidOperation.Create('Attachment metadata creation failed');
@@ -692,28 +723,28 @@ begin
   ElnFileService := nil;
 end;
 
-function PrepareLocalElnFile(FileId: Integer): string;
+function PrepareLocalElnFile(FileId: Int64): string;
 begin
   if not Assigned(GLocalService) then
     raise EInvalidOperation.Create('The local file service is not installed');
   Result := GLocalService.PrepareLocalFile(FileId);
 end;
 
-procedure CaptureLocalElnOpenBaseline(FileId: Integer);
+procedure CaptureLocalElnOpenBaseline(FileId: Int64);
 begin
   if not Assigned(GLocalService) then
     raise EInvalidOperation.Create('The local file service is not installed');
   GLocalService.CaptureOpenBaseline(FileId);
 end;
 
-function GetLocalElnOpenHash(FileId: Integer): string;
+function GetLocalElnOpenHash(FileId: Int64): string;
 begin
   if not Assigned(GLocalService) then
     raise EInvalidOperation.Create('The local file service is not installed');
   Result := GLocalService.GetOpenHash(FileId);
 end;
 
-function RefreshLocalElnFile(FileId: Integer; DiscardDraft: Boolean;
+function RefreshLocalElnFile(FileId: Int64; DiscardDraft: Boolean;
   out LocalPath, ErrorMsg: string): TSaveResult;
 begin
   if not Assigned(GLocalService) then

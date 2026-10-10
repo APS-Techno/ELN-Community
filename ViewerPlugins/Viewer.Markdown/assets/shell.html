@@ -14,13 +14,8 @@
 <body>
 <div id="content"></div>
 <script>
-// html: true so pre-rendered <a class="eln-link"> anchors from the Delphi-side
-// link rewriter (unit_MarkdownLinkRewriter.pas) survive markdown-it.
-// .md files are user-supplied attachments, so the rendered output is run through
-// DOMPurify before it reaches the DOM: that strips <script>, inline event
-// handlers, and dangerous URL schemes while preserving the eln-link anchors,
-// footnotes, and KaTeX source. Without it, a body like
-// "<img src=x onerror=...>" would execute against the file:/// base href.
+// Allow Delphi-generated eln-link anchors, then sanitize untrusted attachments
+// before insertion: raw HTML can execute against the file:/// base.
 const md = window.markdownit({ html: true, linkify: true, typographer: true })
   .use(window.markdownitFootnote);
 
@@ -38,10 +33,7 @@ window.renderMarkdown = function(mdText, baseHref) {
     baseEl.removeAttribute('href');
   }
   const container = document.getElementById('content');
-  // DOMPurify is mandatory: .md bodies are untrusted attachments. If the vendor
-  // bundle failed to load (asset-skew deploy: BPL updated but vendor/purify.min.js
-  // missing), show a visible banner instead of throwing a TypeError that would
-  // leave every page blank. NEVER fall back to unsanitized innerHTML.
+  // Never fall back to unsanitized innerHTML when DOMPurify is unavailable.
   if (!window.DOMPurify || typeof window.DOMPurify.sanitize !== 'function') {
     container.textContent = '';
     var warn = document.createElement('div');

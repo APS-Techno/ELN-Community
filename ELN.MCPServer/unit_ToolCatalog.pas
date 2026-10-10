@@ -1,9 +1,7 @@
 unit unit_ToolCatalog;
 
-{ The ONE list of tool groups this server registers. RunServer and
-  ELN.Tests\test_ToolRegistryGates both call RegisterAllTools, so a tool added
-  to any group is automatically driven by the gate test (experiment tree,
-  spec section 11 C3(b)). Add new groups here, never directly in RunServer. }
+{ Register new tool groups here, not in individual hosts, so every host uses
+  the same catalog. }
 
 interface
 

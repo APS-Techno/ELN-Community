@@ -14,11 +14,11 @@ uses
   Aurelius.Engine.ObjectManager,
   unit_Item, unit_FileType, unit_ToolScope, unit_ToolDownloads;
 
-function GetReqInt(const Params: TJSONObject; const Key: string): Integer;
+function GetReqInt64(const Params: TJSONObject; const Key: string): Int64;
 begin
   if (Params = nil) or (Params.FindValue(Key) = nil) then
     raise Exception.CreateFmt('Missing required parameter: %s', [Key]);
-  Result := Params.GetValue<Integer>(Key);
+  Result := Params.GetValue<Int64>(Key);
 end;
 
 
@@ -27,7 +27,6 @@ var
   Pair: TJSONPair;
   PairName: string;
 begin
-  // Move all pairs from Inner into Outer, leaving Inner empty.
   while Inner.Count > 0 do
   begin
     PairName := Inner.Pairs[0].JsonString.Value;
@@ -39,15 +38,13 @@ end;
 function HandleListFileColumns(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
-  FileId: Integer;
+  FileId: Int64;
   F: unit_Item.TFile;
   FT: TFileType;
   LocalPath, Ext: string;
   Inner: TJSONObject;
 begin
-  FileId := GetReqInt(Params, 'file_id');
-  // Uniform refusal for out-of-scope and missing-under-scope; inert without
-  // a scope, where the plain "File not found" below still applies.
+  FileId := GetReqInt64(Params, 'file_id');
   RequireFileRead(Context, FileId);
 
   F := Context.Manager.Find<unit_Item.TFile>(FileId);
@@ -99,15 +96,13 @@ end;
 function HandleGetFileColumns(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
-  FileId: Integer;
+  FileId: Int64;
   F: unit_Item.TFile;
   FT: TFileType;
   LocalPath, Ext: string;
   Inner: TJSONObject;
 begin
-  FileId := GetReqInt(Params, 'file_id');
-  // Uniform refusal for out-of-scope and missing-under-scope; inert without
-  // a scope, where the plain "File not found" below still applies.
+  FileId := GetReqInt64(Params, 'file_id');
   RequireFileRead(Context, FileId);
 
   F := Context.Manager.Find<unit_Item.TFile>(FileId);

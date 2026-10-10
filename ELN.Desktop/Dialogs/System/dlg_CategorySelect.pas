@@ -21,10 +21,6 @@ type
   private
     procedure SetAllChecked(AChecked: Boolean);
   public
-    /// Scans TemplatesDir for subdirectories and shows category checkboxes.
-    /// Returns True if user clicked OK and at least one category is selected.
-    /// SelectedCategories receives the checked category names.
-    /// Overwrite receives the overwrite checkbox state.
     class function Execute(const TemplatesDir: string;
       out SelectedCategories: TStringList;
       out Overwrite: Boolean): Boolean;
@@ -37,7 +33,6 @@ implementation
 uses
   System.IOUtils;
 
-{ TdlgCategorySelect }
 
 class function TdlgCategorySelect.Execute(const TemplatesDir: string;
   out SelectedCategories: TStringList; out Overwrite: Boolean): Boolean;
@@ -60,7 +55,6 @@ begin
 
   Dlg := TdlgCategorySelect.Create(nil);
   try
-    // Populate with category directory names, all checked by default
     for DirName in Dirs do
     begin
       I := Dlg.chkCategories.Items.Add(TPath.GetFileName(DirName));

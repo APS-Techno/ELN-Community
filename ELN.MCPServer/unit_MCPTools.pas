@@ -11,13 +11,8 @@ uses
   unit_User;
 
 type
-  /// <summary>How a tool behaves when the session is confined to a set of
-  /// projects. The default is deliberately tscUnclassified, so a tool added
-  /// later and left unclassified is REFUSED under a scope rather than
-  /// silently leaking - the failure is loud and immediate instead of being a
-  /// quiet hole nobody notices.</summary>
+  // Unclassified tools fail closed under a scope; new tools need an explicit classification.
   TToolScoping = (
-    /// Not yet classified. Refused whenever a scope is active.
     tscUnclassified,
     /// Reads or writes project-owned data and enforces the scope itself,
     /// through the unit_ToolScope guards.
@@ -70,24 +65,29 @@ type
     function GetToolsList: TJSONArray;
     function Execute(const ToolName: string; const Params: TJSONObject): TJSONObject;
     function HasTool(const Name: string): Boolean;
-    // The registry keeps its OWN copy of the context record, so re-pointing
-    // Context.User in RunServer would not reach the handlers. Needed after the
-    // persistence context is discarded, which destroys the old TUser instance.
+    // The registry copies the context. Replacing the caller's User cannot update
+    // handlers after manager Clear destroys the old principal.
     procedure SetUser(AUser: TUser);
-    /// <summary>Confines this session. Like SetUser, it must go through the
-    /// registry: the registry holds its OWN copy of the context record, so
-    /// setting the field on the caller's copy would never reach a handler.
-    /// </summary>
+    // Update the registry's context copy, not just the caller's scope.
     procedure SetScope(const AScope: TArray<Integer>);
     function IsScoped: Boolean;
-    /// <summary>How a registered tool is classified for confined sessions.
-    /// Raises for an unknown name.</summary>
     function ScopingOf(const Name: string): TToolScoping;
   end;
 
+// Applies to global tools as well as project-scoped handlers.
+procedure RequireToolPrincipal(const Context: TToolContext);
+
 implementation
 
-{ TToolRegistry }
+procedure RequireToolPrincipal(const Context: TToolContext);
+begin
+  if (Context.User = nil) or (Context.AccessPolicy = nil) then
+    raise Exception.Create('Access denied: no valid MCP session identity.');
+  if (Context.User.Id <= 0) or Context.User.IsArchived or
+     not IsKnownRole(Context.User.Role) then
+    raise Exception.Create('Access denied: no valid MCP session identity.');
+end;
+
 
 constructor TToolRegistry.Create(const AContext: TToolContext);
 begin
@@ -181,15 +181,13 @@ var
   I: Integer;
   Def: TToolDef;
 begin
+  RequireToolPrincipal(FContext);
   for I := 0 to FTools.Count - 1 do
   begin
     Def := FTools[I];
     if Def.Name = ToolName then
     begin
-      // Fail closed. A confined session must never reach a handler whose
-      // scoping behaviour nobody has decided on: the safe default is to
-      // refuse, so forgetting to classify a new tool breaks loudly instead
-      // of quietly returning another project's data.
+  // Refuse unclassified tools rather than expose another project's data.
       if IsScoped and (Def.Scoping = tscUnclassified) then
         raise Exception.CreateFmt(
           'Tool "%s" has not been classified for confined operation and is ' +

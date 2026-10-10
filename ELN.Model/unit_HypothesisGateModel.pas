@@ -1,18 +1,7 @@
 unit unit_HypothesisGateModel;
 
-{
-  The four HUMAN gates of the experiment tree (spec §6.4, D6):
-    Proposed -> Approved | Rejected      (gate: approve proposals)
-    InReview -> Accepted | Approved      (gate: accept conclusions; Approved = returned)
-
-  This unit belongs to human clients and their tests, never to an MCP host.
-  Scientific reads can report eligibility through the neutral access policy
-  without linking gate execution. MCP has no approval or acceptance tool.
-
-  Gate eligibility comes from the injected project-access policy. The status
-  write, history row and audit row stay here. THypothesisModel has no method
-  to execute a human gate.
-}
+{ Human gate execution must remain outside MCP dependencies. Keep status,
+  history and audit writes in this unit and in the same transaction. }
 
 interface
 
@@ -184,8 +173,6 @@ end;
 function THypothesisGateModel.AllowedGateTargets(AUser: TUser;
   AId: Integer): TArray<THypothesisStatus>;
 begin
-  // The rule lives in THypothesisModel (a read the WebAPI shows without
-  // naming this unit); written once, delegated here.
   Result := THypothesisModel.AllowedGateTargetsFor(FManager, AUser,
     THypothesisModel.Load(FManager, AId), FAccess);
 end;

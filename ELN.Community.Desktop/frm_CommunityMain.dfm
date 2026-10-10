@@ -47,6 +47,7 @@ object frmCommunityMain: TfrmCommunityMain
     Align = alClient
     BorderOuter = fsFlatRounded
     TabOrder = 0
+    OnResize = pnlWelcomeResize
     object lblWelcome: TLabel
       Left = 40
       Top = 48
@@ -119,6 +120,8 @@ object frmCommunityMain: TfrmCommunityMain
     end
     object spCenter: TRzSplitter
       AlignWithMargins = True
+      Margins.Top = 0
+      Margins.Bottom = 0
       Align = alClient
       Width = 1160
       Height = 814
@@ -163,11 +166,14 @@ object frmCommunityMain: TfrmCommunityMain
           end
         end
         inherited pnlTitle: TRzPanel
+          Margins.Top = 3
           ParentFont = False
         end
       end
       object spRight: TRzSplitter
         AlignWithMargins = True
+        Margins.Top = 0
+        Margins.Bottom = 0
         Align = alClient
         Width = 650
         Height = 808
@@ -202,6 +208,8 @@ object frmCommunityMain: TfrmCommunityMain
     end
   end
   inline frmDashboard: TframeDashboard
+    Margins.Top = 0
+    Margins.Bottom = 0
     Left = 0
     Top = 0
     Width = 650

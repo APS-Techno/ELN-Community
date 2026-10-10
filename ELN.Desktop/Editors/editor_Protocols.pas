@@ -61,6 +61,9 @@ type
   public
     destructor Destroy; override;
     class procedure ShowEditor(Protocol: TProtocol; const APlugin: IViewerPlugin);
+    class procedure ApplyEditorContent(Protocol: TProtocol;
+      const Editor: IProtocolEditor; const Title: string;
+      ProtocolType: TProtocolType; TemplateId: Nullable<Integer>); static;
   end;
 
 implementation
@@ -72,18 +75,16 @@ uses
   unit_DataModel,
   unit_User,
   unit_ProtocolStatusChange,
-  unit_TimeHelper;
+  unit_TimeHelper, unit_Item, unit_SignatureModel;
 
 const
   StatusDisplayNames: array[TValidationStatus] of string = (
     'Draft', 'In Review', 'Approved', 'Rejected'
   );
 
-{ TedProtocols }
 
 destructor TedProtocols.Destroy;
 begin
-  // Return shared frame to previous parent, restore read-only
   if Assigned(FPlugin) then
   begin
     FEditor.ReadOnly := True;
@@ -100,15 +101,13 @@ procedure TedProtocols.FormCreate(Sender: TObject);
 begin
   FStatusValues := TList<TValidationStatus>.Create;
 
-  // Dirty-state plumbing. VCL OnChange handlers cover header fields; the
-  // plugin posts a webmessage for the first edit inside the embedded form.
   FBaseCaption := Caption;
   edtTitle.OnChange := HandleFieldChanged;
   cmbProtocolType.OnChange := HandleFieldChanged;
   cmbValidationStatus.OnChange := HandleFieldChanged;
   // cmbTemplate already has cmbTemplateChange wired in the DFM; that handler
   // calls SetDirty(True) explicitly.
-  btnSave.Enabled := False;  // armed by first edit
+  btnSave.Enabled := False;  
 end;
 
 procedure TedProtocols.FormShow(Sender: TObject);
@@ -149,8 +148,6 @@ procedure TedProtocols.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
 var
   Reply: Integer;
 begin
-  // Only prompt on user-initiated close (X / Cancel). A successful Save sets
-  // ModalResult := mrOk and we let it through silently.
   if FReadOnly or (not FDirty) or (ModalResult = mrOk) then
   begin
     CanClose := True;
@@ -163,8 +160,6 @@ begin
     mrYes:
       begin
         SaveProtocol;
-        // SaveProtocol sets ModalResult := mrOk on success and leaves it
-        // unset on validation failure / DB failure.
         CanClose := ModalResult = mrOk;
       end;
     mrNo:
@@ -174,13 +169,37 @@ begin
   end;
 end;
 
+
+class procedure TedProtocols.ApplyEditorContent(Protocol: TProtocol;
+  const Editor: IProtocolEditor; const Title: string;
+  ProtocolType: TProtocolType; TemplateId: Nullable<Integer>);
+var
+  FormData: string;
+begin
+  // Extraction can raise after browser failure. Leave every managed field
+  // untouched until it has produced a complete result.
+  FormData := Editor.GetFormData;
+  Protocol.Title := Title;
+  Protocol.ProtocolType := ProtocolType;
+  Protocol.FormData := FormData;
+  Protocol.TemplateId := TemplateId;
+end;
 procedure TedProtocols.SaveProtocol;
 var
   OldStatus: TValidationStatus;
   Comment: string;
   NewStatus: TValidationStatus;
   ProjectId, AuthorId, ExpectedVersion: Integer;
+  ParentItem: TItem;
+  TemplateId: Nullable<Integer>;
 begin
+  if FReadOnly then Exit;
+  ParentItem := Model.Items.GetItemForEntry(FProtocol.Id);
+  if not Assigned(ParentItem) or
+    not Model.Access.CanWrite(Model.Manager, Model.User, ParentItem.ProjectID) then
+    raise EInvalidOperation.Create('This protocol is not writable.');
+  if IsItemSignedCheck(Model.Manager, ParentItem.Id) then
+    raise EInvalidOperation.Create('Signed items cannot be changed.');
   if not ValidateProtocol then
     Exit;
 
@@ -197,20 +216,24 @@ begin
       raise Exception.Create('This protocol status change is not allowed.');
   end;
 
-  FProtocol.Title := edtTitle.Text;
-  FProtocol.ProtocolType := TProtocolType(cmbProtocolType.ItemIndex);
-
-  FProtocol.FormData := FEditor.GetFormData;
-
-  // Set TemplateId
   var SelTemplate := GetSelectedTemplate;
   if Assigned(SelTemplate) then
-    FProtocol.TemplateId := SelTemplate.Id
+    TemplateId := SelTemplate.Id
   else
-    FProtocol.TemplateId := Default(Nullable<Integer>);
+    TemplateId := Default(Nullable<Integer>);
 
-  if not Model.Items.UpdateEntry(FProtocol, Model.User.Id) then
-    Exit;
+  ApplyEditorContent(FProtocol, FEditor, edtTitle.Text,
+    TProtocolType(cmbProtocolType.ItemIndex), TemplateId);
+  try
+    if not Model.Items.UpdateEntry(FProtocol, Model.User.Id) then
+    begin
+      Model.Manager.Refresh(FProtocol);
+      Exit;
+    end;
+  except
+    Model.Manager.Refresh(FProtocol);
+    raise;
+  end;
 
   if (FProtocol.Id > 0) and (NewStatus <> OldStatus) then
   begin
@@ -261,7 +284,6 @@ begin
     Editor.FProtocol := Protocol;
     Editor.FOriginalStatus := Protocol.ValidationStatus;
 
-    // Load existing protocol data
     Editor.edtTitle.Text := Protocol.Title;
 
     if Protocol.ProtocolType.HasValue then
@@ -269,17 +291,13 @@ begin
     else
       Editor.cmbProtocolType.ItemIndex := 0;
 
-    // Store existing form data for later injection
     Editor.FFormData := Protocol.FormData;
 
-    // Populate status combo with allowed transitions
     Editor.PopulateStatusCombo(Protocol);
 
-    // Populate template combobox
     Editor.PopulateTemplates;
 
-    // Select the matching template in combo (search by Object reference)
-    TemplateIdx := 0; // Default: "(No template)"
+    TemplateIdx := 0; 
     if Protocol.TemplateId.HasValue then
     begin
       for I := 0 to Editor.cmbTemplate.Items.Count - 1 do
@@ -294,17 +312,14 @@ begin
     end;
     Editor.cmbTemplate.ItemIndex := TemplateIdx;
 
-    // Template is loaded in FormShow (after form is visible)
 
-    // Set read-only if approved
     if Model.ProtocolStatus.IsProtocolReadOnly(Protocol.ValidationStatus) then
       Editor.SetReadOnlyMode;
 
-    // Show/hide history button based on whether protocol has been saved
     Editor.btnHistory.Visible := Protocol.Id > 0;
 
     Editor.FInitializing := False;
-    Editor.SetDirty(False);  // baseline: nothing edited yet
+    Editor.SetDirty(False);  
     Editor.ShowModal;
   finally
     Editor.FTemplateList.Free;
@@ -326,11 +341,9 @@ begin
   CurrentStatus := Protocol.ValidationStatus;
   HasAccessContext := Model.ProtocolStatus.TryGetAccessContext(Protocol.Id, ProjectId, AuthorId);
 
-  // Always include current status as first item
   cmbValidationStatus.Items.Add(StatusDisplayNames[CurrentStatus]);
   FStatusValues.Add(CurrentStatus);
 
-  // Add allowed transitions
   if HasAccessContext then
     Allowed := Model.ProtocolStatus.GetAllowedTransitions(CurrentStatus,
       Model.User, ProjectId, AuthorId)
@@ -372,7 +385,6 @@ begin
     Exit;
   end;
 
-  // Sort by Category then Name
   FTemplateList.Sort(TComparer<TTemplate>.Construct(
     function(const L, R: TTemplate): Integer
     begin
@@ -425,18 +437,16 @@ end;
 
 procedure TedProtocols.cmbTemplateChange(Sender: TObject);
 begin
-  // Skip category separator lines (Objects = nil, ItemIndex > 0)
   if (cmbTemplate.ItemIndex > 0) and
      not Assigned(cmbTemplate.Items.Objects[cmbTemplate.ItemIndex]) then
   begin
-    // Move to next valid template item
     if cmbTemplate.ItemIndex < cmbTemplate.Items.Count - 1 then
       cmbTemplate.ItemIndex := cmbTemplate.ItemIndex + 1
     else
       cmbTemplate.ItemIndex := 0;
     Exit;
   end;
-  FFormData := ''; // Clear saved data when changing template
+  FFormData := ''; 
   SetDirty(True);
   LoadCurrentTemplate;
 end;

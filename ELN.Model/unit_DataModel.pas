@@ -1,34 +1,4 @@
-﻿{*
-  unit_DataModel.pas — Application-level data model (TDataModel / global Model)
-
-  TDataModel is the single aggregation point for all domain model objects.
-  It owns one TObjectManager on an injected connection and creates every
-  sub-model with that shared manager so they all participate in the same Aurelius
-  unit-of-work session.
-
-  Sub-models owned
-  ----------------
-    Authors, Projects, Folders, Items, Files,
-    ActionTypes, EquipmentTypes, Equipments, FileTypes, ValueTypes, History
-
-  Global singleton
-  ----------------
-  The `Model: TDataModel` var is created in frm_Main and is accessible from all units
-  in the implementation section via `unit_DataModel` in their uses clause.
-
-  User history (LastProject/LastFolder/LastItem/LastChild)
-  --------------------------------------------------------
-  Thin read/write wrappers over FHistory.UserRecord fields.
-  Saved to the database on application exit via SaveUserHistory.
-
-  GetFileName(ID)
-  ---------------
-  Builds the relative storage path for a file attachment:
-    Projects\<Project.FileFolder>\<Item.FolderName>\<FileName>
-  Used by BtnAddFileClick to determine where to copy the source file.
-
-*}
-unit unit_DataModel;
+﻿unit unit_DataModel;
 
 interface
 uses
@@ -116,11 +86,11 @@ type
       function getLastFolder: integer;
       function getLastProject: integer;
       function getLastItem: integer;
-      function getLastChild: integer;
+      function getLastChild: Int64;
       procedure SetLastFolder(const Value: integer);
       procedure SetLastProject(const Value: integer);
       procedure SetLastItem(const Value: integer);
-      procedure SetLastChild(const Value: integer);
+      procedure SetLastChild(const Value: Int64);
     protected
       function CreateAuthorModel(AUserId: Integer): TAuthorModel; virtual;
       procedure BindPrincipal(AUser: TUser);
@@ -143,7 +113,6 @@ type
       property EquipmentTypes: TEquipmentTypeModel read FEquipmentTypes;
       property Equipments: TEquipmentModel read FEquipments;
       property History: TUserHistoryModel read FHistory;
-      /// Per-user expanded state of the desktop trees; its own manager.
       property TreeState: TTreeStateModel read FTreeState;
       property ValueTypes: TValueTypeModel read FValueTypes;
       property Templates: TTemplateModel read FTemplates;
@@ -164,24 +133,19 @@ type
       property AuditRules: TAuditModel read FAuditRules;
 
       procedure RecordAudit(AEntityType: TAuditEntityType;
-        AEntityId: Integer; AOperation: TAuditOperation;
+        AEntityId: Int64; AOperation: TAuditOperation;
         const ADescription: string);
 
       property LastProject: integer read getLastProject write SetLastProject;
       property LastFolder: integer read getLastFolder write SetLastFolder;
       property LastItem: integer read getLastItem write SetLastItem;
-      property LastChild: integer read getLastChild write SetLastChild;
+      property LastChild: Int64 read getLastChild write SetLastChild;
 
       property Manager: TObjectManager read FManager;
       procedure SetupDateFormat;
-      function GetFileName(const ID: integer): string;
-      { GetFilePathDAV — same path as GetFileName but using forward slashes,
-        suitable as a relative path appended to a WebDAV base URL.
-        Returns e.g. 'files/Projects/JohnSmith/Project1/[0001]Item/[0001]file.pdf' }
-      function GetFilePathDAV(const ID: integer): string;
-      { GetFileItemId — ID of the item owning the file, 0 when the file
-        (or its item) cannot be resolved. }
-      function GetFileItemId(const ID: integer): Integer;
+      function GetFileName(const ID: Int64): string;
+      function GetFilePathDAV(const ID: Int64): string;
+      function GetFileItemId(const ID: Int64): Integer;
   end;
 
   function CleanFileName(const Input: string): string;
@@ -205,15 +169,12 @@ uses
   unit_AuditHelper;
 
 
-{Helpers}
-// Replace non-valid file name characters with spaces
 function CleanFileName(const Input: string): string;
 begin
   Result := unit_FilePaths.CleanFileName(Input);
 end;
 
 
-{ TDataModel }
 
 constructor TDataModel.Create(AConnection: IDBConnection; APrincipalId: Integer;
   const AAccess: IProjectAccessPolicy; const AStorage: INotebookStorage);
@@ -226,11 +187,8 @@ begin
   FStorage := AStorage;
   SetupDateFormat;
 
-  // Reset the mass-teardown latch: a prior session's Destroy sets
-  // ManagerShuttingDown := True (to skip per-entity proxy DestroyValue during
-  // FManager.Clear) and never clears it. Without this reset the first logout
-  // would leave it True for the rest of the process, leaking proxy list values
-  // on every ordinary single-entity Evict/Free in later sessions.
+  // Reset the previous session's teardown latch or ordinary proxy destruction
+  // in this session would skip freeing its values.
   ManagerShuttingDown := False;
 
   FManager := TObjectManager.Create(FConnection);
@@ -270,7 +228,7 @@ begin
 end;
 
 procedure TDataModel.RecordAudit(AEntityType: TAuditEntityType;
-  AEntityId: Integer; AOperation: TAuditOperation;
+  AEntityId: Int64; AOperation: TAuditOperation;
   const ADescription: string);
 begin
   if Assigned(FUser) then
@@ -324,12 +282,8 @@ begin
   FreeAndNil(FProjects);
   FreeAndNil(FAuthors);
   FreeAndNil(FDBSettings);
-  // TObjectManager.Destroy frees FObjects before FOwnership. FOwnership uses
-  // doOwnsKeys=True so its Clear/Free frees entity objects. If any entity
-  // cleanup accesses the already-freed FObjects, it corrupts the heap and
-  // later entity frees crash with EInvalidPointer.
-  // Fix: Call Clear first (empties FOwnership while FObjects is still alive),
-  // then Destroy runs on empty sets without touching any entities.
+  // Aurelius destroys FObjects before its owning entity set. Clear while
+  // FObjects is still alive so entity teardown cannot access freed storage.
   if Assigned(FManager) then
   begin
     PriorShutdown := ManagerShuttingDown;
@@ -351,7 +305,7 @@ begin
   inherited;
 end;
 
-function TDataModel.GetFileName(const ID: integer): string;
+function TDataModel.GetFileName(const ID: Int64): string;
 var
   F: unit_Item.TFile;
   Item: TItem;
@@ -372,7 +326,7 @@ begin
      CleanFileName(Item.FolderName), FFiles.GetFileName(ID)]);
 end;
 
-function TDataModel.GetFilePathDAV(const ID: integer): string;
+function TDataModel.GetFilePathDAV(const ID: Int64): string;
 var
   F: unit_Item.TFile;
   Item: TItem;
@@ -393,7 +347,7 @@ begin
      CleanFileName(Item.FolderName), FFiles.GetFileName(ID)]);
 end;
 
-function TDataModel.GetFileItemId(const ID: integer): Integer;
+function TDataModel.GetFileItemId(const ID: Int64): Integer;
 var
   F: unit_Item.TFile;
 begin
@@ -413,7 +367,7 @@ begin
   Result := FHistory.UserRecord.LastItem;
 end;
 
-function TDataModel.getLastChild: integer;
+function TDataModel.getLastChild: Int64;
 begin
   Result := FHistory.UserRecord.LastChild;
 end;
@@ -446,7 +400,7 @@ begin
   FHistory.UserRecord.LastItem := Value;
 end;
 
-procedure TDataModel.SetLastChild(const Value: integer);
+procedure TDataModel.SetLastChild(const Value: Int64);
 begin
   FHistory.UserRecord.LastChild := Value;
 end;

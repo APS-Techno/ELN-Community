@@ -1,40 +1,21 @@
 unit unit_MarkdownAttachmentResolver;
 
-// Rewrites inline markdown image/link URLs so they match ELN's on-disk
-// attachment naming convention.
-//
-// ELN stores attachments flat inside the item folder as
-//     "[{fileId}]{title}.{ext}"    e.g.  "[1046]dcpulseg3f.png"
-// but wiki authors write them by their logical name:
-//     ![](dcpulseg3f.png)
-// Against the viewer's file:/// base href the browser would fetch
-//     file:///.../dcpulseg3f.png                 -> 404
-// instead of
-//     file:///.../[1046]dcpulseg3f.png           -> the real file.
-//
-// This unit enumerates the item folder, builds a case-insensitive
-// {logicalName -> actualFileName} map, and rewrites inline
-// [text](url) / ![alt](url) tokens whose URL:
-//   * has no URL scheme (http://, https://, file://, eln://, mailto:, data:)
-//   * is not absolute (/foo, \foo, C:\foo)
-//   * is not a fragment (#anchor)
-// by replacing the URL with the "[ID]name.ext" variant, URL-encoding the
-// brackets as %5B/%5D so markdown-it emits a valid href/src.
-//
-// Tokens with URLs that don't resolve to a known file are left untouched,
-// which preserves any current behavior for subpaths or external refs.
+// Logical attachment names omit the stored "[ID]" prefix. Resolve them against
+// the authoritative file list before the browser uses the attachment directory.
 
 interface
 
 uses
   System.SysUtils;
 
-// AFiles, when non-empty, is used as the authoritative list of "[ID]name.ext"
-// filenames (host-supplied via IElnFileEnumerator). Otherwise the function
-// falls back to enumerating ADir. ADir is still required for the fallback
-// path (standalone tests, PluginTestApp).
+// Non-empty AFiles is authoritative; otherwise enumerate ADir.
 function RewriteAttachmentRefs(const AMarkdown, ADir: string;
   const AFiles: TArray<string> = nil): string;
+
+// Input is a raw filename/path, never an already encoded URL.
+function EncodeAttachmentFileName(const AName: string): string;
+function MarkdownFileUrl(const APath: string): string;
+function IsMarkdownShellUrl(const AUrl, AShellUrl: string): Boolean;
 
 implementation
 
@@ -81,10 +62,55 @@ begin
   Result := False;
 end;
 
-function EncodeBrackets(const S: string): string;
+function EncodeAttachmentFileName(const AName: string): string;
+var
+  Bytes: TBytes;
+  B: Byte;
+  Builder: TStringBuilder;
 begin
-  Result := StringReplace(S, '[', '%5B', [rfReplaceAll]);
-  Result := StringReplace(Result, ']', '%5D', [rfReplaceAll]);
+  Bytes := TEncoding.UTF8.GetBytes(AName);
+  Builder := TStringBuilder.Create;
+  try
+    for B in Bytes do
+      if CharInSet(Char(B), ['A'..'Z', 'a'..'z', '0'..'9', '-', '.', '_', '~']) then
+        Builder.Append(Char(B))
+      else
+        Builder.Append('%' + IntToHex(B, 2));
+    Result := Builder.ToString;
+  finally
+    Builder.Free;
+  end;
+end;
+
+function MarkdownFileUrl(const APath: string): string;
+var
+  Parts: TArray<string>;
+  I: Integer;
+begin
+  Parts := StringReplace(APath, '\', '/', [rfReplaceAll]).Split(['/']);
+  for I := 0 to High(Parts) do
+    // Preserve the Windows drive separator, not filename punctuation.
+    if not ((I = 0) and (Length(Parts[I]) = 2) and (Parts[I][2] = ':')) then
+      Parts[I] := EncodeAttachmentFileName(Parts[I]);
+  Result := string.Join('/', Parts);
+  if StartsStr('//', Result) then
+    Result := 'file:' + Result
+  else
+    Result := 'file:///' + Result;
+end;
+
+function IsMarkdownShellUrl(const AUrl, AShellUrl: string): Boolean;
+var
+  Url: string;
+  Fragment: Integer;
+begin
+  Url := AUrl;
+  Fragment := Pos('#', Url);
+  if Fragment > 0 then SetLength(Url, Fragment - 1);
+  Result := SameText(TNetEncoding.URL.Decode(
+    StringReplace(Url, '+', '%2B', [rfReplaceAll])),
+    TNetEncoding.URL.Decode(
+    StringReplace(AShellUrl, '+', '%2B', [rfReplaceAll])));
 end;
 
 function BuildLogicalMapFromList(const AFiles: TArray<string>): TLogicalMap;
@@ -95,12 +121,13 @@ begin
   Result := TLogicalMap.Create;
   for FilePath in AFiles do
   begin
-    // Tolerate full paths or bare names — the host-supplied list uses bare
-    // "[ID]name.ext", but disk enumeration returns full paths.
     Name := ExtractFileName(FilePath);
     M := TRegEx.Match(Name, '^\[\d+\](.+)$');
     if M.Success then
+    begin
       Result.AddOrSetValue(LowerCase(M.Groups[1].Value), Name);
+      Result.AddOrSetValue(LowerCase(Name), Name);
+    end;
   end;
 end;
 
@@ -113,8 +140,7 @@ end;
 
 function TAttachmentEvaluator.Evaluate(const M: TMatch): string;
 var
-  Prefix, AltText, Url, TitlePart, Actual, DecodedKey, IdPrefix: string;
-  PrefixMatch: TMatch;
+  Prefix, AltText, Url, TitlePart, Actual, DecodedKey: string;
 begin
   Prefix    := M.Groups[1].Value;
   AltText   := M.Groups[2].Value;
@@ -123,20 +149,15 @@ begin
 
   if IsRemoteOrAbsolute(Url) then Exit(M.Value);
 
-  // Look up by the decoded logical name so authors can write either
-  // "photo with spaces.png" (won't match — spec forbids unquoted spaces)
-  // or "photo%20with%20spaces.png" (decodes and matches).
-  DecodedKey := LowerCase(TNetEncoding.URL.Decode(Url));
-  if not FMap.TryGetValue(DecodedKey, Actual) then Exit(M.Value);
+  // URL.Decode treats '+' as a form space; a path's literal '+' is not a space.
+  DecodedKey := TNetEncoding.URL.Decode(
+    StringReplace(Url, '+', '%2B', [rfReplaceAll]));
+  if not FMap.TryGetValue(LowerCase(DecodedKey), Actual) then Exit(M.Value);
+  if not SameText(DecodedKey, Actual) then
+    DecodedKey := Copy(Actual, 1, Pos(']', Actual)) + DecodedKey;
 
-  // Keep the author's original URL (encoding and all) — only inject the
-  // "[ID]" prefix as %5BID%5D so markdown-it's URL parser stays happy.
-  PrefixMatch := TRegEx.Match(Actual, '^(\[\d+\]).+$');
-  if not PrefixMatch.Success then Exit(M.Value);
-  IdPrefix := PrefixMatch.Groups[1].Value;
-
-  Result := Format('%s[%s](%s%s%s)',
-    [Prefix, AltText, EncodeBrackets(IdPrefix), Url, TitlePart]);
+  Result := Format('%s[%s](%s%s)',
+    [Prefix, AltText, EncodeAttachmentFileName(DecodedKey), TitlePart]);
 end;
 
 function RewriteAttachmentRefs(const AMarkdown, ADir: string;

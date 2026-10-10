@@ -32,7 +32,6 @@ type
 
   TProjectsModel = class(TELNModel)
     private
-      { Private declarations }
       FUser: TUser;
       FUserID: Integer;
 
@@ -48,7 +47,6 @@ type
       procedure OpenDataSet; override;
       property List: TProjectList read GetProjectList;
 
-      { The principal every query on this model is scoped to. }
       property AssignedUserID: Integer read FUserID;
       property Manager: TObjectManager read FManager;
       property Access: IProjectAccessPolicy read FAccess;
@@ -72,6 +70,7 @@ type
 implementation
 
 uses
+  System.Classes,
   unit_AuditHelper,
   unit_ConflictHandler,
   unit_Item,
@@ -83,7 +82,6 @@ uses
   Aurelius.Commands.Exceptions,
   unit_TimeHelper;
 
-{ TProjectsModel }
 
 procedure TProjectsModel.AddFolder(const Title, Description: string;
   ProjectID, ParentFolderID: integer);
@@ -91,6 +89,8 @@ var
   Folder: TFolder;
   Project: TProject;
 begin
+  if ParentFolderID < 0 then
+    ParentFolderID := 0;
   Project := FManager.Find<TProject>(ProjectID);
 
   Folder := TFolder.Create;
@@ -192,163 +192,175 @@ function TProjectsModel.MoveFolder(Folder: TFolder; OldProjectID, NewProjectID,
   NewParentFolderID: integer; UserId: Integer;
   const Relocator: IFileRelocator): Boolean;
 var
-  OldProject, NewProject: TProject;
-  Items: TList<TItem>;
-  AllItems: TList<TItem>;
-  Item: TItem;
-  F: unit_Item.TFile;
-  IsCrossProject: Boolean;
-  ItemDic: TItemDictionary;
-  OldPath, NewPath: string;
-  MovedItemCount: Integer;
-  FileMoves: TList<TPair<string, string>>;
-  Pair: TPair<string, string>;
-  AllFolders: TFoldersList;
+  Operation: TObjectManager;
+  Transaction: IDBTransaction;
+  OldProject, NewProject, CachedProject: TProject;
+  Current, SubFolder, CachedFolder: TFolder;
+  AllItems, Items: TList<TItem>;
+  Item, CachedItem: TItem;
+  Attachment: unit_Item.TFile;
   SubtreeFolders: TList<TFolder>;
-  SubFolder: TFolder;
+  Moves: TFileMoveJournal;
+  Committed, Stale, RefreshProjects: Boolean;
 
-  // Recursively collect the full subtree of child folders (by ParentFolderID)
-  // rooted at ParentID, using the old project's already-loaded folder list.
   procedure CollectChildFolders(ParentID: Integer);
   var
-    ChildF: TFolder;
+    Child: TFolder;
   begin
-    for ChildF in AllFolders do
-      // The SubtreeFolders.Contains guard makes this robust against a
-      // pre-existing folder cycle (e.g. a folder previously moved into its own
-      // descendant): a folder already collected is never recursed into again,
-      // so a cyclic graph can't drive unbounded recursion / stack overflow.
-      if (ChildF.ParentFolderID = ParentID)
-         and (not SubtreeFolders.Contains(ChildF)) then
+    for Child in OldProject.Folders do
+      if (Child.ParentFolderID = ParentID) and not SubtreeFolders.Contains(Child) then
       begin
-        SubtreeFolders.Add(ChildF);
-        CollectChildFolders(ChildF.Id);
+        SubtreeFolders.Add(Child);
+        CollectChildFolders(Child.Id);
       end;
   end;
 
-begin
-  IsCrossProject := OldProjectID <> NewProjectID;
-  MovedItemCount := 0;
-  SubtreeFolders := nil;
-  NewProject := nil;  // assigned (and used) only on cross-project moves
-
-  // Collected (oldPath -> newPath) WebDAV moves, replayed only AFTER the DB
-  // move commits, so a file-move failure leaves the file reconcilable rather
-  // than orphaning it behind an uncommitted DB.
-  FileMoves := TList<TPair<string, string>>.Create;
-  try
-
-  if IsCrossProject then
+  procedure CheckProjectCache(Project: TProject);
+  var
+    Cached: TProject;
+    Child: TFolder;
   begin
-    OldProject := FManager.Find<TProject>(OldProjectID);
-    NewProject := FManager.Find<TProject>(NewProjectID);
+    Cached := FManager.FindCached<TProject>(Project.Id);
+    if Cached = nil then
+      Exit;
+    if FManager.HasChanges(Cached) then
+      raise EInvalidOperation.Create('Save or cancel project edits before moving a folder.');
+    for Child in Cached.Folders do
+      if FManager.HasChanges(Child) then
+        raise EInvalidOperation.Create('Save or cancel folder edits before moving a folder.');
+    Stale := Stale or (Cached.Version <> Project.Version);
+  end;
 
-    // Collect the FULL folder subtree (moved folder + every nested subfolder
-    // via ParentFolderID recursion). On a cross-project move every folder in
-    // the subtree must switch ProjectID and have its items reparented;
-    // otherwise a nested subfolder keeps ProjectID=old while ParentFolderID
-    // points into the new project and the whole subtree vanishes from both
-    // trees.
-    AllFolders := OldProject.Folders;
-    SubtreeFolders := TList<TFolder>.Create;
-    SubtreeFolders.Add(Folder);
-    CollectChildFolders(Folder.Id);
-
-    // Gather the contained items across the whole subtree. AllItems holds only
-    // references (entities are owned by the manager); the per-folder query
-    // lists are freed immediately.
-    AllItems := TList<TItem>.Create;
+begin
+  Result := False;
+  if Folder = nil then
+    Exit;
+  if NewParentFolderID < 0 then
+    NewParentFolderID := 0;
+  Operation := TObjectManager.Create(FManager.Connection);
+  AllItems := TList<TItem>.Create;
+  SubtreeFolders := TList<TFolder>.Create;
+  Moves := TFileMoveJournal.Create(Relocator);
+  RefreshProjects := False;
+  try
+    Transaction := TConflictHandler.BeginOperationTransaction(FManager);
+    Committed := False;
     try
-      ItemDic := TItemDictionary.Create;
       try
+        OldProject := Operation.Find<TProject>(OldProjectID);
+        NewProject := Operation.Find<TProject>(NewProjectID);
+        if (OldProject = nil) or (NewProject = nil) then
+          raise EInvalidOperation.Create('The source or destination project no longer exists.');
+        Current := OldProject.GetFolder(Folder.Id);
+        if Current = nil then
+          Exit(False);
+        SubtreeFolders.Add(Current);
+        CollectChildFolders(Current.Id);
+        if (NewParentFolderID <> 0) and (NewProject.GetFolder(NewParentFolderID) = nil) then
+          raise EInvalidOperation.Create('The destination folder is not in the destination project.');
+        if OldProjectID = NewProjectID then
+          for SubFolder in SubtreeFolders do
+            if SubFolder.Id = NewParentFolderID then
+              raise EInvalidOperation.Create('A folder cannot be moved into its own subtree.');
+        Stale := Current.Version <> Folder.Version;
+        CheckProjectCache(OldProject);
+        CheckProjectCache(NewProject);
+        RefreshProjects := True;
         for SubFolder in SubtreeFolders do
         begin
-          Items := FManager.Find<TItem>
-            .Where((ItemDic.FolderID = SubFolder.Id)
-              and (ItemDic.ProjectID = OldProjectID)
-              and (ItemDic.IsDeleted = False))
-            .List;
+          CachedFolder := FManager.FindCached<TFolder>(SubFolder.Id);
+          if Assigned(CachedFolder) then
+            Stale := Stale or (CachedFolder.Version <> SubFolder.Version);
+          Items := Operation.Find<TItem>
+            .Where((Linq['FolderID'] = SubFolder.Id) and
+              (Linq['ProjectID'] = OldProjectID)).List;
           try
-            for Item in Items do
-              AllItems.Add(Item);
+            AllItems.AddRange(Items);
           finally
             Items.Free;
           end;
         end;
-      finally
-        ItemDic.Free;
-      end;
-
-      MovedItemCount := AllItems.Count;
-
-      // Pre-flight over EVERY item in the subtree: reject before any mutation
-      // if any item is signed.
-      for Item in AllItems do
-        if IsItemSignedCheck(FManager, Item.Id) then
-          raise Exception.CreateFmt(
-            'Cannot move folder: item "%s" (ID %d) is signed.',
-            [Item.Title, Item.Id]);
-
-      // Collect the file-move pairs while the items are still loaded. The paths
-      // do not depend on the not-yet-committed ProjectID change.
-      if Assigned(Relocator) then
         for Item in AllItems do
-          for F in Item.Files do
+        begin
+          CachedItem := FManager.FindCached<TItem>(Item.Id);
+          if Assigned(CachedItem) then
           begin
-            OldPath := BuildItemFileRemotePath(
-              OldProject.FileFolder, Item.FolderName, F.FullName);
-            NewPath := BuildItemFileRemotePath(
-              NewProject.FileFolder, Item.FolderName, F.FullName);
-            FileMoves.Add(TPair<string, string>.Create(OldPath, NewPath));
+            if FManager.HasChanges(CachedItem) then
+              raise EInvalidOperation.Create('Save or cancel item edits before moving a folder.');
+            Stale := Stale or (CachedItem.Version <> Item.Version);
           end;
-
-      // Reparent contained items to the new project.
+          if IsItemSignedCheck(Operation, Item.Id) then
+            Exit(False);
+        end;
+        if Stale then
+          Exit(False);
+        if OldProjectID <> NewProjectID then
+        begin
+          for Item in AllItems do
+          begin
+            for Attachment in Item.Files do
+              Moves.Add(BuildItemFileRemotePath(OldProject.FileFolder, Item.FolderName, Attachment.FullName),
+                BuildItemFileRemotePath(NewProject.FileFolder, Item.FolderName, Attachment.FullName));
+            Item.ProjectID := NewProjectID;
+          end;
+          // Removing from OldProject first would write a forbidden NULL FK.
+          // The operation manager is discarded after the transaction.
+          for SubFolder in SubtreeFolders do
+            NewProject.Folders.Add(SubFolder);
+        end;
+        Current.ParentFolderID := NewParentFolderID;
+        Moves.Execute;
+        Operation.Flush;
+        RecordAudit(Operation, aetFolder, Current.Id, aoUpdate, UserId,
+          Format('Moved folder "%s" (%d items) from project %d to project %d',
+            [Current.Title, AllItems.Count, OldProjectID, NewProjectID]));
+        Transaction.Commit;
+        Committed := True;
+        Result := True;
+      finally
+        if not Committed then
+        begin
+          try
+            Transaction.Rollback;
+          finally
+            Moves.Rollback;
+          end;
+        end;
+      end;
+    except
+      on E: EVersionedConcurrencyControl do
+      begin
+        if Assigned(TConflictHandler.OnConflict) then
+          TConflictHandler.OnConflict(E.Message);
+        Result := False;
+      end;
+    end;
+  finally
+    try
       for Item in AllItems do
       begin
-        Item.ProjectID := NewProjectID;
-        FManager.Update(Item);
+        CachedItem := FManager.FindCached<TItem>(Item.Id);
+        if Assigned(CachedItem) and not FManager.HasChanges(CachedItem) then
+          FManager.Refresh(CachedItem);
+      end;
+      if RefreshProjects then
+      begin
+        CachedProject := FManager.FindCached<TProject>(OldProjectID);
+        if Assigned(CachedProject) then
+          FManager.Refresh(CachedProject);
+        if OldProjectID <> NewProjectID then
+        begin
+          CachedProject := FManager.FindCached<TProject>(NewProjectID);
+          if Assigned(CachedProject) then
+            FManager.Refresh(CachedProject);
+        end;
       end;
     finally
+      Moves.Free;
+      SubtreeFolders.Free;
       AllItems.Free;
+      TConflictHandler.FreeOperationManager(Operation);
     end;
-  end;
-
-  // Folder reparent. Only the moved folder's ParentFolderID changes; nested
-  // subfolders keep their ParentFolderID (folder Ids are stable across a move).
-  Folder.ParentFolderID := NewParentFolderID;
-  if not IsCrossProject then
-    FManager.Update(Folder)
-  else
-  begin
-    // Do NOT call OldProject.Folders.Remove — Aurelius writes ProjectID=NULL
-    // immediately, violating the NOT NULL constraint before Add can fix it.
-    // Adding to the new project's collection is sufficient; Aurelius cascade
-    // on Update(NewProject) writes the correct FK value. Add EVERY folder in
-    // the subtree so each subfolder's ProjectID switches too.
-    for SubFolder in SubtreeFolders do
-      NewProject.Folders.Add(SubFolder);
-    FManager.Update(NewProject);
-  end;
-
-  Result := TConflictHandler.SafeFlush(FManager);
-  if Result then
-  begin
-    if IsCrossProject then
-      RecordAudit(FManager, aetFolder, Folder.Id, aoUpdate, UserId,
-        Format('Moved folder "%s" (%d items) from project %d to project %d',
-          [Folder.Title, MovedItemCount, OldProjectID, NewProjectID]))
-    else
-      RecordAudit(FManager, aetFolder, Folder.Id, aoUpdate, UserId,
-        'Moved folder "' + Folder.Title + '"');
-
-    // DB committed and authoritative — now relocate the files on WebDAV.
-    for Pair in FileMoves do
-      Relocator.MoveFile(Pair.Key, Pair.Value);
-  end;
-
-  finally
-    SubtreeFolders.Free;
-    FileMoves.Free;
   end;
 end;
 
@@ -363,7 +375,7 @@ begin
   except
     // UI state: ignore the conflict, but reload the entity that conflicted
     // (this one, or a stale one from elsewhere). Left dirty it would fail
-    // every later Flush on this shared manager (review M-1).
+    // every later Flush on this shared manager.
     on E: EVersionedConcurrencyControl do
       TConflictHandler.ReloadConflicted(FManager, E);
   end;
@@ -452,11 +464,9 @@ begin
   Project := FManager.Find<TProject>(ProjectID);
   if not Assigned(Project) then Exit(True);
 
-  // Check for folders
   if Project.Folders.Count > 0 then
     Exit(False);
 
-  // Check for items (exclude soft-deleted)
   ItemDic := TItemDictionary.Create;
   try
     Items := FManager.Find<TItem>
@@ -534,7 +544,6 @@ var
   Folders: TList<TFolder>;
   Folder: TFolder;
 begin
-  // Evict all folders from the identity map so next query fetches fresh data
   Folders := FManager.Find<TFolder>.List;
   try
     for Folder in Folders do
@@ -543,7 +552,6 @@ begin
     Folders.Free;
   end;
 
-  // Evict all projects
   Projects := FManager.Find<TProject>.List;
   try
     for Project in Projects do

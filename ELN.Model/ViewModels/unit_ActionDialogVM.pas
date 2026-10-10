@@ -52,41 +52,34 @@ type
       AUserId: Integer);
     destructor Destroy; override;
 
-    // Initialization
     procedure LoadForNew(AllowedLevels: TItemLevels);
     procedure LoadForEdit(Item: TItem; AllowedLevels: TItemLevels);
 
-    // Filter cascade
     procedure SetLevel(Value: TItemLevel);
     procedure SetItemTypeIndex(Index: Integer);
     procedure SetActionTypeIndex(Index: Integer);
 
     procedure SetEquipmentIndex(Index: Integer);
 
-    // Value CRUD
     procedure AddValue(AValueType: TValueType; ARecType: TRecType;
       AValue, ATol: Double; const ADesc: string);
     procedure DeleteValue(Index: Integer);
+    procedure ValueEdited;
 
-    // Quick-add
     procedure AddActionType(const ATitle: string; AKind: TActionKind);
     procedure AddEquipment(const AModel, AManufacturer, ALocation: string);
 
-    // Extract
     procedure ApplyTo(Item: TItem);
 
-    // Helpers
     function GetSelectedItemType: TItemType;
     function GetSelectedActionType: TActionType;
 
-    // Derived state
     function ShowValues: Boolean;
     function CanSave: Boolean;
     function CanAddActionType: Boolean;
     function CanAddEquipment: Boolean;
     function ShowLevelSelector: Boolean;
 
-    // State properties (read by form)
     property AllowedLevels: TItemLevels read FAllowedLevels;
     property Level: TItemLevel read FLevel;
     property ItemTypes: TArray<TItemType> read FItemTypes;
@@ -110,7 +103,6 @@ implementation
 uses
   unit_ValueTypeModel;
 
-{ TActionDialogVM }
 
 constructor TActionDialogVM.Create(
   AActionTypeModel: TActionTypeModel;
@@ -145,7 +137,6 @@ begin
     FOnChanged(Self);
 end;
 
-{ Filter cascade }
 
 procedure TActionDialogVM.FilterItemTypes;
 var
@@ -220,7 +211,6 @@ begin
     FEquipments.Add(AllEquip[I]);
 end;
 
-{ Initialization }
 
 procedure TActionDialogVM.LoadForNew(AllowedLevels: TItemLevels);
 begin
@@ -255,7 +245,6 @@ begin
 
   FilterItemTypes;
 
-  // Restore item type selection
   FSelectedItemTypeIndex := -1;
   for I := 0 to High(FItemTypes) do
     if FItemTypes[I] = Item.Type_ then
@@ -266,7 +255,6 @@ begin
 
   FilterActionTypes;
 
-  // Restore action type selection
   FSelectedActionTypeIndex := -1;
   if Assigned(Item.ActionType) then
     for I := 0 to FActionTypes.Count - 1 do
@@ -278,7 +266,6 @@ begin
 
   FilterEquipments;
 
-  // Restore equipment selection from per-item equipment
   FSelectedEquipmentIndex := -1;
   if Assigned(Item.Equipment) then
     for I := 0 to FEquipments.Count - 1 do
@@ -292,7 +279,6 @@ begin
   DoChanged;
 end;
 
-{ Filter cascade — public setters }
 
 procedure TActionDialogVM.SetLevel(Value: TItemLevel);
 begin
@@ -316,7 +302,6 @@ begin
   FSelectedActionTypeIndex := Index;
   FilterEquipments;
 
-  // Pre-select default equipment and set default title
   FSelectedEquipmentIndex := -1;
   if (FSelectedActionTypeIndex >= 0) and (FSelectedActionTypeIndex < FActionTypes.Count) then
   begin
@@ -329,11 +314,9 @@ begin
           Break;
         end;
 
-    // Fallback to first equipment
     if (FSelectedEquipmentIndex < 0) and (FEquipments.Count > 0) then
       FSelectedEquipmentIndex := 0;
 
-    // Default title from action type when empty
     if FTitle = '' then
       FTitle := SelAT.Title;
   end;
@@ -346,7 +329,6 @@ begin
   FSelectedEquipmentIndex := Index;
 end;
 
-{ Value CRUD }
 
 procedure TActionDialogVM.AddValue(AValueType: TValueType; ARecType: TRecType;
   AValue, ATol: Double; const ADesc: string);
@@ -386,8 +368,16 @@ begin
   RefreshValuesDisplay;
   DoChanged;
 end;
+procedure TActionDialogVM.ValueEdited;
+begin
+  if not Assigned(FItem) then Exit;
+  if FIsEditMode then
+    if not FItemModel.UpdateItem(FItem, FUserId) then Exit;
+  RefreshValuesDisplay;
+  DoChanged;
+end;
 
-{ Quick-add }
+
 
 procedure TActionDialogVM.AddActionType(const ATitle: string; AKind: TActionKind);
 var
@@ -401,7 +391,6 @@ begin
 
   FilterActionTypes;
 
-  // Select the newly added entry
   for I := 0 to FActionTypes.Count - 1 do
     if FActionTypes[I].Title = ATitle then
     begin
@@ -424,7 +413,6 @@ begin
 
   FEquipmentModel.AddEquipment(SelActionType.EquipmentType, AModel, AManufacturer, ALocation);
 
-  // Reload all equipment of this type and find the newly added one
   var AllEquip := FEquipmentModel.GetEquipmentsByType(SelActionType.EquipmentType.Id);
   for I := 0 to AllEquip.Count - 1 do
     if AllEquip[I].Model = AModel then
@@ -437,9 +425,10 @@ begin
   DoChanged;
 end;
 
-{ Extract }
 
 procedure TActionDialogVM.ApplyTo(Item: TItem);
+var
+  Value: TValue;
 begin
   Item.Level := FLevel;
 
@@ -461,13 +450,15 @@ begin
 
   Item.Properties := FProperties;
 
-  // Transfer values from temp item (new mode)
   if not FIsEditMode and Assigned(FItem) then
     while FItem.Values.Count > 0 do
-      Item.Values.Add(FItem.Values.Extract(FItem.Values[0]));
+    begin
+      Value := FItem.Values.Extract(FItem.Values[0]);
+      Value.Item := Item;
+      Item.Values.Add(Value);
+    end;
 end;
 
-{ Helpers }
 
 function TActionDialogVM.GetSelectedItemType: TItemType;
 begin
@@ -485,7 +476,6 @@ begin
     Result := nil;
 end;
 
-{ Derived state }
 
 function TActionDialogVM.ShowValues: Boolean;
 begin
@@ -514,7 +504,6 @@ begin
   Result := True;
 end;
 
-{ Values display }
 
 function TActionDialogVM.FormatValueLine(Val: TValue): string;
 var

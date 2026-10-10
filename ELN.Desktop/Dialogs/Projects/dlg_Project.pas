@@ -20,9 +20,7 @@ type
     cbArchived: TCheckBox;
     procedure edTitleKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
   private
-    { Private declarations }
   public
-    { Public declarations }
   end;
 
   function ShowProjectDialog(const Mode: TDlgMode; Item: string;
@@ -52,7 +50,6 @@ begin
     ArchivedValue := False;
 
   Result := ExecuteDialog(TdlgProject,
-    // Setup procedure
     procedure(Dialog: TForm)
     var
       D: TdlgProject;
@@ -72,7 +69,6 @@ begin
                 end;
       end;
     end,
-    // Extract procedure
     procedure(Dialog: TForm)
     var
       D: TdlgProject;
@@ -84,7 +80,6 @@ begin
     end
   );
 
-  // Copy back to var parameters
   if Result then
   begin
     Title := TitleValue;

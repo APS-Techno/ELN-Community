@@ -8,9 +8,6 @@ uses
 
 procedure RegisterNavigationTools(Registry: TToolRegistry);
 
-// These are exported (the other handlers in this unit stay in the
-// implementation section) so ELN.Tests can drive them directly against a real
-// database without standing up the JSON-RPC transport.
 function HandleListItems(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 function HandleGetItem(const Params: TJSONObject;
@@ -36,7 +33,6 @@ const
   SearchResultKindNames: array[TSearchResultKind] of string =
     ('Item', 'Entry', 'File', 'Value', 'Tag');
 
-{ Helper: format TDateTime as ISO 8601 string, empty string for unset Nullable }
 
 function DateToISO(const DT: TDateTime): string;
 begin
@@ -51,7 +47,6 @@ begin
     Result := TJSONNull.Create;
 end;
 
-{ Helper: convert TItemType enum to/from string }
 
 function ItemTypeToStr(AType: TItemType): string;
 begin
@@ -68,7 +63,6 @@ begin
     AType := TItemType(V);
 end;
 
-{ Helper: convert TItemLevel enum to/from string }
 
 function ItemLevelToStr(ALevel: TItemLevel): string;
 begin
@@ -85,7 +79,6 @@ begin
     ALevel := TItemLevel(V);
 end;
 
-{ Helper: safely read optional JSON params }
 
 function GetOptBool(const Params: TJSONObject; const Key: string;
   Default: Boolean): Boolean;
@@ -126,7 +119,6 @@ begin
   Result := Params.GetValue<string>(Key);
 end;
 
-{ Helper: tag JSON, shared by get_item and list_items }
 
 type
   // ItemId -> that item's tags. Owns the value lists but never the TTag
@@ -224,7 +216,6 @@ begin
   end;
 end;
 
-{ --- Tool handlers --- }
 
 function HandleListProjects(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -258,7 +249,6 @@ begin
         if not IsProjectVisible(Context, Project.Id) then
           Continue;
 
-        // Count non-deleted items for this project
         Items := Context.Manager.Find<TItem>
           .Where((ItemDic.ProjectID = Project.Id) and (ItemDic.IsDeleted = False))
           .List;
@@ -369,7 +359,6 @@ begin
 
   ItemDic := TItemDictionary.Create;
   try
-    // Build criteria: ProjectID match and not deleted
     Criteria := (ItemDic.ProjectID = ProjectId) and (ItemDic.IsDeleted = False);
 
     if HasFolder then
@@ -415,7 +404,6 @@ begin
 
             if IncludeTags then
             begin
-              // A dictionary miss is simply an untagged item -> empty array.
               if not TagMap.TryGetValue(Item.Id, ItemTags) then
                 ItemTags := nil;
               Obj.AddPair('tags', TagsToJSONArray(ItemTags));
@@ -434,7 +422,6 @@ begin
         Items.Free;
       end;
     finally
-      // Frees the value lists too (doOwnsValues), never the manager-owned tags.
       TagMap.Free;
     end;
   finally
@@ -459,9 +446,6 @@ var
   Tags: TTags;
 begin
   ItemId := GetReqInt(Params, 'item_id');
-  // Uniform refusal for out-of-scope AND missing-under-scope: see
-  // unit_ToolScope on the existence oracle. Unscoped sessions fall through
-  // to the plain "Item not found" below, exactly as today.
   RequireItemRead(Context, ItemId);
 
   Item := Context.Manager.Find<TItem>(ItemId);
@@ -499,7 +483,6 @@ begin
       TagModel.Free;
     end;
 
-    // Children
     ItemDic := TItemDictionary.Create;
     try
       Children := Context.Manager.Find<TItem>
@@ -525,7 +508,6 @@ begin
       Children.Free;
     end;
 
-    // Files
     FilesArr := TJSONArray.Create;
     for F in Item.Files do
     begin
@@ -539,7 +521,6 @@ begin
     end;
     Result.AddPair('files', FilesArr);
 
-    // Values
     ValuesArr := TJSONArray.Create;
     for V in Item.Values do
     begin
@@ -558,7 +539,6 @@ begin
     end;
     Result.AddPair('values', ValuesArr);
 
-    // Entries (lab entries / protocols)
     EntriesArr := TJSONArray.Create;
     for E in Item.Entries do
     begin
@@ -599,13 +579,10 @@ begin
       try
         for R in Results do
         begin
-          // Filter by project if requested
           if HasProject and (R.ProjectId <> ProjectId) then
             Continue;
 
-          // Scope filter: a hit in a project this session cannot see is
-          // silently dropped, never surfaced as an error - the brief's
-          // highest-risk leak (search reaches across every project).
+        // Search spans projects: omit invisible hits instead of refusing the whole query.
           if not IsProjectVisible(Context, R.ProjectId) then
             Continue;
 
@@ -634,7 +611,6 @@ begin
   end;
 end;
 
-{ --- Schema builders --- }
 
 function MakeListProjectsSchema: TJSONObject;
 var
@@ -755,7 +731,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ --- Registration --- }
 
 procedure RegisterNavigationTools(Registry: TToolRegistry);
 begin

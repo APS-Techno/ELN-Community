@@ -102,7 +102,6 @@ begin
   end;
 end;
 
-{ TValueTypeModel }
 
 procedure TValueTypeModel.AddType(const Symbol, Title, Units: string; Group: integer);
 var
@@ -142,7 +141,7 @@ begin
   Lines := TStringList.Create;
   try
     Lines.LoadFromFile(CSVPath, TEncoding.UTF8);
-    for I := 1 to Lines.Count - 1 do  // skip header
+    for I := 1 to Lines.Count - 1 do
     begin
       if Trim(Lines[I]) = '' then
         Continue;
@@ -252,7 +251,6 @@ begin
     end;
   end;
 
-  // Scan DB for CatIDs beyond the known list and pad with placeholders
   NeedSave := not Assigned(Setting);
   MaxCatID := ValueTypeCategories.Count - 1;
   Maximum := FManager.Find<TValueType>

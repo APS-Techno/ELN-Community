@@ -5,10 +5,13 @@ program test_MarkdownEditorAttachments;
 uses
   System.SysUtils,
   System.DateUtils,
-  unit_MarkdownEditorAttachments in '..\unit_MarkdownEditorAttachments.pas';
+  System.NetEncoding,
+  unit_MarkdownEditorAttachments in '..\unit_MarkdownEditorAttachments.pas',
+  unit_MarkdownAttachmentResolver in '..\..\Viewer.Markdown\unit_MarkdownAttachmentResolver.pas';
 
 var
   Failures: Integer = 0;
+  Snippet: string;
 
 procedure AssertEq(const ATestName, AExpected, AActual: string);
 begin
@@ -29,7 +32,6 @@ begin
 end;
 
 begin
-  // ---- IsImageExt ----
   AssertEq('IsImageExt_PngWithDot',     'True',  B(IsImageExt('.png')));
   AssertEq('IsImageExt_JpgWithoutDot',  'True',  B(IsImageExt('jpg')));
   AssertEq('IsImageExt_JpegMixedCase',  'True',  B(IsImageExt('.JPeg')));
@@ -41,7 +43,6 @@ begin
   AssertEq('IsImageExt_TxtFalse',       'False', B(IsImageExt('.txt')));
   AssertEq('IsImageExt_EmptyFalse',     'False', B(IsImageExt('')));
 
-  // ---- BuildInsertSnippet ----
   AssertEq('SnippetSimpleImage',
     '![](shot.png)',
     BuildInsertSnippet('shot.png', True));
@@ -50,9 +51,11 @@ begin
     '![](my%20file.png)',
     BuildInsertSnippet('my file.png', True));
 
-  AssertEq('SnippetImageBrackets',
-    '![]([1042]thing.png)',
-    BuildInsertSnippet('[1042]thing.png', True));
+  Snippet := RewriteAttachmentRefs(
+    BuildInsertSnippet('[1042]thing.png', True), '',
+    TArray<string>.Create('[1042]thing.png', '[1043]thing.png'));
+  AssertEq('QualifiedImageKeepsOriginalFile', '[1042]thing.png',
+    TNetEncoding.URL.Decode(Copy(Snippet, 5, Length(Snippet) - 5)));
 
   AssertEq('SnippetSimpleNonImage',
     '[doc.pdf](doc.pdf)',
@@ -66,7 +69,6 @@ begin
     '![]()',
     BuildInsertSnippet('', True));
 
-  // ---- ClipboardImageFileName ----
   AssertEq('ClipboardName_2026Apr27_153012',
     'paste-20260427-153012.png',
     ClipboardImageFileName(EncodeDateTime(2026, 4, 27, 15, 30, 12, 0)));

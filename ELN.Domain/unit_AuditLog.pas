@@ -23,11 +23,8 @@ type
   [Id('FId', TIdGenerator.IdentityOrSequence)]
   TAuditLog = class
   private
-    // Append-only table: one row per create/update/delete across the whole
-    // system. A 32-bit signed identity overflows at 2.1B rows; BIGINT gives
-    // ~9.2 * 10^18, effectively unbounded for the product lifetime.
-    // EntityId stays Integer because it FKs into Items/Projects/Users which
-    // still use 32-bit identities.
+    // Append-only identities must not exhaust the 32-bit range.
+    // EntityId is polymorphic: file subjects also use signed 64-bit identities.
     [Column('Id', [TColumnProp.Required, TColumnProp.NoInsert, TColumnProp.NoUpdate])]
     FId: Int64;
 
@@ -35,7 +32,7 @@ type
     FEntityType: TAuditEntityType;
 
     [Column('EntityId', [TColumnProp.Required])]
-    FEntityId: Integer;
+    FEntityId: Int64;
 
     [Column('Operation', [TColumnProp.Required])]
     FOperation: TAuditOperation;
@@ -51,7 +48,7 @@ type
   public
     property Id: Int64 read FId write FId;
     property EntityType: TAuditEntityType read FEntityType write FEntityType;
-    property EntityId: Integer read FEntityId write FEntityId;
+    property EntityId: Int64 read FEntityId write FEntityId;
     property Operation: TAuditOperation read FOperation write FOperation;
     property UserId: Integer read FUserId write FUserId;
     property Timestamp: TDateTime read FTimestamp write FTimestamp;

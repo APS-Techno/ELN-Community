@@ -28,7 +28,7 @@ uses
   unit_LocalElnFileService in '..\ELN.Community\unit_LocalElnFileService.pas',
   unit_DomainEntities in '..\ELN.Domain\unit_DomainEntities.pas';
 
-{$R '..\ELN.Desktop\ELabNotebook3.res'}
+{$R *.res}
 
 var
   ConfigPath: string;

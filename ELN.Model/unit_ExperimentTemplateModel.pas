@@ -26,6 +26,8 @@ type
     FManager: TObjectManager;
     FAccess: IProjectAccessPolicy;
     FDic: TExperimentTemplateDictionary;
+    FCreatedFolderIds: TList<Integer>;
+    procedure TrackCreatedFolder(FolderId: Integer);
     procedure CreateChildren(ParentId, ProjectId, FolderId, UserId: Integer;
       ChildrenArr: TJSONArray;
       var FirstItemCreated: TItem);
@@ -41,11 +43,12 @@ type
     procedure ConvertIdsToNames(Node: TJSONObject);
     procedure ConvertNamesToIds(Node: TJSONObject; Warnings: TStringList);
     function FindActionTypeByName(const Name: string): Integer;
+    function ApplyTemplateCore(TemplateId, ProjectId, FolderId, UserId: Integer;
+      const TitleOverride: string): TItem;
   public
     constructor Create(Manager: TObjectManager; const Access: IProjectAccessPolicy);
     destructor Destroy; override;
 
-    // CRUD
     function AddTemplate(const Name, Description, Category, StructureJSON: string;
       CreatedBy: Integer): TExperimentTemplate;
     procedure UpdateTemplate(Template: TExperimentTemplate);
@@ -55,14 +58,11 @@ type
     function FindTemplateByName(const Name: string): Integer;
     function DuplicateTemplate(TemplateId, CreatedBy: Integer): TExperimentTemplate;
 
-    // Apply template — creates a Proc with children in the given project/folder
     function ApplyTemplate(TemplateId, ProjectId, FolderId, UserId: Integer;
       const TitleOverride: string = ''): TItem;
 
-    // Export template to .elntemplate JSON file
     procedure ExportTemplateToFile(TemplateId: Integer; const FilePath: string);
 
-    // Import template from .elntemplate JSON file
     function ImportTemplateFromFile(const FilePath: string; CreatedBy: Integer;
       out Warnings: string): TExperimentTemplate;
   end;
@@ -71,12 +71,13 @@ implementation
 
 uses
   Aurelius.Criteria.Base,
+  Aurelius.Drivers.Interfaces,
+  unit_User,
   unit_AuditLog,
   unit_AuditHelper,
   unit_ProjectModel,
   unit_TimeHelper;
 
-{ TExperimentTemplateModel }
 
 constructor TExperimentTemplateModel.Create(Manager: TObjectManager;
   const Access: IProjectAccessPolicy);
@@ -91,8 +92,16 @@ end;
 
 destructor TExperimentTemplateModel.Destroy;
 begin
+  FCreatedFolderIds.Free;
   FreeAndNil(FDic);
   inherited;
+end;
+
+procedure TExperimentTemplateModel.TrackCreatedFolder(FolderId: Integer);
+begin
+  if FCreatedFolderIds = nil then
+    FCreatedFolderIds := TList<Integer>.Create;
+  FCreatedFolderIds.Add(FolderId);
 end;
 
 function TExperimentTemplateModel.AddTemplate(const Name, Description, Category,
@@ -211,11 +220,10 @@ begin
 
   FManager.Save(Result);
   FManager.Flush;
-  FManager.Evict(Result);
 
   if ItemObj.TryGetValue<TJSONArray>('children', SubChildren) then
   begin
-    ChildFirstItem := nil;  // discard — item-root templates surface Result directly
+    ChildFirstItem := nil;
     CreateChildren(Result.Id, ProjectId, FolderId, UserId, SubChildren, ChildFirstItem);
   end;
 end;
@@ -263,12 +271,13 @@ begin
   Project := FManager.Find<TProject>(ProjectId);
   if not Assigned(Project) then Exit;
 
-  Folders := Project.Folders;  // proxy-backed list scoped to this project
+  Folders := Project.Folders;
   if not Assigned(Folders) then Exit;
 
   for I := 0 to Folders.Count - 1 do
   begin
-    if (Folders[I].ParentFolderID = ParentFolderId) and
+    if ((Folders[I].ParentFolderID = ParentFolderId) or
+        ((ParentFolderId <= 0) and (Folders[I].ParentFolderID <= 0))) and
        SameText(Folders[I].Title, Title) then
     begin
       Result := Folders[I];
@@ -292,6 +301,7 @@ begin
   // audit/ownership side-effects match the desktop path.
   Projects := TProjectsModel.Create(FManager, FAccess);
   try
+    Projects.AssignUser(FManager.Find<TUser>(UserId));
     Projects.AddFolder(Title, '', ProjectId, ParentFolderId);
   finally
     Projects.Free;
@@ -302,11 +312,10 @@ begin
     raise Exception.CreateFmt(
       'Failed to locate folder "%s" after creation (project=%d, parent=%d).',
       [Title, ProjectId, ParentFolderId]);
+  TrackCreatedFolder(NewFolder.Id);
 
   if FolderObj.TryGetValue<TJSONArray>('children', ChildrenArr) then
     CreateChildren(0, ProjectId, NewFolder.Id, UserId, ChildrenArr, FirstItemCreated);
-  // Note: ParentId=0 for items under a folder-root — items in the Wiki/ root
-  // are not children of any item, just scoped by folder.
 end;
 
 function TExperimentTemplateModel.ApplyFolderRoot(RootObj: TJSONObject;
@@ -329,9 +338,9 @@ begin
   if Assigned(FindFolderByTitle(ProjectId, ParentFolderId, EffectiveTitle)) then
     raise EWikiFolderExists.CreateFmt('%s already exists in this folder.', [EffectiveTitle]);
 
-  // Create the root folder
   Projects := TProjectsModel.Create(FManager, FAccess);
   try
+    Projects.AssignUser(FManager.Find<TUser>(UserId));
     Projects.AddFolder(EffectiveTitle, '', ProjectId, ParentFolderId);
   finally
     Projects.Free;
@@ -342,8 +351,8 @@ begin
     raise Exception.CreateFmt(
       'Failed to locate folder "%s" after creation (project=%d, parent=%d).',
       [EffectiveTitle, ProjectId, ParentFolderId]);
+  TrackCreatedFolder(NewFolder.Id);
 
-  // Process children into the new root folder
   if RootObj.TryGetValue<TJSONArray>('children', ChildrenArr) then
     CreateChildren(0, ProjectId, NewFolder.Id, UserId, ChildrenArr, FirstItemCreated);
 
@@ -351,6 +360,80 @@ begin
 end;
 
 function TExperimentTemplateModel.ApplyTemplate(TemplateId, ProjectId, FolderId,
+  UserId: Integer; const TitleOverride: string): TItem;
+var
+  OperationManager: TObjectManager;
+  Operation: TExperimentTemplateModel;
+  Transaction: IDBTransaction;
+  Created: TItem;
+  CreatedId: Integer;
+  CachedProject, StoredProject: TProject;
+  OriginalProjectVersion, NewFolderId: Integer;
+  CachedFolder: TFolder;
+begin
+  // New rows use zero; existing nonpositive folder references remain readable.
+  if FolderId < 0 then FolderId := 0;
+  Result := nil;
+  CreatedId := 0;
+  CachedProject := FManager.FindCached<TProject>(ProjectId);
+  OriginalProjectVersion := 0;
+  StoredProject := nil;
+  OperationManager := TObjectManager.Create(FManager.Connection);
+  try
+    Operation := TExperimentTemplateModel.Create(OperationManager, FAccess);
+    try
+      Transaction := OperationManager.Connection.BeginTransaction;
+      try
+        if Assigned(CachedProject) then
+        begin
+          StoredProject := OperationManager.Find<TProject>(ProjectId);
+          if Assigned(StoredProject) then
+            OriginalProjectVersion := StoredProject.Version;
+        end;
+        Created := Operation.ApplyTemplateCore(TemplateId, ProjectId, FolderId,
+          UserId, TitleOverride);
+        if Assigned(Created) then
+          CreatedId := Created.Id;
+        OperationManager.Flush;
+        Transaction.Commit;
+      except
+        Transaction.Rollback;
+        raise;
+      end;
+      if Assigned(CachedProject) and Assigned(Operation.FCreatedFolderIds) then
+      begin
+        if not FManager.HasChanges(CachedProject) then
+          FManager.Refresh(CachedProject)
+        else
+        begin
+          // Keep pending project/folder edits and local collection changes.
+          // Only append this operation's new folders; reloading the complete
+          // collection could restore folders that the host deliberately removed.
+          for NewFolderId in Operation.FCreatedFolderIds do
+          begin
+            CachedFolder := FManager.Find<TFolder>(NewFolderId);
+            if not CachedProject.Folders.Contains(CachedFolder) then
+              CachedProject.Folders.Add(CachedFolder);
+          end;
+          // Advance only a baseline that matched before our operation. An
+          // already-stale host must retain its optimistic-concurrency conflict.
+          if Assigned(StoredProject) and
+             (CachedProject.Version = OriginalProjectVersion) then
+            CachedProject.Version := StoredProject.Version;
+        end;
+      end;
+    finally
+      Operation.Free;
+    end;
+  finally
+    // Rollback alone cannot remove saved entities from an identity map.
+    OperationManager.Free;
+  end;
+  if CreatedId <> 0 then
+    Result := FManager.Find<TItem>(CreatedId);
+end;
+
+function TExperimentTemplateModel.ApplyTemplateCore(TemplateId, ProjectId, FolderId,
   UserId: Integer; const TitleOverride: string): TItem;
 var
   Template: TExperimentTemplate;
@@ -371,7 +454,6 @@ begin
   RootJSON := TJSONObject.ParseJSONValue(Template.StructureJSON) as TJSONObject;
   if not Assigned(RootJSON) then Exit;
   try
-    // Support 'folder', 'proc', and 'item' root keys
     if RootJSON.TryGetValue<TJSONObject>('folder', RootObj) then
     begin
       Result := ApplyFolderRoot(RootObj, ProjectId, FolderId, UserId, TitleOverride);
@@ -412,11 +494,9 @@ begin
     FManager.Flush;
     RecordAudit(FManager, aetItem, RootItem.Id, aoCreate, UserId,
       'Created from template "' + Template.Name + '"');
-    FManager.Evict(RootItem);
 
     Result := RootItem;
 
-    // Create children
     if RootObj.TryGetValue<TJSONArray>('children', ChildrenArr) then
     begin
       UnusedFirst := nil;
@@ -436,15 +516,19 @@ var
   i: Integer;
   ChildObj: TJSONObject;
 begin
-  // Replace actionTypeId (integer) with actionTypeName (string)
+  if Node.TryGetValue<TJSONObject>('folder', ChildObj) or
+     Node.TryGetValue<TJSONObject>('item', ChildObj) or
+     Node.TryGetValue<TJSONObject>('proc', ChildObj) then
+  begin
+    ConvertIdsToNames(ChildObj);
+    Exit;
+  end;
   ActionTypeId := Node.GetValue<Integer>('actionTypeId', 0);
   if ActionTypeId > 0 then
   begin
     ActionType := FManager.Find<TActionType>(ActionTypeId);
-    // Remove the integer ID pair
     Pair := Node.RemovePair('actionTypeId');
     Pair.Free;
-    // Add name-based reference
     if Assigned(ActionType) then
       Node.AddPair('actionTypeName', ActionType.Title)
     else
@@ -452,13 +536,11 @@ begin
   end
   else
   begin
-    // Remove actionTypeId=0 entries (no action type assigned)
     Pair := Node.RemovePair('actionTypeId');
     if Assigned(Pair) then
       Pair.Free;
   end;
 
-  // Recurse into children array
   if Node.TryGetValue<TJSONArray>('children', ChildrenArr) then
   begin
     for i := 0 to ChildrenArr.Count - 1 do
@@ -474,7 +556,6 @@ procedure TExperimentTemplateModel.ExportTemplateToFile(TemplateId: Integer;
 var
   Template: TExperimentTemplate;
   StructJSON: TJSONObject;
-  ProcObj: TJSONObject;
   Envelope: TJSONObject;
   ElnTemplate: TJSONObject;
   SL: TStringList;
@@ -489,13 +570,8 @@ begin
 
   Envelope := nil;
   try
-    // Convert IDs to names in the root object (proc or item)
-    if StructJSON.TryGetValue<TJSONObject>('proc', ProcObj) then
-      ConvertIdsToNames(ProcObj)
-    else if StructJSON.TryGetValue<TJSONObject>('item', ProcObj) then
-      ConvertIdsToNames(ProcObj);
+    ConvertIdsToNames(StructJSON);
 
-    // Build export envelope
     ElnTemplate := TJSONObject.Create;
     ElnTemplate.AddPair('version', TJSONNumber.Create(1));
     ElnTemplate.AddPair('name', Template.Name);
@@ -507,7 +583,6 @@ begin
     Envelope := TJSONObject.Create;
     Envelope.AddPair('elnTemplate', ElnTemplate);
 
-    // Write formatted JSON to file
     SL := TStringList.Create;
     try
       SL.Text := Envelope.Format(2);
@@ -532,7 +607,6 @@ begin
   if TrimmedName = '' then
     Exit;
 
-  // Load all action types and find case-insensitive match
   List := FManager.Find<TActionType>.List;
   try
     for AT in List do
@@ -558,15 +632,22 @@ var
   i: Integer;
   ChildObj: TJSONObject;
 begin
-  // Replace actionTypeName (string) with actionTypeId (integer)
+  if Node.TryGetValue<TJSONObject>('folder', ChildObj) or
+     Node.TryGetValue<TJSONObject>('item', ChildObj) or
+     Node.TryGetValue<TJSONObject>('proc', ChildObj) then
+  begin
+    ConvertNamesToIds(ChildObj, Warnings);
+    Exit;
+  end;
+  // An imported ID belongs to the source notebook, never to this notebook.
+  Pair := Node.RemovePair('actionTypeId');
+  Pair.Free;
   ActionTypeName := Node.GetValue<string>('actionTypeName', '');
   if ActionTypeName <> '' then
   begin
-    // Remove the name pair
     Pair := Node.RemovePair('actionTypeName');
     Pair.Free;
 
-    // Look up the action type by name
     ActionTypeId := FindActionTypeByName(ActionTypeName);
     if ActionTypeId > 0 then
       Node.AddPair('actionTypeId', TJSONNumber.Create(ActionTypeId))
@@ -574,7 +655,6 @@ begin
       Warnings.Add('Action type not found: "' + ActionTypeName + '"');
   end;
 
-  // Recurse into children array
   if Node.TryGetValue<TJSONArray>('children', ChildrenArr) then
   begin
     for i := 0 to ChildrenArr.Count - 1 do
@@ -593,7 +673,6 @@ var
   RootJSON: TJSONObject;
   ElnTemplate: TJSONObject;
   StructObj: TJSONObject;
-  ProcObj: TJSONObject;
   Version: Integer;
   Name, Description, Category: string;
 begin
@@ -612,7 +691,6 @@ begin
 
   WarnList := TStringList.Create;
   try
-    // Validate envelope structure
     if not RootJSON.TryGetValue<TJSONObject>('elnTemplate', ElnTemplate) then
       raise Exception.Create('Missing "elnTemplate" object in file');
 
@@ -620,7 +698,6 @@ begin
     if not (Version in [1, 2]) then
       raise Exception.Create('Unsupported template version: ' + IntToStr(Version));
 
-    // Extract metadata
     Name := ElnTemplate.GetValue<string>('name', '');
     Description := ElnTemplate.GetValue<string>('description', '');
     Category := ElnTemplate.GetValue<string>('category', '');
@@ -628,20 +705,13 @@ begin
     if Name = '' then
       raise Exception.Create('Template name is required');
 
-    // Get structure sub-object
     if not ElnTemplate.TryGetValue<TJSONObject>('structure', StructObj) then
       raise Exception.Create('Missing "structure" object in template');
 
-    // Convert action type names back to IDs in the root node (proc or item)
-    if StructObj.TryGetValue<TJSONObject>('proc', ProcObj) then
-      ConvertNamesToIds(ProcObj, WarnList)
-    else if StructObj.TryGetValue<TJSONObject>('item', ProcObj) then
-      ConvertNamesToIds(ProcObj, WarnList);
+    ConvertNamesToIds(StructObj, WarnList);
 
-    // Create the template using the existing AddTemplate method
     Result := AddTemplate(Name, Description, Category, StructObj.Format(2), CreatedBy);
 
-    // Collect warnings
     if WarnList.Count > 0 then
       Warnings := WarnList.Text;
   finally

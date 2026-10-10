@@ -48,14 +48,14 @@ type
 
 const
   CDarkSeriesColors: array[0..7] of TColor = (
-    $CC9933,   // muted steel blue
-    $4466DD,   // muted red-orange
-    $55BB55,   // muted green
-    $CC77AA,   // muted mauve
-    $44AABB,   // muted teal
-    $6688CC,   // muted slate blue
-    $88BBDD,   // muted sand
-    $AA88CC    // muted lavender
+    $CC9933,
+    $4466DD,
+    $55BB55,
+    $CC77AA,
+    $44AABB,
+    $6688CC,
+    $88BBDD,
+    $AA88CC
   );
 
   CLightSeriesColors: array[0..7] of TColor = (
@@ -147,7 +147,6 @@ begin
   AChart.BackWall.Brush.Color := WallClr;
   AChart.BackWall.Pen.Color := GridClr;
 
-  // Axes
   AChart.BottomAxis.Axis.Color := TxtColor;
   AChart.BottomAxis.LabelsFont.Color := TxtColor;
   AChart.BottomAxis.Title.Font.Color := TxtColor;
@@ -172,18 +171,14 @@ begin
   AChart.TopAxis.Axis.Color := TxtColor;
   AChart.TopAxis.LabelsFont.Color := TxtColor;
 
-  // Legend
   AChart.Legend.Color := BgColor;
   AChart.Legend.Font.Color := TxtColor;
   AChart.Legend.Frame.Color := GridClr;
 
-  // Title
   AChart.Title.Font.Color := TxtColor;
 
-  // Frame
   AChart.BevelOuter := bvNone;
 
-  // Series colors
   for I := 0 to AChart.SeriesCount - 1 do
   begin
     if AChart.Series[I] is TFastLineSeries then

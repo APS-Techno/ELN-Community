@@ -56,19 +56,7 @@ uses
   Aurelius.Commands.Exceptions,
   unit_TimeHelper;
 
-{ TFolderModel }
 
-//procedure TFolderModel.AddFolder;
-//var
-//  Folder: TFolder;
-//begin
-//  Folder := TFolder.Create;
-//  Folder.Name := Name;
-//  Folder.Description := Description;
-//  Folder.ParentFolderID := 0;
-//  FFolder.Project := Project;
-//  FManager.Save(Folder);
-//end;
 
 constructor TFolderModel.Create;
 begin
@@ -118,8 +106,6 @@ procedure TFolderModel.OpenDataSet;
 begin
   FDataSet := CreateDataSet;
   FDataSet.Manager := FManager;
-//  FDataSet.SetSourceCriteria(FManager.Find<TFolder>);
-//  FDataSet.Open;
 end;
 
 function TFolderModel.ProjectID(const FolderID: integer): integer;
@@ -142,7 +128,7 @@ begin
   except
     // UI state: ignore the conflict, but reload the entity that conflicted
     // (this one, or a stale one from elsewhere). Left dirty it would fail
-    // every later Flush on this shared manager (review M-1).
+    // every later Flush on this shared manager.
     on E: EVersionedConcurrencyControl do
       TConflictHandler.ReloadConflicted(FManager, E);
   end;

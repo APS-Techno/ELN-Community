@@ -682,8 +682,7 @@ begin
             vsInReview, vsDraft, 'Invalid target');
         end);
       CheckProtocolRows(Status, Protocol.Id, 0);
-      // Formal protocol rejection did not require a nonempty reason before
-      // this cutover; preserve that rule, unlike hypothesis rejection.
+      // Protocol rejection permits an empty reason; hypothesis rejection does not.
       CurrentVersion := Status.Transition(Notebook.Principal, Protocol.Id,
         CurrentVersion, vsInReview, vsRejected, '');
       CurrentVersion := Status.Transition(Notebook.Principal, Protocol.Id,
@@ -896,7 +895,6 @@ begin
     Model.Free;
     Projects.Free;
     Notebook.Free;
-    // Delete only this runner's fresh GUID fixture tree.
     if DirectoryExists(FixtureDir) then
       TDirectory.Delete(FixtureDir, True);
   end;

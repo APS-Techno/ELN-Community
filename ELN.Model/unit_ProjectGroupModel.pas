@@ -40,7 +40,6 @@ uses
   unit_AuditLog,
   unit_ConflictHandler;
 
-{ TProjectGroupModel }
 
 constructor TProjectGroupModel.Create(Manager: TObjectManager);
 begin
@@ -50,7 +49,6 @@ end;
 
 procedure TProjectGroupModel.OpenDataSet;
 begin
-  // No dataset binding needed; groups are consumed as entity lists.
 end;
 
 function TProjectGroupModel.ListGroups(OwnerId: Integer): TProjectGroupList;
@@ -96,8 +94,6 @@ begin
   if not Assigned(Group) then Exit(False);
   Title := Group.Title;
 
-  // Members return to the tree root; projects themselves are never touched
-  // beyond the GroupID field.
   Members := FManager.Find<TProject>
     .Where(Linq['GroupID'] = GroupId)
     .List;
@@ -146,7 +142,7 @@ begin
   except
     // UI state: ignore the conflict, but reload the entity that conflicted
     // (this one, or a stale one from elsewhere). Left dirty it would fail
-    // every later Flush on this shared manager (review M-1).
+    // every later Flush on this shared manager.
     on E: EVersionedConcurrencyControl do
       TConflictHandler.ReloadConflicted(FManager, E);
   end;
@@ -165,8 +161,6 @@ begin
   begin
     Group := FManager.Find<TProjectGroup>(GroupId);
     if not Assigned(Group) then Exit(False);
-    // Single write chokepoint for grouping: a group only ever holds its
-    // owner's projects.
     if (not Assigned(Project.Owner)) or (Group.OwnerId <> Project.Owner.Id) then
       Exit(False);
     Project.GroupID := GroupId;

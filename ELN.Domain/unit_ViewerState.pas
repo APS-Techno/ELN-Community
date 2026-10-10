@@ -19,7 +19,7 @@ type
     FUserId: Integer;
 
     [Column('FileId', [TColumnProp.Required])]
-    FFileId: Integer;
+    FFileId: Int64;
 
     [Column('PluginName', [TColumnProp.Required], 100)]
     FPluginName: string;
@@ -32,7 +32,7 @@ type
   public
     property Id: Integer read FId write FId;
     property UserId: Integer read FUserId write FUserId;
-    property FileId: Integer read FFileId write FFileId;
+    property FileId: Int64 read FFileId write FFileId;
     property PluginName: string read FPluginName write FPluginName;
     property StateData: string read FStateData write FStateData;
     property UpdatedDate: TDateTime read FUpdatedDate write FUpdatedDate;

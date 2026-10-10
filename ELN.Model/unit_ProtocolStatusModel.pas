@@ -118,7 +118,6 @@ begin
   end;
 end;
 
-{ TProtocolStatusModel }
 
 constructor TProtocolStatusModel.Create(Manager: TObjectManager;
   const Access: IProjectAccessPolicy);
@@ -145,7 +144,6 @@ end;
 
 procedure TProtocolStatusModel.OpenDataSet;
 begin
-  // Dataset not used - model uses direct ObjectManager queries
 end;
 
 function TProtocolStatusModel.GetAllowedTransitions(
@@ -324,13 +322,9 @@ var
   All: TList<TProtocol>;
   P: TProtocol;
 begin
-  // A protocol hangs off an item and carries no back-reference to it -- TLabEntry
-  // cannot reference TItem without a circular unit dependency -- and an item-side
-  // CreateAlias('FEntries') resolves to TLabEntry, so the TProtocol columns are
-  // not reachable from that side either. Collect the entries sitting in the
-  // recycle bin instead (it is small) and drop them from the result: a protocol
-  // whose item was deleted used to keep showing on the dashboard and in the
-  // review dialog.
+  // TLabEntry cannot reference TItem without a circular dependency, and an
+  // item-side entries alias cannot reach TProtocol columns. Exclude recycled
+  // protocols through the deleted items' collections instead.
   Binned := TDictionary<Integer, Boolean>.Create;
   try
     DeletedItems := FManager.Find<TItem>

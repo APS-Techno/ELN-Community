@@ -19,9 +19,8 @@ import sys
 import argparse
 from pathlib import Path
 
-# --- Paths ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-TOOLBARS_DIR = SCRIPT_DIR  # .../Assets/DevTools/ToolBars/
+TOOLBARS_DIR = SCRIPT_DIR
 THEMED_DIR = TOOLBARS_DIR
 DESKTOP_DIR = os.path.normpath(os.path.join(SCRIPT_DIR, '..', '..', '..'))
 VIEWS_DIR = os.path.join(DESKTOP_DIR, 'Views')
@@ -33,10 +32,8 @@ DLL_FILE = os.path.join(VIEWS_DIR, 'ELNIcons.dll')
 DPR_FILE = os.path.join(VIEWS_DIR, 'ELNIcons.dpr')
 PRIVATE_OUTPUT = False
 
-# Source for tree node icons (multicolor, theme-neutral)
 ITEM_TYPES_NEW_DIR = os.path.join(TOOLBARS_DIR, 'ItemTypes', 'New')
 
-# --- Icon collections ---
 
 ITEM_TB_ICONS = [
     'Add File', 'Add Folder', 'Edit', 'Delete Document',
@@ -143,12 +140,10 @@ def resolve_icon_path(theme, collection, icon_name):
             return os.path.join(TOOLBARS_DIR, 'FileTypes', filename)
         return os.path.join(THEMED_DIR, theme, 'FileTypes', filename)
     elif collection == 'MENU':
-        # Menu icons: first check the Menu dir, then fallback to Item, then Project
         for subdir in ('Menu', 'Item', 'Project'):
             path = os.path.join(THEMED_DIR, theme, subdir, filename)
             if os.path.isfile(path):
                 return path
-        # If still not found, return the Menu path (will be caught as missing)
         return os.path.join(THEMED_DIR, theme, 'Menu', filename)
     else:
         raise ValueError(f'Unknown collection: {collection}')
@@ -170,7 +165,7 @@ def generate_rc():
 
     for collection_name, icon_list in collections:
         for theme in ('LIGHT', 'DARK'):
-            theme_dir_name = theme.capitalize()  # 'Light' or 'Dark'
+            theme_dir_name = theme.capitalize()
             for icon_name in icon_list:
                 resource_id = f'{theme}_{collection_name}_{sanitize_name(icon_name)}'
                 file_path = resolve_icon_path(theme_dir_name, collection_name, icon_name)
@@ -188,7 +183,6 @@ def generate_rc():
         for res_id, path in missing:
             print(f'  {res_id} -> {path}')
 
-    # Write the .rc file
     rc_content = '\n'.join(entries) + '\n'
     with open(RC_FILE, 'w', encoding='utf-8') as f:
         f.write(rc_content)
@@ -242,7 +236,6 @@ def compile_dll():
         print(f'ERROR: dcc32.exe not found at: {DCC32}')
         sys.exit(1)
 
-    # Create minimal library source
     dpr_content = "library ELNIcons;\n{$R dm_TreeImages.res}\nbegin\nend.\n"
     with open(DPR_FILE, 'w') as f:
         f.write(dpr_content)
@@ -260,7 +253,6 @@ def compile_dll():
     if result.stderr:
         print(result.stderr.rstrip())
 
-    # Clean up temporary files
     for ext in ('.dpr', '.dcu'):
         tmp = os.path.join(VIEWS_DIR, f'ELNIcons{ext}')
         if os.path.isfile(tmp):
@@ -274,7 +266,6 @@ def compile_dll():
         size_kb = os.path.getsize(DLL_FILE) / 1024
         print(f'Output: {DLL_FILE} ({size_kb:.1f} KB)')
 
-        # Deploy to output directory
         os.makedirs(DEPLOY_DIR, exist_ok=True)
         deploy_path = os.path.join(DEPLOY_DIR, 'ELNIcons.dll')
         if os.path.abspath(DLL_FILE) != os.path.abspath(deploy_path):
@@ -347,18 +338,15 @@ def main():
         generate_private_icons()
     print('=== ELN3 Icon Resource Generator ===\n')
 
-    # Step 1: Verify themed tree node icons exist
     print('Step 1: Checking themed ItemTypes icons...')
     copy_tree_node_icons()
     print()
 
-    # Step 1b: Copy file type icons to themed directories
     if not PRIVATE_OUTPUT:
         print('Step 1b: Copying FileTypes icons to themed directories...')
         copy_filetype_icons()
         print()
 
-    # Step 2: Generate .rc file
     print('Step 2: Generating dm_TreeImages.rc...')
     entry_count, missing_count = generate_rc()
 
@@ -366,11 +354,9 @@ def main():
         print(f'\nAborting: {missing_count} missing icon(s). Fix the above before compiling.')
         sys.exit(1)
 
-    # Step 3: Compile .rc -> .res
     print('\nStep 3: Compiling .rc -> .res...')
     compile_rc()
 
-    # Step 4: Wrap .res into resource-only DLL
     print('\nStep 4: Building resource-only DLL...')
     compile_dll()
 

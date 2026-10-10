@@ -42,7 +42,6 @@ type
 
 implementation
 
-{ TEquipmentModel }
 
 procedure TEquipmentModel.AddEquipment(const EType: TEquipmentType; Model, Manufacturer, Location: string);
 var

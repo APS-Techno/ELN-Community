@@ -47,7 +47,6 @@ uses
   dlg_CategorySelect,
   unit_TimeHelper;
 
-{ TedTemplates }
 
 class procedure TedTemplates.ShowManager(const AHtmlViewer: IViewerPlugin);
 var
@@ -128,7 +127,7 @@ end;
 procedure TedTemplates.btnEditClick(Sender: TObject);
 var
   Id: Integer;
-  Template: TTemplate;
+  Template, Draft: TTemplate;
 begin
   Id := GetSelectedTemplateId;
   if Id < 0 then
@@ -142,13 +141,16 @@ begin
     Exit;
 
   var Tags: TTemplateTagsSnapshot := Model.Templates.LoadTagsFor(Template.Id);
-  if dlg_ProtocolTemplateEditor.TdlgTemplateEditor.Execute(Template, Tags, FHtmlViewer) then
-  begin
-    // SaveOrVersion may rotate to a brand-new version row — tag the
-    // persisted Id, not necessarily the original one.
-    var Persisted := Model.Templates.SaveOrVersion(Template);
-    Model.Templates.SaveTagsFor(Persisted.Id, Tags);
-    RefreshList;
+  Draft := Model.Templates.CreateDraft(Template.Id);
+  try
+    if dlg_ProtocolTemplateEditor.TdlgTemplateEditor.Execute(Draft, Tags, FHtmlViewer) then
+    begin
+      var Persisted := Model.Templates.SaveOrVersion(Template.Id, Draft);
+      Model.Templates.SaveTagsFor(Persisted.Id, Tags);
+      RefreshList;
+    end;
+  finally
+    Draft.Free;
   end;
 end;
 

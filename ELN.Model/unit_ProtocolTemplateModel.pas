@@ -32,7 +32,6 @@ type
     procedure SaveTemplate(Template: TTemplate);
     procedure DeleteTemplate(Id: Integer);
 
-    // Equipment-type / equipment tag persistence (join tables)
     function LoadTagsFor(TemplateId: Integer): TTemplateTagsSnapshot;
     procedure SaveTagsFor(TemplateId: Integer; const Snap: TTemplateTagsSnapshot);
 
@@ -42,18 +41,16 @@ type
     procedure ReimportTemplates(const TemplatesDir: string; Overwrite: Boolean;
       UserId: Integer; Categories: TStrings = nil);
 
-    // Auto-fill
     function BuildAutoFillData(Template: TTemplate; Item: TItem;
       const UserDisplayName: string): string;
 
-    // Versioning
     function IsTemplateInUse(TemplateId: Integer): Boolean;
     function GetLatestVersions: TTemplates;
     function GetVersionHistory(RootId: Integer): TTemplates;
-    /// <summary>Persist a template. If the template is already in use, a new
-    /// version row is created and returned; otherwise the passed-in template
-    /// is updated in place and returned.</summary>
-    function SaveOrVersion(Template: TTemplate): TTemplate;
+    // Caller owns the detached draft. The managed historical row is never edited
+    // by the dialog; only SaveOrVersion decides which row receives the draft.
+    function CreateDraft(TemplateId: Integer): TTemplate;
+    function SaveOrVersion(TemplateId: Integer; Draft: TTemplate): TTemplate;
     function GetRootId(Template: TTemplate): Integer;
   end;
 
@@ -71,7 +68,6 @@ uses
   unit_ValueTypeModel,
   unit_TimeHelper;
 
-{ TTemplateModel }
 
 constructor TTemplateModel.Create(Manager: TObjectManager);
 begin
@@ -90,7 +86,6 @@ end;
 
 procedure TTemplateModel.OpenDataSet;
 begin
-  // Dataset not used - model uses direct ObjectManager queries
 end;
 
 function TTemplateModel.GetActiveTemplates: TTemplates;
@@ -155,7 +150,6 @@ begin
   begin
     if IsTemplateInUse(Id) then
     begin
-      // Soft-delete: mark inactive instead of removing
       Template.IsActive := False;
       Template.ModifiedDate := UTCNow;
       FManager.Flush;
@@ -199,9 +193,7 @@ var
       AT := GetActionType;
       if Assigned(AT) then
       begin
-        // Try direct Equipment link on ActionType
         CachedEq := AT.Equipment;
-        // Fallback: find Equipment via ActionType.EquipmentType
         if not Assigned(CachedEq) and Assigned(AT.EquipmentType) then
         begin
           EqTypeId := AT.EquipmentType.Id;
@@ -331,7 +323,6 @@ var
       if Assigned(ParentItem) then
         Result := ParentItem.Description;
     end
-    // conditions.all / conditions.<symbol> — EXP_CONDITION values only
     else if Source = 'conditions.all' then
       Result := FormatFilteredValues(Item, EXP_CONDITION)
     else if Source.StartsWith('conditions.') then
@@ -341,7 +332,6 @@ var
       if Assigned(Val) then
         Result := FormatSIValue(Val.Value, Val.ValueType.Units);
     end
-    // results.all / results.<symbol> — TEST_RESULT values only
     else if Source = 'results.all' then
       Result := FormatFilteredValues(Item, TEST_RESULT)
     else if Source.StartsWith('results.') then
@@ -351,7 +341,6 @@ var
       if Assigned(Val) then
         Result := FormatSIValue(Val.Value, Val.ValueType.Units);
     end
-    // values.all / values.<symbol> — all values regardless of type
     else if Source = 'values.all' then
     begin
       if Item.Values.Count > 0 then
@@ -476,7 +465,6 @@ begin
   if not TDirectory.Exists(TemplatesDir) then
     Exit;
 
-  // Build name -> template map from DB (all versions, active and inactive)
   ExistingMap := TDictionary<string, TTemplate>.Create;
   try
     AllTemplates := FManager.Find<TTemplate>.List;
@@ -492,7 +480,6 @@ begin
 
     for FileName in Files do
     begin
-      // Filter by category (parent directory name) if categories specified
       if Assigned(Categories) and (Categories.Count > 0) then
       begin
         ParentDir := TPath.GetFileName(TPath.GetDirectoryName(FileName));
@@ -594,7 +581,6 @@ var
   RootId: Integer;
   RootMap: TDictionary<Integer, TTemplate>;
 begin
-  // Get all active templates, then pick the highest version per root family
   AllActive := FManager.Find<TTemplate>
     .Where(FDic.IsActive = True)
     .OrderBy(FDic.Name)
@@ -625,49 +611,61 @@ end;
 
 function TTemplateModel.GetVersionHistory(RootId: Integer): TTemplates;
 begin
-  // Return all versions: the root itself (Id=RootId) + all with ParentId=RootId
   Result := FManager.Find<TTemplate>
     .Where((FDic.Id = RootId) or (FDic.ParentId = RootId))
     .OrderBy(FDic.Version)
     .List;
 end;
 
-function TTemplateModel.SaveOrVersion(Template: TTemplate): TTemplate;
+function TTemplateModel.CreateDraft(TemplateId: Integer): TTemplate;
 var
-  RootId: Integer;
-  NewVersion: TTemplate;
+  Source: TTemplate;
 begin
-  if (Template.Id > 0) and IsTemplateInUse(Template.Id) then
+  Source := GetTemplateById(TemplateId);
+  if not Assigned(Source) then
+    raise EArgumentException.Create('Template not found');
+  Result := TTemplate.Create;
+  Result.Name := Source.Name;
+  Result.Description := Source.Description;
+  Result.Category := Source.Category;
+  Result.FormSchema := Source.FormSchema;
+  Result.IsActive := Source.IsActive;
+end;
+
+function TTemplateModel.SaveOrVersion(TemplateId: Integer;
+  Draft: TTemplate): TTemplate;
+var
+  Original: TTemplate;
+begin
+  if not Assigned(Draft) then
+    raise EArgumentNilException.Create('Draft');
+  Original := GetTemplateById(TemplateId);
+  if not Assigned(Original) then
+    raise EArgumentException.Create('Template not found');
+  if (Original = Draft) or (Draft.Id <> 0) then
+    raise EArgumentException.Create('A detached, unsaved template draft is required');
+
+  if IsTemplateInUse(TemplateId) then
   begin
-    // Template is in use — create a new version row
-    RootId := GetRootId(Template);
-    NewVersion := TTemplate.Create;
-    NewVersion.Name := Template.Name;
-    NewVersion.Description := Template.Description;
-    NewVersion.Category := Template.Category;
-    NewVersion.FormSchema := Template.FormSchema;
-    NewVersion.IsActive := True;
-    NewVersion.Version := Template.Version + 1;
-    NewVersion.ParentId := RootId;
-    NewVersion.CreatedDate := UTCNow;
-
-    // Deactivate the old version so it doesn't appear in latest lists
-    // but existing protocols still reference it by ID
-    Template.IsActive := False;
-    Template.ModifiedDate := UTCNow;
-
-    FManager.Save(NewVersion);
-    FManager.Flush;
-    Result := NewVersion;
+    Result := TTemplate.Create;
+    Result.Version := Original.Version + 1;
+    Result.ParentId := GetRootId(Original);
+    Result.CreatedDate := UTCNow;
+    Original.IsActive := False;
+    Original.ModifiedDate := UTCNow;
   end
   else
-  begin
-    // Not in use — update in place
-    Template.ModifiedDate := UTCNow;
-    FManager.SaveOrUpdate(Template);
-    FManager.Flush;
-    Result := Template;
-  end;
+    Result := Original;
+
+  Result.Name := Draft.Name;
+  Result.Description := Draft.Description;
+  Result.Category := Draft.Category;
+  Result.FormSchema := Draft.FormSchema;
+  Result.IsActive := Draft.IsActive;
+  Result.ModifiedDate := UTCNow;
+  if Result <> Original then
+    FManager.Save(Result);
+  FManager.Flush;
 end;
 
 procedure TTemplateModel.CreateDefaultTemplates(const TemplatesDir: string;
@@ -744,10 +742,9 @@ var
   FileName, Schema, Title, Category: string;
   JsonVal: TJSONValue;
   Root: TJSONObject;
-  CategoryMap: TDictionary<string, string>; // title -> category
+  CategoryMap: TDictionary<string, string>;
   Updated: Boolean;
 begin
-  // Find templates with empty category
   Templates := FManager.Find<TTemplate>
     .Where(FDic.Category = '')
     .List;
@@ -761,7 +758,6 @@ begin
   if not TDirectory.Exists(TemplatesDir) then
     Exit;
 
-  // Build a map of title -> category from JSON files on disk
   CategoryMap := TDictionary<string, string>.Create;
   try
     Files := TDirectory.GetFiles(TemplatesDir, '*.json', TSearchOption.soAllDirectories);
@@ -791,7 +787,6 @@ begin
     if CategoryMap.Count = 0 then
       Exit;
 
-    // Update templates that have empty category and match by name
     Templates := FManager.Find<TTemplate>
       .Where(FDic.Category = '')
       .List;

@@ -66,7 +66,6 @@ uses
 
 {$R *.dfm}
 
-{ TedValueTypes }
 
 destructor TedValueTypes.Destroy;
 begin
@@ -82,20 +81,16 @@ begin
     Exit;
   FLayoutDone := True;
 
-  // Widen dialog to fit left panel
   Width := Width + pnlCategories.Width + MulDiv(8, CurrentPPI, 96);
 
-  // Hide old category combo and its label
   cbCategory.Visible := False;
   Label4.Visible := False;
 
-  // Populate category listbox
   lbCategories.Items.Add('All');
   for I := 0 to ValueTypeCategories.Count - 1 do
     lbCategories.Items.Add(ValueTypeCategories[I]);
   lbCategories.ItemIndex := 0;
 
-  // Reparent existing controls into detail panel
   Label1.Parent := pnlDetail;
   Label2.Parent := pnlDetail;
   Label3.Parent := pnlDetail;
@@ -107,13 +102,11 @@ begin
   RzDBNavigator1.Parent := pnlDetail;
   DBGrid1.Parent := pnlDetail;
 
-  // Shift Title label and edit right, narrow the edit to make room for α button
   I := MulDiv(30, CurrentPPI, 96);
   Label2.Left := Label2.Left + I;
   edTitle.Left := edTitle.Left + I;
   edTitle.Width := edTitle.Width - I;
 
-  // Greek picker buttons next to Symbol and Units
   CreateGreekButton(pnlDetail, edSymbol,
     edSymbol.BoundsRect.Right + MulDiv(2, CurrentPPI, 96), 0);
   CreateGreekButton(pnlDetail, edUnits,
@@ -224,7 +217,7 @@ begin
     if CatIdx > 0 then
       ADataSet.FieldByName('CatID').AsInteger := CatIdx - 1
     else
-      ADataSet.FieldByName('CatID').AsInteger := 5; // "Other"
+      ADataSet.FieldByName('CatID').AsInteger := 5; 
   end;
 end;
 
@@ -311,7 +304,7 @@ var
   Name: string;
 begin
   CatIdx := lbCategories.ItemIndex;
-  if CatIdx <= 0 then  // 0 = "All"
+  if CatIdx <= 0 then  
     Exit;
 
   Name := lbCategories.Items[CatIdx];
@@ -377,7 +370,6 @@ begin
 
   Model.ValueTypes.MoveToCategory(VTID, NewCatID);
 
-  // Refresh grid
   DS.Filtered := False;
   if lbCategories.ItemIndex > 0 then
     DS.Filtered := True;

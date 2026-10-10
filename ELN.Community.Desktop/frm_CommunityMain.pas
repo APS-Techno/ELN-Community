@@ -107,6 +107,7 @@ type
     procedure ExitClick(Sender: TObject);
     procedure CommandClick(Sender: TObject);
     procedure PreferencesClick(Sender: TObject);
+    procedure pnlWelcomeResize(Sender: TObject);
   private
     FNotebook: TLocalNotebook;
     FSettings: TNotebookSettings;
@@ -116,8 +117,8 @@ type
     FStartupNotebook: string;
     FStartupStorage: string;
     FPluginsPath: string;
-    FFiles: TDictionary<Integer, TWorkingFile>;
-    FCurrentFileId: Integer;
+    FFiles: TDictionary<Int64, TWorkingFile>;
+    FCurrentFileId: Int64;
     FStarted: Boolean;
     FClosing: Boolean;
     FEditorCloseEvent: TCloseEvent;
@@ -129,13 +130,13 @@ type
     procedure BindNotebook(Notebook: TLocalNotebook; const DatabasePath, StorageRoot: string;
       Fresh: Boolean);
     procedure ReleaseNotebook;
-    function PrepareFile(FileId: Integer): string;
-    procedure DisplayFile(FileId: Integer);
-    procedure OpenFile(FileId: Integer);
-    function SaveDraft(FileId: Integer): Boolean;
+    function PrepareFile(FileId: Int64): string;
+    procedure DisplayFile(FileId: Int64);
+    procedure OpenFile(FileId: Int64);
+    function SaveDraft(FileId: Int64): Boolean;
     function FinishEditorsAndDrafts: Boolean;
-    procedure ReloadDraft(FileId: Integer);
-    function RefreshChangedFile(FileId: Integer; ExplicitReload: Boolean): Boolean;
+    procedure ReloadDraft(FileId: Int64);
+    function RefreshChangedFile(FileId: Int64; ExplicitReload: Boolean): Boolean;
     procedure InitializeCatalogs(Fresh: Boolean);
     procedure ApplyAppearance;
     procedure NavigateItem(Sender: TObject; ProjectId, FolderId, ItemId: Integer);
@@ -143,7 +144,6 @@ type
     procedure RunsChanged(Sender: TObject);
     procedure DecisionsChanged(Sender: TObject);
     procedure ImportPackage;
-    procedure RetainedWorkingFiles;
     procedure WMImageClick(var Msg: TMessage); message WM_ELN_IMAGECLICK;
     procedure WMImageDblClick(var Msg: TMessage); message WM_ELN_IMAGEDBLCLICK;
     procedure WMImageContext(var Msg: TMessage); message WM_ELN_IMAGECONTEXT;
@@ -214,7 +214,7 @@ var
   I: Integer;
   Key, Value: string;
 begin
-  FFiles := TDictionary<Integer, TWorkingFile>.Create;
+  FFiles := TDictionary<Int64, TWorkingFile>.Create;
   ConfigPath := TPath.Combine(GetEnvironmentVariable('LOCALAPPDATA'),
     'ELN Community\desktop.ini');
   I := 1;
@@ -269,6 +269,7 @@ begin
   spRight.Percent := FSettings.LoadUIValue('CommunityMain', 'ViewerPercent', spRight.Percent);
   SetNotebookUI(False);
   ApplyAppearance;
+  pnlWelcomeResize(pnlWelcome);
 end;
 
 procedure TfrmCommunityMain.FormShow(Sender: TObject);
@@ -277,14 +278,50 @@ var
 begin
   if FStarted then Exit;
   FStarted := True;
-  if FStartupNotebook = '' then Exit;
-  Notebook := TLocalNotebook.Open(FStartupNotebook, FStartupStorage);
-  try
-    BindNotebook(Notebook, FStartupNotebook, FStartupStorage, False);
-    Notebook := nil;
-  finally
-    Notebook.Free;
+  if FStartupNotebook = '' then
+  begin
+    FStartupNotebook := FSettings.LoadUIString('CommunityMain', 'LastNotebook', '');
+    FStartupStorage := FSettings.LoadUIString('CommunityMain', 'LastStorage', '');
   end;
+  if FStartupNotebook = '' then Exit;
+  try
+    if not TDirectory.Exists(FStartupStorage) then
+      raise ELocalNotebookError.Create('Attachment directory is unavailable: ' + FStartupStorage);
+    Notebook := TLocalNotebook.Open(FStartupNotebook, FStartupStorage);
+    try
+      BindNotebook(Notebook, FStartupNotebook, FStartupStorage, False);
+      Notebook := nil;
+    finally
+      Notebook.Free;
+    end;
+  except
+    on E: Exception do
+      MessageDlg('Could not open notebook:' + sLineBreak + FStartupNotebook +
+        sLineBreak + E.Message + sLineBreak +
+        'Choose File > Open Notebook to select the notebook and its attachment directory.',
+        mtError, [mbOK], 0);
+  end;
+end;
+
+procedure TfrmCommunityMain.pnlWelcomeResize(Sender: TObject);
+var
+  Bounds: TRect;
+  DeltaX, DeltaY: Integer;
+begin
+  // The panel can resize while the DFM is still streaming its children.
+  if not Assigned(lblWelcome) or not Assigned(btnNew) or not Assigned(btnOpen) then Exit;
+  Bounds := lblWelcome.BoundsRect;
+  Winapi.Windows.UnionRect(Bounds, Bounds, btnNew.BoundsRect);
+  Winapi.Windows.UnionRect(Bounds, Bounds, btnOpen.BoundsRect);
+  DeltaX := (pnlWelcome.ClientWidth - Bounds.Width) div 2 - Bounds.Left;
+  DeltaY := (pnlWelcome.ClientHeight - Bounds.Height) div 2 - Bounds.Top;
+  if (DeltaX = 0) and (DeltaY = 0) then Exit;
+  lblWelcome.SetBounds(lblWelcome.Left + DeltaX, lblWelcome.Top + DeltaY,
+    lblWelcome.Width, lblWelcome.Height);
+  btnNew.SetBounds(btnNew.Left + DeltaX, btnNew.Top + DeltaY,
+    btnNew.Width, btnNew.Height);
+  btnOpen.SetBounds(btnOpen.Left + DeltaX, btnOpen.Top + DeltaY,
+    btnOpen.Width, btnOpen.Height);
 end;
 
 procedure TfrmCommunityMain.SetNotebookUI(Opened: Boolean);
@@ -396,6 +433,8 @@ begin
     ApplyAppearance;
     frmProjects.RestoreLastSelection;
     if FSettings.ShowDashboard then frmContentViewer.ShowDashboard;
+    FSettings.SaveUIString('CommunityMain', 'LastNotebook', FDatabasePath);
+    FSettings.SaveUIString('CommunityMain', 'LastStorage', FStorageRoot);
   except
     // The caller still owns the notebook if binding fails.
     FNotebook := nil;
@@ -461,23 +500,13 @@ begin
   FFiles.Clear;
   FreeAndNil(Model);
   FreeAndNil(FNotebook);
-  RetainedWorkingFiles;
   FWorkingRoot := '';
   FDatabasePath := '';
   FStorageRoot := '';
   SetNotebookUI(False);
 end;
 
-procedure TfrmCommunityMain.RetainedWorkingFiles;
-begin
-  if (FWorkingRoot <> '') and TDirectory.Exists(FWorkingRoot) then
-    MessageDlg('Working copies and any recovery backups are retained at:' +
-      sLineBreak + FWorkingRoot + sLineBreak +
-      'These are separate from notebook attachments. Keep this directory if you need to recover an editor draft.',
-      mtInformation, [mbOK], 0);
-end;
-
-function TfrmCommunityMain.PrepareFile(FileId: Integer): string;
+function TfrmCommunityMain.PrepareFile(FileId: Int64): string;
 var
   Working: TWorkingFile;
 begin
@@ -486,7 +515,7 @@ begin
   FFiles.AddOrSetValue(FileId, Working);
 end;
 
-procedure TfrmCommunityMain.DisplayFile(FileId: Integer);
+procedure TfrmCommunityMain.DisplayFile(FileId: Int64);
 var
   Path: string;
 begin
@@ -499,7 +528,7 @@ begin
   StatusFile.Caption := Path;
 end;
 
-procedure TfrmCommunityMain.OpenFile(FileId: Integer);
+procedure TfrmCommunityMain.OpenFile(FileId: Int64);
 var
   Path: string;
   Plugin: IViewerPlugin;
@@ -531,7 +560,7 @@ begin
     raise Exception.Create('Windows could not open the attachment. Choose an application for ' + ExtractFileExt(Path));
 end;
 
-function TfrmCommunityMain.SaveDraft(FileId: Integer): Boolean;
+function TfrmCommunityMain.SaveDraft(FileId: Int64): Boolean;
 var
   Working: TWorkingFile;
   ErrorText: string;
@@ -563,7 +592,7 @@ begin
       mtError, [mbOK], 0);
 end;
 
-function TfrmCommunityMain.RefreshChangedFile(FileId: Integer;
+function TfrmCommunityMain.RefreshChangedFile(FileId: Int64;
   ExplicitReload: Boolean): Boolean;
 var
   Working: TWorkingFile;
@@ -594,7 +623,7 @@ begin
   end;
 end;
 
-procedure TfrmCommunityMain.ReloadDraft(FileId: Integer);
+procedure TfrmCommunityMain.ReloadDraft(FileId: Int64);
 begin
   RefreshChangedFile(FileId, True);
 end;
@@ -613,7 +642,7 @@ function TfrmCommunityMain.FinishEditorsAndDrafts: Boolean;
 var
   Forms: TArray<TForm>;
   Form: TForm;
-  Pair: TPair<Integer, TWorkingFile>;
+  Pair: TPair<Int64, TWorkingFile>;
   Choice, I: Integer;
 begin
   Result := False;
@@ -664,6 +693,14 @@ var
   I: Integer;
 begin
   if not NewNotebookDialog.Execute then Exit;
+  if System.IOUtils.TFile.Exists(NewNotebookDialog.FileName) then
+  begin
+    MessageDlg('A notebook file already exists at:' + sLineBreak +
+      NewNotebookDialog.FileName + sLineBreak +
+      'To open it, choose File > Open Notebook. To create a new notebook, choose a different filename.',
+      mtWarning, [mbOK], 0);
+    Exit;
+  end;
   StorageDialog.Title := 'Choose a separate, empty attachment directory';
   if not StorageDialog.Execute then Exit;
   StorageRoot := StorageDialog.FileName;
@@ -876,31 +913,32 @@ end;
 procedure TfrmCommunityMain.FormAfterMonitorDpiChanged(Sender: TObject; OldDPI, NewDPI: Integer);
 begin
   ApplyAppearance;
+  pnlWelcomeResize(pnlWelcome);
 end;
 
 procedure TfrmCommunityMain.WMImageClick(var Msg: TMessage);
 begin
   if not Assigned(Model) then Exit;
-  FileThumbnailList.Select(Msg.WParam);
-  frmItems.SelectFile(Msg.WParam);
-  DisplayFile(Msg.WParam);
+  FileThumbnailList.Select(DecodeFileIdMessage(Msg.WParam, Msg.LParam));
+  frmItems.SelectFile(DecodeFileIdMessage(Msg.WParam, Msg.LParam));
+  DisplayFile(DecodeFileIdMessage(Msg.WParam, Msg.LParam));
 end;
 
 procedure TfrmCommunityMain.WMImageDblClick(var Msg: TMessage);
 begin
-  OpenFile(Msg.WParam);
+  OpenFile(DecodeFileIdMessage(Msg.WParam, Msg.LParam));
 end;
 
 procedure TfrmCommunityMain.WMImageContext(var Msg: TMessage);
 begin
   if not Assigned(Model) then Exit;
-  FileThumbnailList.Select(Msg.WParam);
-  frmItems.ShowFilePopup(Msg.WParam);
+  FileThumbnailList.Select(DecodeFileIdMessage(Msg.WParam, Msg.LParam));
+  frmItems.ShowFilePopup(DecodeFileIdMessage(Msg.WParam, Msg.LParam));
 end;
 
 procedure TfrmCommunityMain.WMFileSelected(var Msg: TMessage);
 begin
-  FCurrentFileId := Msg.WParam;
+  FCurrentFileId := DecodeFileIdMessage(Msg.WParam, Msg.LParam);
   miSaveDraft.Enabled := Assigned(Model) and FFiles.ContainsKey(FCurrentFileId);
   miReloadDraft.Enabled := miSaveDraft.Enabled;
   if FCurrentFileId <= 0 then StatusFile.Caption := ''
@@ -909,8 +947,8 @@ end;
 
 procedure TfrmCommunityMain.WMFileChanged(var Msg: TMessage);
 begin
-  if Assigned(Model) and (Integer(Msg.WParam) > 0) then
-    RefreshChangedFile(Msg.WParam, False);
+  if Assigned(Model) and (DecodeFileIdMessage(Msg.WParam, Msg.LParam) > 0) then
+    RefreshChangedFile(DecodeFileIdMessage(Msg.WParam, Msg.LParam), False);
 end;
 
 end.

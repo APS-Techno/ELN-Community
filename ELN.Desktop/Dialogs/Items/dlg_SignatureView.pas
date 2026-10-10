@@ -36,7 +36,7 @@ implementation
 
 uses
   unit_DataModel,
-  unit_Signature,
+  unit_Signature, unit_SignatureModel,
   unit_AuditLog,
   unit_TimeHelper;
 
@@ -69,21 +69,32 @@ begin
   end;
 end;
 
-{ TdlgSignatureView }
 
 procedure TdlgSignatureView.btnVerifyClick(Sender: TObject);
 begin
-  if Model.Signatures.VerifyIntegrity(FItemId) then
-  begin
-    edIntegrity.Text := 'VERIFIED - Content matches signature';
-    edIntegrity.Font.Color := clGreen;
-  end
-  else
-  begin
-    edIntegrity.Text := 'MISMATCH - Content has been altered!';
-    edIntegrity.Font.Color := clRed;
-    Model.RecordAudit(unit_AuditLog.aetSignature, FItemId,
-      unit_AuditLog.aoUpdate, 'Integrity check FAILED for item');
+  case Model.Signatures.GetIntegrityState(FItemId) of
+    sisVerified:
+      begin
+        edIntegrity.Text := 'VERIFIED - Content matches signature';
+        edIntegrity.Font.Color := clGreen;
+      end;
+    sisMismatch:
+      begin
+        edIntegrity.Text := 'MISMATCH - Content does not match signature';
+        edIntegrity.Font.Color := clRed;
+        Model.RecordAudit(unit_AuditLog.aetSignature, FItemId,
+          unit_AuditLog.aoUpdate, 'Integrity check FAILED for item');
+      end;
+    sisLegacyUnverifiable:
+      begin
+        edIntegrity.Text := 'Legacy signature; integrity cannot be verified';
+        edIntegrity.Font.Color := clWindowText;
+      end;
+    sisUnsigned:
+      begin
+        edIntegrity.Text := 'No signature';
+        edIntegrity.Font.Color := clWindowText;
+      end;
   end;
 end;
 

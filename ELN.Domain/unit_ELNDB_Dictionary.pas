@@ -796,7 +796,6 @@ begin
   result := __ELNDB3_DICT;
 end;
 
-{ TTemplateDictionary }
 
 function TTemplateDictionary.Id: TLinqProjection;
 begin
@@ -848,7 +847,6 @@ begin
   Result := Prop('ModifiedDate');
 end;
 
-{ TLabEntryDictionary }
 
 function TLabEntryDictionary.Id: TLinqProjection;
 begin
@@ -880,7 +878,6 @@ begin
   Result := Prop('ModifiedBy');
 end;
 
-{ TProtocolDictionary }
 
 function TProtocolDictionary.TemplateId: TLinqProjection;
 begin
@@ -902,7 +899,6 @@ begin
   Result := Prop('ValidationStatus');
 end;
 
-{ TActionTypeDictionary }
 
 function TActionTypeDictionary.Id: TLinqProjection;
 begin
@@ -954,7 +950,6 @@ begin
   Result := TEquipmentTypeDictionary.Create(PropName('EquipmentType'));
 end;
 
-{ TValueTypeDictionary }
 
 function TValueTypeDictionary.Id: TLinqProjection;
 begin
@@ -1001,7 +996,6 @@ begin
   Result := Prop('ModifiedBy');
 end;
 
-{ TValueDictionary }
 
 function TValueDictionary.Id: TLinqProjection;
 begin
@@ -1053,7 +1047,6 @@ begin
   Result := Prop('ModifiedBy');
 end;
 
-{ TItemDictionary }
 
 function TItemDictionary.Id: TLinqProjection;
 begin
@@ -1145,7 +1138,6 @@ begin
   Result := Prop('DeletedBy');
 end;
 
-{ TEquipmentDictionary }
 
 function TEquipmentDictionary.Id: TLinqProjection;
 begin
@@ -1207,7 +1199,6 @@ begin
   Result := TEquipmentTypeDictionary.Create(PropName('EquipmentType'));
 end;
 
-{ TEquipmentTypeDictionary }
 
 function TEquipmentTypeDictionary.Id: TLinqProjection;
 begin
@@ -1244,7 +1235,6 @@ begin
   Result := Prop('ModifiedBy');
 end;
 
-{ TFileDictionary }
 
 function TFileDictionary.Id: TLinqProjection;
 begin
@@ -1296,7 +1286,6 @@ begin
   Result := TItemDictionary.Create(PropName('Item'));
 end;
 
-{ TFileTypeDictionary }
 
 function TFileTypeDictionary.Id: TLinqProjection;
 begin
@@ -1338,7 +1327,6 @@ begin
   Result := Prop('ModifiedBy');
 end;
 
-{ TFileTypeLinkDictionary }
 
 function TFileTypeLinkDictionary.Id: TLinqProjection;
 begin
@@ -1375,7 +1363,6 @@ begin
   Result := Prop('ModifiedBy');
 end;
 
-{ TFolderDictionary }
 
 function TFolderDictionary.Id: TLinqProjection;
 begin
@@ -1422,7 +1409,6 @@ begin
   Result := Prop('Expanded');
 end;
 
-{ TProjectDictionary }
 
 function TProjectDictionary.Id: TLinqProjection;
 begin
@@ -1489,7 +1475,6 @@ begin
   Result := Prop('IsArchived');
 end;
 
-{ TUserDictionary }
 
 function TUserDictionary.Id: TLinqProjection;
 begin
@@ -1551,7 +1536,6 @@ begin
   Result := Prop('IsArchived');
 end;
 
-{ TUserRoleDictionary }
 
 function TUserRoleDictionary.Id: TLinqProjection;
 begin
@@ -1593,7 +1577,6 @@ begin
   Result := TUserDictionary.Create(PropName('User'));
 end;
 
-{ TUsersHistoryDictionary }
 
 function TUsersHistoryDictionary.Id: TLinqProjection;
 begin
@@ -1625,7 +1608,6 @@ begin
   Result := Prop('UserID');
 end;
 
-{ TDictionary }
 
 function TDictionary.Template: ITemplateDictionary;
 begin
@@ -1717,7 +1699,6 @@ begin
   Result := TProtocolStatusChangeDictionary.Create;
 end;
 
-{ TProtocolStatusChangeDictionary }
 
 function TProtocolStatusChangeDictionary.Id: TLinqProjection;
 begin
@@ -1754,7 +1735,6 @@ begin
   Result := Prop('Comment');
 end;
 
-{ TAuditLogDictionary }
 
 function TAuditLogDictionary.Id: TLinqProjection;
 begin
@@ -1806,7 +1786,6 @@ begin
   Result := TProjectPermissionDictionary.Create;
 end;
 
-{ TSignatureDictionary }
 
 function TSignatureDictionary.Id: TLinqProjection;
 begin
@@ -1848,7 +1827,6 @@ begin
   Result := Prop('ContentHash');
 end;
 
-{ TProjectPermissionDictionary }
 
 function TProjectPermissionDictionary.Id: TLinqProjection;
 begin
@@ -1880,7 +1858,6 @@ begin
   Result := Prop('GrantedDate');
 end;
 
-{ TFavoriteDictionary }
 
 function TFavoriteDictionary.Id: TLinqProjection;
 begin
@@ -1947,7 +1924,6 @@ begin
   Result := TExperimentTemplateDictionary.Create;
 end;
 
-{ TTagDictionary }
 
 function TTagDictionary.Id: TLinqProjection;
 begin
@@ -1974,7 +1950,6 @@ begin
   Result := Prop('CreatedDate');
 end;
 
-{ TItemTagDictionary }
 
 function TItemTagDictionary.Id: TLinqProjection;
 begin
@@ -1996,7 +1971,6 @@ begin
   Result := Prop('CreatedDate');
 end;
 
-{ TCommentDictionary }
 
 function TCommentDictionary.Id: TLinqProjection;
 begin
@@ -2033,7 +2007,6 @@ begin
   Result := Prop('ModifiedDate');
 end;
 
-{ TExperimentTemplateDictionary }
 
 function TExperimentTemplateDictionary.Id: TLinqProjection;
 begin
@@ -2075,7 +2048,6 @@ begin
   Result := Prop('ModifiedDate');
 end;
 
-{ TItemLinkDictionary }
 
 function TItemLinkDictionary.Id: TLinqProjection;
 begin
@@ -2117,7 +2089,6 @@ begin
   Result := TItemLinkDictionary.Create;
 end;
 
-{ TViewerStateDictionary }
 
 function TViewerStateDictionary.Id: TLinqProjection;
 begin

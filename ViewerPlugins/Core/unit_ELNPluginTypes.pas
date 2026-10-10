@@ -1,7 +1,5 @@
 unit unit_ELNPluginTypes;
 
-{ Lightweight types shared between plugins and host application.
-  No dependency on TMS Plugin Framework (upfVisualClasses). }
 
 interface
 

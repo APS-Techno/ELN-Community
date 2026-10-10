@@ -25,7 +25,6 @@ begin
   if (Source = nil) or Source.Empty then
     Exit;
 
-  // Calculate scaled dimensions preserving aspect ratio
   AspectRatio := Source.Width / Source.Height;
   if Source.Width / MaxW > Source.Height / MaxH then
   begin
@@ -46,7 +45,6 @@ begin
     Result.SetSize(Source.Width, Source.Height);
     Result.Canvas.Draw(0, 0, Source);
 
-    // Resize via WIC for high-quality scaling
     WIC := TWICImage.Create;
     try
       Factory := TWICImage.ImagingFactory;

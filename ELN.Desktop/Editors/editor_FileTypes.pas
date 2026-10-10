@@ -6,7 +6,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, EditorBase, Data.DB, Vcl.StdCtrls,
   Vcl.Buttons, RzDBNav, Vcl.Grids, Vcl.DBGrids, Vcl.ExtCtrls, RzPanel, Vcl.Mask,
-  Vcl.DBCtrls;
+  Vcl.DBCtrls, Aurelius.Engine.ObjectManager;
 
 type
   TedFileTypes = class(TfrmEditorBase)
@@ -27,6 +27,8 @@ type
     procedure SaveIconToBlob(Bmp: TBitmap);
   public
     procedure Show(DataSet: TDataSet); reintroduce;
+    class procedure ValidateExtensionChange(Manager: TObjectManager;
+      FileTypeId: Integer; const NewExtension: string); static;
   end;
 
 var
@@ -37,7 +39,7 @@ implementation
 uses
   unit_DataModel, Winapi.ShellAPI,
   unit_FileType,
-  unit_TimeHelper;
+  unit_TimeHelper, unit_Item, Aurelius.Criteria.Linq;
 
 {$R *.dfm}
 
@@ -127,7 +129,6 @@ begin
   Ext := DS.FieldByName('Ext').AsString;
   LoadShellIcon(Ext);
 
-  // Auto-populate blob when NULL
   if DS.FieldByName('Icon').IsNull then
   begin
     FullExt := Trim(Ext);
@@ -200,6 +201,32 @@ begin
   DataSet.FieldByName('CreatedDate').AsDateTime := UTCNow;
 end;
 
+class procedure TedFileTypes.ValidateExtensionChange(Manager: TObjectManager;
+  FileTypeId: Integer; const NewExtension: string);
+var
+  Fresh: TObjectManager;
+  Stored: TFileType;
+  Files: TFiles;
+begin
+  if FileTypeId <= 0 then Exit;
+  Fresh := TObjectManager.Create(Manager.Connection);
+  try
+    Stored := Fresh.Find<TFileType>(FileTypeId);
+    if not Assigned(Stored) or (Stored.Ext = NewExtension) then Exit;
+    Files := Fresh.Find<unit_Item.TFile>
+      .Where(Linq['FileType.Id'] = FileTypeId).Take(1).List;
+    try
+      if Files.Count > 0 then
+        raise EInvalidOperation.Create(
+          'The extension cannot change while attachments use this file type.');
+    finally
+      Files.Free;
+    end;
+  finally
+    Fresh.Free;
+  end;
+end;
+
 // Extension lookups across the app (plugin binding, tree icons,
 // GetFileTypeByExt) all take the FIRST SameText match, so two rows sharing an
 // extension make the resolved file type arbitrary. Reject the duplicate here
@@ -217,10 +244,10 @@ begin
   end;
 
   if Ext[1] <> '.' then
-  begin
     Ext := '.' + Ext;
-    DataSet.FieldByName('Ext').AsString := Ext;
-  end;
+  ValidateExtensionChange(Model.Manager,
+    DataSet.FieldByName('Id').AsInteger, Ext);
+  DataSet.FieldByName('Ext').AsString := Ext;
 
   Dup := Model.FileTypes.FindDuplicateExt(Ext,
     DataSet.FieldByName('Id').AsInteger);

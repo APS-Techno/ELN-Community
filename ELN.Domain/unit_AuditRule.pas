@@ -28,14 +28,8 @@ type
   [Entity]
   [Table('AuditRules')]
   [Description('')]
-  // No cascade on any of the references below. The action type, equipment,
-  // file type and value type are shared dictionary rows, and FAuditRule is a
-  // back-reference to the owner -- none of them is a child owned here.
-  // CascadeTypeAll carries TCascadeType.Evict, so cascading detached those rows
-  // whenever a rule was evicted (dlg_AuditRuleEditor does that on every new
-  // rule), leaving a stale instance alive while the next Find mapped a fresh
-  // one; the next Save/Update cascade then raised EObjectAlreadyPersistent.
-  // Same shape as TValue.ValueType, TFile.FFileType and TValue.FItem.
+  // These shared dictionary references and owner back-references are not owned
+  // children. CascadeTypeAll includes Evict and would leave stale shared instances.
   [Id('FId', TIdGenerator.IdentityOrSequence)]
   TAuditRule = class
   private
@@ -180,7 +174,6 @@ type
 
 implementation
 
-{ TAuditRule }
 
 function TAuditRule.GetActionType: TActionType;
 begin
@@ -212,7 +205,6 @@ begin
   Result := FRequiredValues.Value;
 end;
 
-{ TAuditRuleFile }
 
 function TAuditRuleFile.GetAuditRule: TAuditRule;
 begin
@@ -234,7 +226,6 @@ begin
   FFileType.Value := Value;
 end;
 
-{ TAuditRuleValue }
 
 function TAuditRuleValue.GetAuditRule: TAuditRule;
 begin

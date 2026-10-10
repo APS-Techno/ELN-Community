@@ -1,17 +1,5 @@
 unit unit_WikiSeeder;
 
-{
-  Seeds a freshly-created wiki item with a stub .md attachment.
-  Defaults produce a README.md with the canonical project-wiki blurb;
-  callers can override the Title (becomes the logical file name) and
-  Content (becomes the body) to seed arbitrary Wiki pages.
-
-  Called after Model.Templates.ApplyTemplate returns the new wiki TItem stub.
-  Adds a TFile row through the model and stores UTF-8 Markdown through the
-  injected notebook storage. Existing Markdown attachments are unchanged.
-  Storage failure rolls back the new row and preserves the existing page.
-
-}
 
 interface
 
@@ -55,7 +43,6 @@ begin
   if not Assigned(Item) then
     Exit;
 
-  // Idempotency: already has a .md attachment? done.
   for ExistingFile in Item.Files do
     if Assigned(ExistingFile.FileType) and
        SameText(ExistingFile.FileType.Ext, '.md') then
@@ -68,7 +55,7 @@ begin
 
   MdType := Model.FileTypes.GetFileTypeByExt('.md');
   if not Assigned(MdType) then
-    Exit;  // .md file type not registered - bail silently
+    Exit;  
 
   NewFile := Model.Items.AddFile(MdType, Title, UserId, Item);
   if not Assigned(NewFile) then

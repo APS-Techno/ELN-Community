@@ -36,7 +36,6 @@ begin
 end;
 
 begin
-  // ---- WrapSelection ----
   AssertEq(
     'WrapBold',
     '**hello**',
@@ -85,7 +84,6 @@ begin
     '`hello`',
     WrapSelection('hello', 1, 5, '`', '`').NewText);
 
-  // ---- PrefixLines ----
   AssertEq(
     'PrefixSingleLineBullet',
     '- one',
@@ -111,7 +109,6 @@ begin
     '> hello',
     PrefixLines('hello', 1, 5, '> ').NewText);
 
-  // ---- MakeHeading ----
   AssertEq(
     'AddH1',
     '# hello',

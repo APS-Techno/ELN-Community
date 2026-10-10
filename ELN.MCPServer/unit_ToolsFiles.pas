@@ -15,9 +15,8 @@ uses
   Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq,
   Aurelius.Types.Nullable,
   unit_Item, unit_Project, unit_FileType, unit_ELNPluginTypes,
-  unit_JSONCompact, unit_ToolScope, unit_ToolDownloads;
+  unit_JSONCompact, unit_ToolScope, unit_ToolDownloads, unit_ToolsWrite;
 
-{ Helpers - same patterns as unit_ToolsNavigation }
 
 function DateToISO(const DT: TDateTime): string;
 begin
@@ -40,7 +39,6 @@ begin
 end;
 
 
-{ --- Tool handlers --- }
 
 function HandleListFiles(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -53,8 +51,6 @@ var
   Obj: TJSONObject;
 begin
   ItemId := GetReqInt(Params, 'item_id');
-  // Uniform refusal for out-of-scope and missing-under-scope; inert without
-  // a scope, where the plain "Item not found" below still applies.
   RequireItemRead(Context, ItemId);
 
   Item := Context.Manager.Find<TItem>(ItemId);
@@ -130,15 +126,13 @@ end;
 function HandleExtractFileData(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
-  FileId: Integer;
+  FileId: Int64;
   F: unit_Item.TFile;
   FT: TFileType;
   LocalPath, Ext, PluginJSON: string;
   ParsedData: TJSONValue;
 begin
-  FileId := GetReqInt(Params, 'file_id');
-  // Uniform refusal for out-of-scope and missing-under-scope; inert without
-  // a scope, where the plain "File not found" below still applies.
+  FileId := GetReqInt64(Params, 'file_id');
   RequireFileRead(Context, FileId);
 
   F := Context.Manager.Find<unit_Item.TFile>(FileId);
@@ -175,7 +169,6 @@ begin
       Result.AddPair('file_title', F.Title);
       Result.AddPair('extension', Ext);
 
-      // Parse the plugin JSON and compact all numbers
       ParsedData := TJSONObject.ParseJSONValue(PluginJSON);
       if Assigned(ParsedData) then
       try
@@ -201,7 +194,7 @@ end;
 function HandleExtractFileKeyValues(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
-  FileId: Integer;
+  FileId: Int64;
   F: unit_Item.TFile;
   FT: TFileType;
   LocalPath, Ext: string;
@@ -210,9 +203,7 @@ var
   Arr: TJSONArray;
   Obj: TJSONObject;
 begin
-  FileId := GetReqInt(Params, 'file_id');
-  // Uniform refusal for out-of-scope and missing-under-scope; inert without
-  // a scope, where the plain "File not found" below still applies.
+  FileId := GetReqInt64(Params, 'file_id');
   RequireFileRead(Context, FileId);
 
   F := Context.Manager.Find<unit_Item.TFile>(FileId);
@@ -285,7 +276,6 @@ begin
   end;
 end;
 
-{ --- Schema builders --- }
 
 function MakeListFilesSchema: TJSONObject;
 var
@@ -348,7 +338,6 @@ begin
   Result.AddPair('required', Req);
 end;
 
-{ --- Registration --- }
 
 procedure RegisterFileTools(Registry: TToolRegistry);
 begin

@@ -3,10 +3,10 @@ unit unit_NotebookStorage;
 interface
 
 uses
-  System.SysUtils;
+  System.SysUtils,
+  System.Classes;
 
 type
-  // Backend-neutral attachment relocation. No database, UI or network units.
   IFileRelocator = interface
     ['{C7C6C0F0-1A2B-4F2E-9F6E-2B7D5E3A4C10}']
     procedure MoveFile(const OldPath, NewPath: string);
@@ -23,6 +23,30 @@ type
     function Exists(const RelativePath: string): Boolean;
     // Missing files are already deleted; other failures must raise.
     procedure DeleteFile(const RelativePath: string);
+  end;
+
+  // Optional local save transaction. Hold this reference until metadata commit
+  // or rollback finishes. It owns the original and installed file identities;
+  // concurrent writers/deleters are denied, and namespace collisions never
+  // overwrite another file. Failed compensation retains recovery bytes.
+  // Successful Commit/Rollback releases OS handles explicitly, independently
+  // of compiler-managed interface temporaries. A completed update is not reused.
+  INotebookFileUpdate = interface
+    ['{2DDE16FC-3899-4B5C-A2E3-BE7021E0EC2D}']
+    function Exists: Boolean;
+    // Caller frees the stream before Commit/Rollback/release. It must not write.
+    function OpenRead: TStream;
+    procedure CopyOut(const TargetPath: string);
+    procedure InstallFrom(const SourcePath: string);
+    procedure Rollback;
+    // Call only after database commit. Nonthrowing handle release and
+    // retired-file cleanup; failed cleanup retains recovery bytes.
+    procedure Commit;
+  end;
+
+  INotebookStorageUpdates = interface
+    ['{9A36C479-2970-451A-9560-4D8097BA4C89}']
+    function BeginFileUpdate(const RelativePath: string): INotebookFileUpdate;
   end;
 
   // Optional inspection used by attachment repair without loading file bytes.

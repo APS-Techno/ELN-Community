@@ -13,6 +13,7 @@ type
   TPluginHost = class
   private
     FHiddenForm: TForm;
+    FPreviousApplicationHandle: HWND;
     FPluginManager: TupfPluginManager;
     FPlugins: TList<IViewerPlugin>;
     procedure OnPluginRegistered(Sender, APlugin: TObject);
@@ -35,10 +36,8 @@ uses
   System.Math, unit_ViewerExtMatch;
 
 type
-  // Access protected Loaded method
   TupfPluginManagerHelper = class(TupfPluginManager);
 
-{ Private helpers }
 
 function DTypeToStr(D: TColumnDType): string;
 begin
@@ -145,7 +144,6 @@ begin
   end;
 end;
 
-{ TPluginHost }
 
 procedure AddToPath(const Dir: string);
 var
@@ -162,6 +160,7 @@ var
   LocalAppData: string;
 begin
   inherited Create;
+  FPreviousApplicationHandle := Application.Handle;
   FPlugins := TList<IViewerPlugin>.Create;
 
   // BPL plugins depend on Delphi and TMS runtime packages.
@@ -172,10 +171,7 @@ begin
     AddToPath(IncludeTrailingPathDelimiter(LocalAppData) +
       'tms\.tmssetup\build\bpl\Win32');
 
-  // Some plugin BPLs require another plugin BPL (Editor.Markdown needs
-  // Viewer.Markdown for its preview pane). Windows resolves that dependency off
-  // the DLL search path, not PATH, so without this LoadPackage fails with a
-  // bare "Can't load package". The desktop host does the same thing.
+  // Inter-plugin BPL dependencies need the DLL search path (e.g. Markdown preview).
   SetDllDirectory(PChar(ExcludeTrailingPathDelimiter(PluginsDir)));
 
   // Hidden form provides an HWND for plugin frames that need a parent.
@@ -190,17 +186,8 @@ begin
   FHiddenForm.Show;
   FHiddenForm.Hide;
 
-  // A plugin frame is streamed with Parent = nil - the plugin builds it during
-  // Register and the host only parents it afterwards. TCustomFrame.CreateParams
-  // already covers that by falling back to Application.Handle, but this is a
-  // console app: TApplication.CreateHandle is guarded by "not IsConsole" and so
-  // never runs, leaving Application.Handle = 0. The fallback then supplies no
-  // parent, and any frame that needs a window while it is being constructed
-  // dies with "Control 'frameX' has no parent window" - which escapes Register
-  // and costs the whole plugin its registration.
-  //
-  // Pointing Application.Handle at the hidden form is the standard way to host
-  // VCL frames under a non-VCL main loop, and fixes every plugin at once.
+  // Console applications do not create Application.Handle. Frames streamed
+  // before host parenting need this HWND as their fallback parent.
   Application.Handle := FHiddenForm.Handle;
 
   FPluginManager := TupfPluginManager.Create(FHiddenForm);
@@ -229,27 +216,24 @@ destructor TPluginHost.Destroy;
 var
   I: Integer;
 begin
-  // Same shutdown pattern the desktop host settled on months ago
-  // (frame_ContentViewer.Destroy, frm_DepoViewerMain): never call
-  // UnloadPlugins/UnloadPackage during teardown. The plugin objects are
-  // TDataModule descendants living inside the BPLs, so unloading here
-  // invalidates VMTs of anything plugin-created that is still reachable -
-  // this host's FPlugins interface list (releasing those non-counting refs
-  // afterwards was the shutdown AV fixed 2026-08-31), the frames parented
-  // to FHiddenForm, and whatever VCL infrastructure still references.
-  //
-  // Instead: drop our references while everything is alive, zero the
-  // manager's module handles so ITS destructor skips UnloadPackage too,
-  // and let process exit unload every package after all teardown is done.
+  // Keep BPLs loaded until process exit: reachable plugin objects and frames
+  // still use their VMTs during teardown. Clear references and module handles
+  // so the manager destructor cannot unload their code.
   FPlugins.Free;
   FPlugins := nil;
 
-  for I := 0 to FPluginManager.Packages.Count - 1 do
-    FPluginManager.Packages.HModules[I] := 0;
-  FPluginManager.Free;
+  if Assigned(FPluginManager) then
+  begin
+    for I := 0 to FPluginManager.Packages.Count - 1 do
+      FPluginManager.Packages.HModules[I] := 0;
+    FPluginManager.Free;
+  end;
 
   // Destroys the plugin frames still parented here (TWinControl.Destroy
   // frees ALL children, owned or not) - safe, their code is still loaded.
+  if Assigned(FHiddenForm) and FHiddenForm.HandleAllocated and
+    (Application.Handle = FHiddenForm.Handle) then
+    Application.Handle := FPreviousApplicationHandle;
   FHiddenForm.Free;
   inherited Destroy;
 end;
@@ -260,7 +244,6 @@ var
 begin
   if Supports(APlugin, IViewerPlugin, Plugin) then
   begin
-    // Parent the plugin frame to the hidden form so it can create its HWND
     if Assigned(Plugin.Frame) then
     begin
       Plugin.Frame.Parent := FHiddenForm;
@@ -314,7 +297,8 @@ begin
     raise Exception.CreateFmt('No plugin found for extension: %s', [Ext]);
 
   try
-    Plugin.LoadFromFile(FilePath);
+    if not Plugin.LoadFromFile(FilePath) then
+      raise Exception.Create('The viewer rejected the input file.');
   except
     on E: Exception do
       raise Exception.CreateFmt('Plugin failed to load file "%s": %s',
@@ -337,7 +321,8 @@ begin
     raise Exception.CreateFmt('No plugin found for extension: %s', [Ext]);
 
   try
-    Plugin.LoadFromFile(FilePath);
+    if not Plugin.LoadFromFile(FilePath) then
+      raise Exception.Create('The viewer rejected the input file.');
   except
     on E: Exception do
       raise Exception.CreateFmt('Plugin failed to load file "%s": %s',
@@ -445,7 +430,6 @@ begin
       Exit(MakeError('Plugin failed to load file: ' + E.Message));
   end;
 
-  // mode (default downsample)
   ModeStr := '';
   if Req.FindValue('mode') <> nil then
     ModeStr := Req.GetValue<string>('mode');
@@ -453,7 +437,6 @@ begin
     Exit(MakeError('Invalid mode: ' + ModeStr +
                    ' (expected raw, downsample, or stats)'));
 
-  // columns: required, ints or strings
   ColumnsVal := Req.FindValue('columns');
   if (ColumnsVal = nil) or not (ColumnsVal is TJSONArray) then
     Exit(MakeError('Missing required parameter: columns (array of int or string)'));
@@ -492,14 +475,12 @@ begin
       Exit(MakeError(Format('columns[%d] must be integer index or string name', [I])));
   end;
 
-  // max_rows (default 500)
   MaxRows := 500;
   if Req.FindValue('max_rows') <> nil then
     MaxRows := Req.GetValue<Integer>('max_rows');
   if MaxRows < 2 then
     Exit(MakeError('max_rows must be >= 2'));
 
-  // row_range
   RangeStart := 0;
   RangeEnd := TotalRows;
   if Req.FindValue('row_range') <> nil then
@@ -515,7 +496,6 @@ begin
         [RangeStart, RangeEnd, TotalRows])));
   end;
 
-  // Build response
   Result := TJSONObject.Create;
   try
     case Mode of

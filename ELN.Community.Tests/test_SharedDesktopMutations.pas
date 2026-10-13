@@ -231,6 +231,7 @@ var
   VM: TActionDialogVM;
   VT: TValueType;
   Target: TItem;
+  Before: TValueFields;
 begin
   VT := TValueType.Create;
   Target := TItem.Create;
@@ -244,8 +245,9 @@ begin
     VM.Description := 'Keep description';
     VM.Properties := '{"operator":"Synthetic"}';
     VM.AddValue(VT, EXP_CONDITION, 300, 0, 'draft');
+    Before := TValueFields.Read(VM.Item.Values[0]);
     VM.Item.Values[0].Value := 310;
-    VM.ValueEdited;
+    VM.ValueEdited(VM.Item.Values[0], Before);
     Assert.IsFalse(VM.IsEditMode);
     Assert.IsTrue(VM.CanSave);
     VM.ApplyTo(Target);

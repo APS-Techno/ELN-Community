@@ -11,6 +11,7 @@ type
   public
     [Test] procedure ExportPreservesSparseRows;
     [Test] procedure ExportPreservesRepeatedXAndInvalidCells;
+    [Test] procedure ColumnarProviderServesLoadedTableAndResetsForProse;
     [Test] procedure AttachmentReservedCharactersResolveOnce;
     [Test] procedure AttachmentLiteralPercentIsNotAnEscape;
     [Test] procedure FileUrlEncodesPathSegments;
@@ -22,9 +23,10 @@ type
 implementation
 
 uses
-  System.SysUtils, System.Classes,
+  System.SysUtils, System.Classes, System.IOUtils, Vcl.Forms,
   unit_ColumnarClassify, unit_MarkdownEditorAttachments,
-  unit_MarkdownAttachmentResolver, unit_DepoPairing;
+  unit_MarkdownAttachmentResolver, unit_DepoPairing,
+  unit_ELNPluginCore, unit_ColumnarDataPlugin;
 
 procedure TSharedViewerRegressions.ExportPreservesSparseRows;
 var
@@ -54,6 +56,52 @@ begin
       ColumnarTableToText(Lines, ClassifyColumnarText(Lines)));
   finally
     Lines.Free;
+  end;
+end;
+
+procedure TSharedViewerRegressions.ColumnarProviderServesLoadedTableAndResetsForProse;
+var
+  Plugin: TELNColumnarDataViewerPlugin;
+  Host: TForm;
+  Provider: IColumnarDataProvider;
+  Root, DataPath, ProsePath: string;
+  Schema: TArray<TColumnSchema>;
+  Stats: TArray<TColumnStats>;
+  Indices: TArray<Integer>;
+begin
+  Root := TPath.Combine(TPath.GetTempPath, 'ELN-Columnar-' + TGUID.NewGuid.ToString);
+  TDirectory.CreateDirectory(Root);
+  Host := nil;
+  Plugin := TELNColumnarDataViewerPlugin.Create(nil);
+  try
+    DataPath := TPath.Combine(Root, 'data.csv');
+    ProsePath := TPath.Combine(Root, 'notes.txt');
+    TFile.WriteAllText(DataPath, '# synthetic'#13#10'x,y,label'#13#10 +
+      '1,10,a'#13#10'2,,b'#13#10'3,30,c'#13#10);
+    TFile.WriteAllText(ProsePath, 'Plain notes without a table.'#13#10);
+    Assert.IsTrue(Supports(Plugin, IColumnarDataProvider, Provider), 'provider');
+    Host := TForm.CreateNew(nil);
+    Plugin.Frame.Parent := Host;
+
+    Assert.IsTrue(Plugin.LoadFromFile(DataPath), 'load table');
+    Schema := Provider.GetSchema;
+    Assert.AreEqual(3, Length(Schema));
+    Assert.AreEqual('y', Schema[1].Name);
+    Assert.IsTrue(Schema[1].DType = cdNumeric, 'numeric column');
+    Assert.IsTrue(Schema[2].DType = cdText, 'text column');
+    Assert.AreEqual(3, Provider.GetTotalRows);
+    Assert.IsTrue(Provider.ResolveColumnName('Y', Indices), 'resolve name');
+    Stats := Provider.GetStats([1]);
+    Assert.AreEqual(Double(20), Stats[0].Mean, 1E-12);
+
+    Assert.IsTrue(Plugin.LoadFromFile(ProsePath), 'load prose');
+    Assert.AreEqual(0, Length(Provider.GetSchema));
+    Assert.AreEqual(0, Provider.GetTotalRows);
+  finally
+    Provider := nil;
+    Plugin.Free;
+    Host.Free;
+    TDirectory.Delete(Root, True);
   end;
 end;
 

@@ -101,12 +101,12 @@ const
     'Extract Values', 'Audit Rules', 'Data Completeness'
   );
 
-  CFileTypeOrder: array[0..30] of string = (
+  CFileTypeOrder: array[0..31] of string = (
     'Generic', 'PDF', 'XLSX', 'CSV', 'DAT', 'ASCII', 'LOG',
     'TIFF', 'OPJU', 'XRCX', 'XRDML', 'RP4', 'DSC', 'FIBPS',
     'ZRW', 'MIT', 'LMPIN', 'DUMP',
     'DOCX', 'PPTX', 'PNG', 'BMP', 'JPG', 'TXT', 'DM3', 'DSR', 'HTML',
-    'XRFX', 'VK4', 'MD', 'DEPO'
+    'XRFX', 'VK4', 'MD', 'DEPO', 'RCPX'
   );
 
 

@@ -5,6 +5,8 @@ Ext,Description
 .xlsx,Excel Sheet
 .dsc,Sputtering Recipie
 .log,Sputtering Log
+.process.log,Process Event Log
+.rcpx,Process Recipe
 .rp4,3D Profile
 .xrdml,XRD Data
 .tiff,TIFF Image

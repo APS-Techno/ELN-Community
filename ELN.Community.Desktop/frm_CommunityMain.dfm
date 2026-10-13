@@ -54,7 +54,7 @@ object frmCommunityMain: TfrmCommunityMain
       Width = 580
       Height = 90
       AutoSize = False
-      Caption = 'ELN Community. Create a new local notebook, or open an explicit Community format-2 notebook and its attachment directory. Existing notebooks are not converted.'
+      Caption = 'ELN Community. Create a new local notebook, or open a Community notebook and its attachment directory. A format-2 notebook is upgraded only after you confirm, and a backup is made first.'
       WordWrap = True
     end
     object btnNew: TButton
@@ -565,7 +565,7 @@ object frmCommunityMain: TfrmCommunityMain
     DefaultExt = 'sqlite'
     Filter = 'Community notebook (*.sqlite)|*.sqlite|All files (*.*)|*.*'
     Options = [ofPathMustExist, ofFileMustExist, ofEnableSizing]
-    Title = 'Open Community format-2 notebook'
+    Title = 'Open Community notebook'
     Left = 820
     Top = 40
   end

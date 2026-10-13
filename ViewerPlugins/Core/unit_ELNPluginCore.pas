@@ -44,6 +44,14 @@ type
     function GetKeyValues: TArray<TPluginKeyValue>;
   end;
 
+  // A stored value records this identity. Change the version whenever
+  // GetKeyValues can return different output for the same file.
+  IReaderIdentity = interface
+  ['{1A4C4149-8A73-4355-B709-50728537973A}']
+    function GetReaderId: string;
+    function GetReaderVersion: string;
+  end;
+
   IDetailedInfoProvider = interface
   ['{E1C4D8F2-5A3B-47E9-B0F6-8D2E1A9C3B75}']
     function GetDetailedInfo: string;
@@ -203,6 +211,12 @@ type
 
 procedure RegisterViewerPlugin(APlugin: TupfVisualPlugin);
 
+const
+  READER_VERSION_UNKNOWN = 'unknown';
+
+procedure ReaderIdentityOf(const Plugin: IViewerPlugin;
+  out ReaderId, ReaderVersion: string);
+
 function SaveChartState(Chart: TObject): string;
 procedure RestoreChartState(Chart: TObject; const AState: string);
 
@@ -266,6 +280,23 @@ begin
     AppSvc.RegisterPlugin(APlugin);
     for J := 0 to APlugin.Commands.Count - 1 do
       AppSvc.RegisterCommand(APlugin, APlugin.Commands[J]);
+  end;
+end;
+
+procedure ReaderIdentityOf(const Plugin: IViewerPlugin;
+  out ReaderId, ReaderVersion: string);
+var
+  Identity: IReaderIdentity;
+begin
+  if Supports(Plugin, IReaderIdentity, Identity) then
+  begin
+    ReaderId := Identity.GetReaderId;
+    ReaderVersion := Identity.GetReaderVersion;
+  end
+  else
+  begin
+    ReaderId := Plugin.Caption;
+    ReaderVersion := READER_VERSION_UNKNOWN;
   end;
 end;
 

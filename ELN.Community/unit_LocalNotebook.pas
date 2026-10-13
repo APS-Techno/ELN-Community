@@ -12,8 +12,10 @@ uses
 
 type
   ELocalNotebookError = class(Exception);
+  ELocalNotebookUpgradeRequired = class(ELocalNotebookError);
 
-  // Existing notebooks are validated, never migrated here.
+  // Open validates and never migrates; Upgrade is the only path that alters
+  // an existing notebook, and it copies the database first.
   TLocalNotebook = class
   private
     FConnection: IDBConnection;
@@ -24,6 +26,8 @@ type
     constructor CreateFresh(const DatabasePath, StorageRoot, FirstName,
       LastName, SigningPassword: string);
     procedure Connect(const DatabasePath: string);
+    constructor CreateForUpgrade(const DatabasePath: string);
+    procedure VerifyCurrentSchema;
     procedure ReadPrincipal;
     class function CheckedDatabasePath(const DatabasePath: string): string; static;
     class function CheckedStorage(const DatabasePath, StorageRoot: string):
@@ -35,6 +39,7 @@ type
     constructor Open(const DatabasePath, StorageRoot: string);
     class function CreateNew(const DatabasePath, StorageRoot, FirstName,
       LastName, SigningPassword: string): TLocalNotebook; static;
+    class function Upgrade(const DatabasePath: string): string; static;
     destructor Destroy; override;
     property Manager: TObjectManager read FManager;
     property Principal: TUser read FPrincipal;
@@ -64,11 +69,13 @@ uses
   unit_Project,
   unit_Item,
   unit_Protocol,
-  unit_TimeHelper;
+  unit_TimeHelper,
+  unit_SchemaUpdate;
 
 const
   LOCAL_FORMAT_KEY = 'COMMUNITY_FORMAT_VERSION';
-  LOCAL_FORMAT_VERSION = '2';
+  LOCAL_FORMAT_VERSION = '3';
+  UPGRADABLE_FORMAT_VERSION = '2';
 
 class function TLocalNotebook.CheckedDatabasePath(const DatabasePath: string): string;
 var
@@ -253,11 +260,92 @@ begin
   CheckRollbackHeader(Path);
   Connect(Path);
   FormatSetting := FManager.Find<TDBSetting>(LOCAL_FORMAT_KEY);
+  if Assigned(FormatSetting) and
+    (FormatSetting.SettingValue = UPGRADABLE_FORMAT_VERSION) then
+    raise ELocalNotebookUpgradeRequired.Create(
+      'This notebook uses format 2. Upgrade it to format 3 to open it; ' +
+      'the upgrade first copies the database beside the original');
   if not Assigned(FormatSetting) or
     (FormatSetting.SettingValue <> LOCAL_FORMAT_VERSION) then
     raise ELocalNotebookError.Create('Unsupported local notebook format; conversion is required');
   ReadPrincipal;
   FAccessPolicy := TLocalProjectAccessPolicy.Create(FPrincipal.Id);
+end;
+
+constructor TLocalNotebook.CreateForUpgrade(const DatabasePath: string);
+begin
+  inherited Create;
+  Connect(DatabasePath);
+end;
+
+procedure TLocalNotebook.VerifyCurrentSchema;
+var
+  Statement: IDBStatement;
+begin
+  Statement := FConnection.CreateStatement;
+  Statement.SetSQLCommand('SELECT SourceKind, SourceFileId, ReaderId, ' +
+    'ReaderVersion, KeyName, SourceNote FROM DataValues WHERE 1 = 0');
+  Statement.ExecuteQuery;
+  Statement := FConnection.CreateStatement;
+  Statement.SetSQLCommand(
+    'SELECT RangeMin, RangeMax FROM ValueTypes WHERE 1 = 0');
+  Statement.ExecuteQuery;
+end;
+
+class function TLocalNotebook.Upgrade(const DatabasePath: string): string;
+var
+  Path: string;
+  Notebook: TLocalNotebook;
+  FormatSetting: TDBSetting;
+  Skipped: TArray<string>;
+  Backup: TFileStream;
+begin
+  Path := CheckedDatabasePath(DatabasePath);
+  if not System.IOUtils.TFile.Exists(Path) then
+    raise EFileNotFoundException.Create('Local notebook database does not exist');
+  CheckNoSidecars(Path);
+  CheckRollbackHeader(Path);
+  Notebook := TLocalNotebook.CreateForUpgrade(Path);
+  try
+    FormatSetting := Notebook.FManager.Find<TDBSetting>(LOCAL_FORMAT_KEY);
+    if not Assigned(FormatSetting) or
+      (FormatSetting.SettingValue <> UPGRADABLE_FORMAT_VERSION) then
+      raise ELocalNotebookError.Create('Only a format 2 notebook can be upgraded');
+  finally
+    Notebook.Free;
+  end;
+
+  Result := CheckedDatabasePath(TPath.Combine(ExtractFileDir(Path),
+    TPath.GetFileNameWithoutExtension(Path) + '.format2-backup-' +
+    FormatDateTime('yyyymmdd"-"hhnnss', Now) + ExtractFileExt(Path)));
+  if not CopyFile(PChar(Path), PChar(Result), True) then
+    RaiseLastOSError;
+  Backup := TFileStream.Create(Result, fmOpenReadWrite or fmShareExclusive);
+  try
+    if not FlushFileBuffers(Backup.Handle) then
+      RaiseLastOSError;
+  finally
+    Backup.Free;
+  end;
+
+  Notebook := TLocalNotebook.CreateForUpgrade(Path);
+  try
+    Skipped := UpdateDatabaseAdditive(Notebook.FConnection);
+    try
+      Notebook.VerifyCurrentSchema;
+    except
+      on E: Exception do
+        raise ELocalNotebookError.CreateFmt(
+          'The upgrade did not add the format 3 columns (%s). Skipped: %s. ' +
+          'The original database is kept at %s',
+          [E.Message, string.Join('; ', Skipped), Result]);
+    end;
+    FormatSetting := Notebook.FManager.Find<TDBSetting>(LOCAL_FORMAT_KEY);
+    FormatSetting.SettingValue := LOCAL_FORMAT_VERSION;
+    Notebook.FManager.Flush;
+  finally
+    Notebook.Free;
+  end;
 end;
 
 procedure TLocalNotebook.ReadPrincipal;

@@ -535,6 +535,7 @@ begin
         Obj.AddPair('units', V.ValueType.Units);
         Obj.AddPair('symbol', V.ValueType.Symbol);
       end;
+      Obj.AddPair('source', ValueSourceJSON(V));
       ValuesArr.AddElement(Obj);
     end;
     Result.AddPair('values', ValuesArr);
@@ -594,6 +595,12 @@ begin
           Obj.AddPair('entity_name', R.EntityName);
           Obj.AddPair('matched_field', R.MatchedField);
           Obj.AddPair('project_path', R.ProjectPath);
+          if R.Kind = srkFile then
+          begin
+            Obj.AddPair('file_id', TJSONNumber.Create(R.FileId));
+            Obj.AddPair('full_name', R.FullName);
+            Obj.AddPair('extension', R.Extension);
+          end;
           Arr.AddElement(Obj);
         end;
       except
@@ -766,6 +773,7 @@ begin
 
   Registry.Register('search',
     'Full-text search across items, protocols, files, values, and tags. ' +
+    'File-name matches include the complete filename, extension, and file ID. ' +
     'Supports multi-word queries with automatic intersection.',
     MakeSearchSchema, HandleSearch, tscProjectScoped);
 end;

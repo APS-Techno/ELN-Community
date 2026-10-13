@@ -12,13 +12,19 @@ type
     [Test] procedure InvalidNumberCannotCloseOrMutateValue;
     [Test] procedure InvalidToleranceCannotMutateValue;
     [Test] procedure CompatibleInputAppliesConvertedValue;
+    [Test] procedure OutOfRangeValueNeedsConfirmation;
+    [Test] procedure ToleranceLargerThanValueNeedsConfirmation;
+    [Test] procedure EditedReaderValueBecomesManual;
+    [Test] procedure UntouchedReaderValueKeepsSourceAndNumber;
   end;
 
 implementation
 
 uses
   System.SysUtils, System.Classes, System.Generics.Collections, Vcl.Forms, Vcl.Controls,
-  dlg_Value, dlg_UnitConverter, unit_Item, unit_ItemTypes, unit_ValueType;
+  Aurelius.Types.Nullable,
+  dlg_Value, dlg_UnitConverter, unit_Item, unit_ItemTypes, unit_ValueType,
+  unit_ValueSource;
 
 procedure CheckRefusedInput(const Input, Tolerance: string);
 var
@@ -134,6 +140,181 @@ begin
     Dialog.Free;
     Value.Free;
     Selected.Free;
+  end;
+end;
+
+function NewDialog(ValueType: TValueType): TdlgValue;
+var
+  Types: TList<TValueType>;
+begin
+  Result := TdlgValue.Create(nil);
+  Types := TList<TValueType>.Create;
+  Types.Add(ValueType);
+  Result.LoadValueTypes(Types);
+end;
+
+procedure TValueDialogValidationTests.OutOfRangeValueNeedsConfirmation;
+var
+  Dialog: TdlgValue;
+  Thickness: TValueType;
+  Value: TValue;
+  Saved: TValueIssueConfirmation;
+  Answer: Boolean;
+  Question: string;
+begin
+  Saved := ConfirmValueIssues;
+  Thickness := TValueType.Create;
+  Value := TValue.Create;
+  Dialog := nil;
+  try
+    ConfirmValueIssues :=
+      function(const Text: string): Boolean
+      begin
+        Question := Text;
+        Result := Answer;
+      end;
+    Thickness.Units := 'm';
+    Thickness.RangeMin := 1e-9;
+    Thickness.RangeMax := 1e-5;
+    Value.Value := 7.5e-8;
+    Dialog := NewDialog(Thickness);
+    Dialog.edValue.Text := '319.4';
+    Dialog.edTolerance.Text := '';
+    Dialog.ModalResult := mrOk;
+
+    Answer := False;
+    Assert.IsFalse(Dialog.CloseQuery, 'Declining must keep the dialog open');
+    Assert.Contains(Question, 'plausible maximum');
+    Assert.AreEqual<Double>(7.5e-8, Value.Value, 'Declining must not change the value');
+
+    Answer := True;
+    Question := '';
+    Assert.IsTrue(Dialog.CloseQuery, 'Accepting must close the dialog');
+    Assert.IsTrue(Question <> '', 'The out-of-range value must be confirmed');
+    Dialog.ApplyTo(Value);
+    Assert.AreEqual<Double>(319.4, Value.Value);
+  finally
+    ConfirmValueIssues := Saved;
+    Dialog.Free;
+    Value.Free;
+    Thickness.Free;
+  end;
+end;
+
+procedure TValueDialogValidationTests.ToleranceLargerThanValueNeedsConfirmation;
+var
+  Dialog: TdlgValue;
+  Thickness: TValueType;
+  Saved: TValueIssueConfirmation;
+  Question: string;
+begin
+  Saved := ConfirmValueIssues;
+  Thickness := TValueType.Create;
+  Dialog := nil;
+  try
+    ConfirmValueIssues :=
+      function(const Text: string): Boolean
+      begin
+        Question := Text;
+        Result := False;
+      end;
+    Thickness.Units := 'm';
+    Dialog := NewDialog(Thickness);
+    Dialog.edValue.Text := '2.279e-05';
+    Dialog.edTolerance.Text := '0.0602';
+    Dialog.ModalResult := mrOk;
+    Assert.IsFalse(Dialog.CloseQuery);
+    Assert.Contains(Question, 'larger than the value magnitude');
+  finally
+    ConfirmValueIssues := Saved;
+    Dialog.Free;
+    Thickness.Free;
+  end;
+end;
+
+procedure TValueDialogValidationTests.EditedReaderValueBecomesManual;
+var
+  Dialog: TdlgValue;
+  Thickness: TValueType;
+  Value: TValue;
+  Saved: TValueIssueConfirmation;
+begin
+  Saved := ConfirmValueIssues;
+  Thickness := TValueType.Create;
+  Value := TValue.Create;
+  Dialog := nil;
+  try
+    ConfirmValueIssues :=
+      function(const Text: string): Boolean
+      begin
+        Result := True;
+      end;
+    Thickness.Units := 'm';
+    Value.ValueType := Thickness;
+    Value.RecType := TRecType.TEST_RESULT;
+    Value.Value := 2.5;
+    ApplySource(Value, TValueSourceInfo.Reader(7, 'synthetic.reader', '1.2',
+      'Thickness'));
+    Dialog := NewDialog(Thickness);
+    Dialog.LoadValue(Value, 'scan.dat');
+    Assert.Contains(Dialog.lblSource.Caption, 'synthetic.reader');
+    Assert.Contains(Dialog.lblSource.Caption, 'scan.dat');
+    Dialog.edValue.Text := '3';
+    Dialog.ModalResult := mrOk;
+    Assert.IsTrue(Dialog.CloseQuery);
+    Dialog.ApplyTo(Value);
+    Assert.AreEqual<Double>(3, Value.Value);
+    Assert.IsTrue(Value.EffectiveSourceKind = vskManual);
+    Assert.IsTrue(Value.SourceFileId.HasValue);
+    Assert.AreEqual<Int64>(7, Value.SourceFileId.Value);
+    Assert.Contains(Value.SourceNote, 'synthetic.reader');
+    Assert.AreEqual('', Value.ReaderId);
+  finally
+    ConfirmValueIssues := Saved;
+    Dialog.Free;
+    Value.Free;
+    Thickness.Free;
+  end;
+end;
+
+procedure TValueDialogValidationTests.UntouchedReaderValueKeepsSourceAndNumber;
+const
+  Stored = 2.27912345e-05;
+var
+  Dialog: TdlgValue;
+  Thickness: TValueType;
+  Value: TValue;
+  Saved: TValueIssueConfirmation;
+begin
+  Saved := ConfirmValueIssues;
+  Thickness := TValueType.Create;
+  Value := TValue.Create;
+  Dialog := nil;
+  try
+    ConfirmValueIssues :=
+      function(const Text: string): Boolean
+      begin
+        Result := True;
+      end;
+    Thickness.Units := 'm';
+    Value.ValueType := Thickness;
+    Value.Value := Stored;
+    ApplySource(Value, TValueSourceInfo.Reader(7, 'synthetic.reader', '1.2',
+      'Thickness'));
+    Dialog := NewDialog(Thickness);
+    Dialog.LoadValue(Value, '');
+    Dialog.edDescription.Text := 'Only the description changes';
+    Dialog.ModalResult := mrOk;
+    Assert.IsTrue(Dialog.CloseQuery);
+    Dialog.ApplyTo(Value);
+    Assert.AreEqual<Double>(Stored, Value.Value);
+    Assert.IsTrue(Value.EffectiveSourceKind = vskReader);
+    Assert.AreEqual('Only the description changes', Value.Description);
+  finally
+    ConfirmValueIssues := Saved;
+    Dialog.Free;
+    Value.Free;
+    Thickness.Free;
   end;
 end;
 

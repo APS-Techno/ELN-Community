@@ -9,7 +9,7 @@ uses
 
 type
 
-  TELNProtocolViewerPlugin = class(TELNBaseViewerPlugin, IProtocolEditor)
+  TELNProtocolViewerPlugin = class(TELNBaseViewerPlugin, IProtocolEditor, IReaderIdentity)
   protected
     function CreateViewerFrame: TFrame; override;
     function GetParams: TPluginParams; override;
@@ -23,6 +23,8 @@ type
     function  GetReadOnly: Boolean;
     procedure PrepareForReparent;
     procedure SetOnDirty(const AHandler: TNotifyEvent);
+    function GetReaderId: string;
+    function GetReaderVersion: string;
   end;
 
   procedure Register;
@@ -44,6 +46,16 @@ end;
 procedure UnRegister;
 begin
   APlugin.Free;
+end;
+
+function TELNProtocolViewerPlugin.GetReaderId: string;
+begin
+  Result := 'aps.protocol';
+end;
+
+function TELNProtocolViewerPlugin.GetReaderVersion: string;
+begin
+  Result := '1';
 end;
 
 function TELNProtocolViewerPlugin.CreateViewerFrame: TFrame;

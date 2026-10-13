@@ -15,7 +15,8 @@ uses
   Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq,
   Aurelius.Types.Nullable,
   unit_Item, unit_Project, unit_FileType, unit_ELNPluginTypes,
-  unit_JSONCompact, unit_ToolScope, unit_ToolDownloads, unit_ToolsWrite;
+  unit_JSONCompact, unit_ToolScope, unit_ToolDownloads, unit_ToolsWrite,
+  unit_FilePaths;
 
 
 function DateToISO(const DT: TDateTime): string;
@@ -129,7 +130,7 @@ var
   FileId: Int64;
   F: unit_Item.TFile;
   FT: TFileType;
-  LocalPath, Ext, PluginJSON: string;
+  LocalPath, Ext, FileName, PluginJSON: string;
   ParsedData: TJSONValue;
 begin
   FileId := GetReqInt64(Params, 'file_id');
@@ -144,6 +145,8 @@ begin
     Ext := FT.Ext
   else
     Ext := '';
+  FileName := F.Title + Ext;
+  Ext := FileFormatExtension(FileName, Ext);
 
   try
     LocalPath := DownloadFileToLocal(Context, FileId);
@@ -167,6 +170,7 @@ begin
     try
       Result.AddPair('file_id', TJSONNumber.Create(F.Id));
       Result.AddPair('file_title', F.Title);
+      Result.AddPair('file_name', FileName);
       Result.AddPair('extension', Ext);
 
       ParsedData := TJSONObject.ParseJSONValue(PluginJSON);
@@ -197,7 +201,7 @@ var
   FileId: Int64;
   F: unit_Item.TFile;
   FT: TFileType;
-  LocalPath, Ext: string;
+  LocalPath, Ext, FileName, ReaderId, ReaderVersion: string;
   KeyValues: TArray<TPluginKeyValue>;
   KV: TPluginKeyValue;
   Arr: TJSONArray;
@@ -215,6 +219,8 @@ begin
     Ext := FT.Ext
   else
     Ext := '';
+  FileName := F.Title + Ext;
+  Ext := FileFormatExtension(FileName, Ext);
 
   try
     LocalPath := DownloadFileToLocal(Context, FileId);
@@ -229,7 +235,8 @@ begin
 
   try
     try
-      KeyValues := Context.PluginHost.ExtractKeyValues(LocalPath, Ext);
+      KeyValues := Context.PluginHost.ExtractReaderKeyValues(LocalPath, Ext,
+        ReaderId, ReaderVersion);
     finally
       DeleteLocalDownload(LocalPath);
     end;
@@ -261,7 +268,10 @@ begin
     try
       Result.AddPair('file_id', TJSONNumber.Create(F.Id));
       Result.AddPair('file_title', F.Title);
+      Result.AddPair('file_name', FileName);
       Result.AddPair('extension', Ext);
+      Result.AddPair('reader_id', ReaderId);
+      Result.AddPair('reader_version', ReaderVersion);
       Result.AddPair('key_values', Arr);
     except
       Result.Free;
@@ -354,14 +364,19 @@ begin
   Registry.Register('extract_file_data',
     'Extract detailed structured data from a file using the appropriate ' +
     'viewer plugin. Returns parsed JSON data containing the file''s full ' +
-    'content (parameters, curves, metadata) as understood by the plugin.',
+    'content (parameters, curves, metadata) as understood by the plugin. ' +
+    'The header includes the filename and format extension, including .depo.json.',
     MakeExtractFileDataSchema, HandleExtractFileData, tscProjectScoped);
 
   Registry.Register('extract_file_key_values',
     'Extract key measurement values from a file using the appropriate ' +
     'viewer plugin. Returns an array of named values with units, record ' +
-    'type (CONDITION or RESULT), and key flag. Useful for quick data ' +
-    'extraction without full file parsing.',
+    'type (CONDITION or RESULT), and key flag, plus file_id, reader_id and ' +
+    'reader_version. To store a number from this list as a value, pass ' +
+    'source_file_id = file_id, reader_id, reader_version and key_name = ' +
+    'the key value name to add_value or add_values; check_value_drift then ' +
+    'compares the stored value with the reader''s current output. The ' +
+    'header includes the filename and format extension, including .depo.json.',
     MakeExtractFileKeyValuesSchema, HandleExtractFileKeyValues, tscProjectScoped);
 end;
 

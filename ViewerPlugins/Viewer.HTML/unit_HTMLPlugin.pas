@@ -9,7 +9,7 @@ uses
 
 type
 
-  TELNHTMLViewerPlugin = class(TELNBaseViewerPlugin)
+  TELNHTMLViewerPlugin = class(TELNBaseViewerPlugin, IReaderIdentity)
   protected
     function CreateViewerFrame: TFrame; override;
     function GetParams: TPluginParams; override;
@@ -17,6 +17,8 @@ type
     function LoadFromFile(const AFileName: string): Boolean; override;
     function LoadFromStream(Stream: TMemoryStream): Boolean; override;
     procedure DisplayText(const Caption, Text: string); override;
+    function GetReaderId: string;
+    function GetReaderVersion: string;
   end;
 
   procedure Register;
@@ -38,6 +40,16 @@ end;
 procedure UnRegister;
 begin
   APlugin.Free;
+end;
+
+function TELNHTMLViewerPlugin.GetReaderId: string;
+begin
+  Result := 'aps.html';
+end;
+
+function TELNHTMLViewerPlugin.GetReaderVersion: string;
+begin
+  Result := '1';
 end;
 
 function TELNHTMLViewerPlugin.CreateViewerFrame: TFrame;

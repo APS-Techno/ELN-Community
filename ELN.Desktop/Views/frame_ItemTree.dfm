@@ -639,6 +639,10 @@ object frameItemTree: TframeItemTree
       ImageIndex = 56
       OnClick = miItemRegenPreviewsClick
     end
+    object miItemCheckValueSources: TMenuItem
+      Caption = 'Check Value Sources...'
+      OnClick = miItemCheckValueSourcesClick
+    end
     object miItemRefresh: TMenuItem
       Caption = 'Refresh'
       ImageIndex = 12

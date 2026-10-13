@@ -37,6 +37,12 @@ function HandleRepairFiles(const Params: TJSONObject;
 function HandleReattachFile(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 
+// The root (even when deleted) and its non-deleted descendants.
+function CollectItemTreeIds(const Context: TToolContext;
+  RootId: Integer): TArray<Integer>;
+function CollectProjectItemIds(const Context: TToolContext;
+  ProjectId: Integer): TArray<Integer>;
+
 function HandleMoveFile(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 function HandleReparentItem(const Params: TJSONObject;
@@ -81,7 +87,8 @@ uses
   Winapi.Windows,
   unit_MCPDiag,
   unit_ToolHelpers,
-  unit_Hypothesis, unit_HypothesisGuard, unit_HypothesisEvidence;
+  unit_Hypothesis, unit_HypothesisGuard, unit_HypothesisEvidence,
+  unit_ValueSource, unit_ValueChecks;
 
 
 function GetReqInt(const Params: TJSONObject; const Key: string): Integer;
@@ -890,6 +897,12 @@ begin
   Result.Hash := F.Hash;
 end;
 
+procedure CheckFileTitleChars(const Title, ParamName: string);
+begin
+  if Title.IndexOfAny([':', '/', '\']) >= 0 then
+    raise Exception.CreateFmt('%s must not contain ":", "/" or "\".', [ParamName]);
+end;
+
 function HandleUploadFile(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
@@ -904,6 +917,8 @@ begin
   FilePath := GetReqStr(Params, 'file_path');
   FileTypeId := GetReqInt(Params, 'file_type_id');
   HasTitle := GetOptStr(Params, 'title', Title);
+  if HasTitle then
+    CheckFileTitleChars(Title, 'title');
 
   // Confine the source path before touching the filesystem so a bad path is
   // rejected without leaking FileExists probe-style information about arbitrary
@@ -968,7 +983,7 @@ begin
 
   P := TJSONObject.Create;
   P.AddPair('type', 'string');
-  P.AddPair('description', 'File title (default: filename without extension)');
+  P.AddPair('description', 'File title (default: filename without extension); must not contain ":", "/" or "\"');
   Props.AddPair('title', P);
 
   Result.AddPair('properties', Props);
@@ -1002,6 +1017,9 @@ begin
 
   if (not HasTitle) and (not HasType) then
     raise Exception.Create('At least one of new_title or file_type_id is required.');
+
+  if HasTitle then
+    CheckFileTitleChars(NewTitle, 'new_title');
 
   RequireFileRead(Context, FileId);
 
@@ -1120,7 +1138,7 @@ begin
 
   P := TJSONObject.Create;
   P.AddPair('type', 'string');
-  P.AddPair('description', 'New file title (without extension). Optional if file_type_id is provided.');
+  P.AddPair('description', 'New file title (without extension); must not contain ":", "/" or "\". Optional if file_type_id is provided.');
   Props.AddPair('new_title', P);
 
   P := TJSONObject.Create;
@@ -1135,130 +1153,473 @@ begin
 end;
 
 
-function HandleAddValue(const Params: TJSONObject;
-  const Context: TToolContext): TJSONObject;
-var
-  ItemId, ValueTypeId: Integer;
-  AValue, Tolerance: Double;
-  Description, RecTypeStr: string;
-  HasTol, HasDesc, HasRecType: Boolean;
-  RecType: TRecType;
-  Item: TItem;
-  VType: TValueType;
-  Val: unit_Item.TValue;
-begin
-  ItemId := GetReqInt(Params, 'item_id');
-  AValue := GetReqNum(Params, 'value');
-  ValueTypeId := GetReqInt(Params, 'value_type_id');
-  HasTol := GetOptNum(Params, 'tolerance', Tolerance);
-  HasDesc := GetOptStr(Params, 'description', Description);
-  HasRecType := GetOptStr(Params, 'rec_type', RecTypeStr);
+const
+  MAX_VALUE_BATCH = 200;
+  MAX_ITEM_DEPTH = 1000;
 
-  RecType := TEST_RESULT;
-  if HasRecType then
+type
+  TValueEntry = record
+    ItemId: Integer;
+    ValueTypeId: Integer;
+    Value: Double;
+    Tolerance: Double;
+    Description: string;
+    RecType: TRecType;
+    Source: TValueSourceInfo;
+    Issues: TValueIssues;
+  end;
+
+function IssueCodesText(Issues: TValueIssues): string;
+var
+  Issue: TValueIssue;
+begin
+  Result := '';
+  for Issue := Low(TValueIssue) to High(TValueIssue) do
+    if Issue in Issues then
+    begin
+      if Result <> '' then
+        Result := Result + ', ';
+      Result := Result + IssueCode(Issue);
+    end;
+end;
+
+function IssueCodesJSON(Issues: TValueIssues): TJSONArray;
+var
+  Issue: TValueIssue;
+begin
+  Result := TJSONArray.Create;
+  for Issue := Low(TValueIssue) to High(TValueIssue) do
+    if Issue in Issues then
+      Result.Add(IssueCode(Issue));
+end;
+
+function ParseValueSource(const Params: TJSONObject): TValueSourceInfo;
+var
+  KindStr: string;
+  HasFile, HasReader, HasNote: Boolean;
+begin
+  Result := Default(TValueSourceInfo);
+  HasFile := GetOptInt64(Params, 'source_file_id', Result.FileId);
+  if HasFile and (Result.FileId <= 0) then
+    raise Exception.Create('source_file_id must be a positive file id');
+  HasReader := GetOptStr(Params, 'reader_id', Result.ReaderId);
+  GetOptStr(Params, 'reader_version', Result.ReaderVersion);
+  GetOptStr(Params, 'key_name', Result.KeyName);
+  HasNote := GetOptStr(Params, 'source_note', Result.Note);
+  if GetOptStr(Params, 'source_kind', KindStr) then
+  begin
+    if not TryParseSourceKind(KindStr, Result.Kind) then
+      raise Exception.CreateFmt(
+        'Invalid source_kind: %s (use Reader, Manual or Unknown)', [KindStr]);
+  end
+  else if HasReader then
+    Result.Kind := vskReader
+  else if HasFile or HasNote then
+    Result.Kind := vskManual
+  else
+    Result.Kind := vskUnknown;
+  try
+    ValidateSource(Result);
+  except
+    on E: EValueSourceError do
+      raise Exception.Create(E.Message);
+  end;
+end;
+
+function ParseValueEntry(const Params: TJSONObject): TValueEntry;
+var
+  RecTypeStr: string;
+begin
+  Result := Default(TValueEntry);
+  Result.ItemId := GetReqInt(Params, 'item_id');
+  Result.Value := GetReqNum(Params, 'value');
+  Result.ValueTypeId := GetReqInt(Params, 'value_type_id');
+  if not GetOptNum(Params, 'tolerance', Result.Tolerance) then
+    Result.Tolerance := 0;
+  if GetOptStr(Params, 'description', Result.Description) then
+    CheckMaxLen(Result.Description, 'description', MAX_DESC_LEN);
+  Result.RecType := TEST_RESULT;
+  if GetOptStr(Params, 'rec_type', RecTypeStr) then
   begin
     if SameText(RecTypeStr, 'EXP_CONDITION') then
-      RecType := EXP_CONDITION
-    else if SameText(RecTypeStr, 'TEST_RESULT') then
-      RecType := TEST_RESULT
-    else
+      Result.RecType := EXP_CONDITION
+    else if not SameText(RecTypeStr, 'TEST_RESULT') then
       raise Exception.CreateFmt('Invalid rec_type: %s (use EXP_CONDITION or TEST_RESULT)',
         [RecTypeStr]);
   end;
+  Result.Source := ParseValueSource(Params);
+end;
 
-  RequireItemRead(Context, ItemId);
+function IsSelfOrAncestor(const Context: TToolContext; AncestorId: Integer;
+  Item: TItem): Boolean;
+var
+  Current: TItem;
+  Depth: Integer;
+begin
+  Current := Item;
+  Depth := 0;
+  while Assigned(Current) and (Depth <= MAX_ITEM_DEPTH) do
+  begin
+    if Current.Id = AncestorId then
+      Exit(True);
+    if Current.Parent <= 0 then
+      Break;
+    Current := Context.Manager.Find<TItem>(Current.Parent);
+    Inc(Depth);
+  end;
+  Result := False;
+end;
 
-  Item := Context.Manager.Find<TItem>(ItemId);
+procedure CheckSourceFile(const Context: TToolContext; Item: TItem;
+  FileId: Int64);
+var
+  F: TFile;
+  FileItem: TItem;
+begin
+  RequireFileRead(Context, FileId);
+  F := Context.Manager.Find<TFile>(FileId);
+  FileItem := F.Item;
+  if FileItem.IsDeleted then
+    raise Exception.CreateFmt('Source file %d belongs to deleted item %d.',
+      [FileId, FileItem.Id]);
+  if FileItem.ProjectID <> Item.ProjectID then
+    raise Exception.CreateFmt(
+      'Source file %d belongs to another project than item %d. A value ' +
+      'source must be a file of the item, its ancestors or its descendants ' +
+      'in the same project.', [FileId, Item.Id]);
+  if not IsSelfOrAncestor(Context, FileItem.Id, Item) and
+    not IsSelfOrAncestor(Context, Item.Id, FileItem) then
+    raise Exception.CreateFmt(
+      'Source file %d is not attached to item %d, its ancestors or its ' +
+      'descendants in the same project.', [FileId, Item.Id]);
+end;
+
+procedure ValidateValueEntry(const Context: TToolContext;
+  var Entry: TValueEntry; Factor: Double; Confirm: Boolean);
+var
+  Item: TItem;
+  VType: TValueType;
+begin
+  RequireItemRead(Context, Entry.ItemId);
+  Item := Context.Manager.Find<TItem>(Entry.ItemId);
   if not Assigned(Item) then
-    raise Exception.CreateFmt('Item not found: %d', [ItemId]);
+    raise Exception.CreateFmt('Item not found: %d', [Entry.ItemId]);
   if Item.IsDeleted then
-    raise Exception.CreateFmt('Item %d is deleted.', [ItemId]);
+    raise Exception.CreateFmt('Item %d is deleted.', [Entry.ItemId]);
 
   CheckProjectWriteAccess(Context, Item.ProjectID);
 
-  if IsItemSignedCheck(Context.Manager, ItemId) then
+  if IsItemSignedCheck(Context.Manager, Entry.ItemId) then
     raise Exception.Create('Item is signed and cannot be modified.');
 
-  VType := Context.Manager.Find<TValueType>(ValueTypeId);
+  VType := Context.Manager.Find<TValueType>(Entry.ValueTypeId);
   if not Assigned(VType) then
-    raise Exception.CreateFmt('ValueType not found: %d', [ValueTypeId]);
+    raise Exception.CreateFmt('ValueType not found: %d', [Entry.ValueTypeId]);
 
-  Val := unit_Item.TValue.Create;
-  Val.ValueType := VType;
-  Val.RecType := RecType;
-  Val.Value := AValue;
-  if HasTol then
-    Val.Tol := Tolerance
-  else
-    Val.Tol := 0;
-  if HasDesc then
-    Val.Description := Description;
-  Val.CreatedDate := UTCNow;
-  Val.CreatedBy := Context.User.Id;
-  Val.Item := Item;
+  if Entry.Source.FileId > 0 then
+    CheckSourceFile(Context, Item, Entry.Source.FileId);
 
-  Item.Values.Add(Val);
-  Context.Manager.Update(Item);
-  TConflictHandler.SafeFlush(Context.Manager);
-  RecordAudit(Context.Manager, aetValue, Val.Id, aoCreate,
-    Context.User.Id,
-    'MCP: Added value to item "' + Item.Title + '"');
+  Entry.Issues := CheckValue(VType, Entry.Value, Entry.Tolerance, Factor);
+  if (Entry.Issues <> []) and not Confirm then
+    raise Exception.CreateFmt(
+      'Value refused: %s (issues: %s). Check the number, the units of ' +
+      'value type %d ("%s") and the tolerance scale. If the value is correct ' +
+      'as given, repeat the call with confirm_out_of_range: true.',
+      [DescribeValueIssues(Entry.Issues, VType, Entry.Value, Entry.Tolerance,
+        Factor), IssueCodesText(Entry.Issues), VType.Id, VType.Units]);
+end;
 
+function StoredValueJSON(Val: unit_Item.TValue;
+  Issues: TValueIssues): TJSONObject;
+begin
   Result := TJSONObject.Create;
-  Result.AddPair('id', TJSONNumber.Create(Val.Id));
-  Result.AddPair('value', SmartNum(Val.Value));
-  Result.AddPair('tolerance', SmartNum(Val.Tol));
-  if Assigned(Val.ValueType) then
-  begin
-    Result.AddPair('value_type', Val.ValueType.Title);
-    Result.AddPair('units', Val.ValueType.Units);
+  try
+    Result.AddPair('id', TJSONNumber.Create(Val.Id));
+    Result.AddPair('item_id', TJSONNumber.Create(Val.Item.Id));
+    Result.AddPair('value', SmartNum(Val.Value));
+    Result.AddPair('tolerance', SmartNum(Val.Tol));
+    if Assigned(Val.ValueType) then
+    begin
+      Result.AddPair('value_type', Val.ValueType.Title);
+      Result.AddPair('units', Val.ValueType.Units);
+    end;
+    Result.AddPair('source', ValueSourceJSON(Val));
+    if Issues <> [] then
+      Result.AddPair('confirmed_issues', IssueCodesJSON(Issues));
+  except
+    Result.Free;
+    raise;
   end;
+end;
+
+// Entries must have passed ValidateValueEntry. All rows and their audit
+// entries commit together or not at all.
+function StoreValueEntries(const Context: TToolContext;
+  const Entries: TArray<TValueEntry>): TJSONArray;
+var
+  Operation: TObjectManager;
+  Transaction: IDBTransaction;
+  Committed: Boolean;
+  Stored: TArray<unit_Item.TValue>;
+  Item, Cached: TItem;
+  Val: unit_Item.TValue;
+  I: Integer;
+begin
+  SetLength(Stored, Length(Entries));
+  Operation := TObjectManager.Create(Context.Manager.Connection);
+  try
+    Transaction := TConflictHandler.BeginOperationTransaction(Context.Manager);
+    Committed := False;
+    try
+      for I := 0 to High(Entries) do
+      begin
+        Item := Operation.Find<TItem>(Entries[I].ItemId);
+        Val := unit_Item.TValue.Create;
+        Item.Values.Add(Val);
+        Val.Item := Item;
+        Val.ValueType := Operation.Find<TValueType>(Entries[I].ValueTypeId);
+        Val.RecType := Entries[I].RecType;
+        Val.Value := Entries[I].Value;
+        Val.Tol := Entries[I].Tolerance;
+        Val.Description := Entries[I].Description;
+        Val.CreatedDate := UTCNow;
+        Val.CreatedBy := Context.User.Id;
+        ApplySource(Val, Entries[I].Source);
+        Operation.Update(Item);
+        Stored[I] := Val;
+      end;
+      Operation.Flush;
+      for I := 0 to High(Stored) do
+        RecordAudit(Operation, aetValue, Stored[I].Id, aoCreate,
+          Context.User.Id,
+          'MCP: Added value to item "' + Stored[I].Item.Title + '"');
+      Transaction.Commit;
+      Committed := True;
+    finally
+      if not Committed then
+        Transaction.Rollback;
+    end;
+
+    for I := 0 to High(Entries) do
+    begin
+      Cached := Context.Manager.FindCached<TItem>(Entries[I].ItemId);
+      if Assigned(Cached) and not Context.Manager.HasChanges(Cached) then
+        Context.Manager.Refresh(Cached);
+    end;
+
+    Result := TJSONArray.Create;
+    try
+      for I := 0 to High(Stored) do
+        Result.AddElement(StoredValueJSON(Stored[I], Entries[I].Issues));
+    except
+      Result.Free;
+      raise;
+    end;
+  finally
+    TConflictHandler.FreeOperationManager(Operation);
+  end;
+end;
+
+function HandleAddValue(const Params: TJSONObject;
+  const Context: TToolContext): TJSONObject;
+var
+  Entry: TValueEntry;
+  Rows: TJSONArray;
+begin
+  Entry := ParseValueEntry(Params);
+  ValidateValueEntry(Context, Entry, LoadToleranceFactor(Context.Manager),
+    GetOptBool(Params, 'confirm_out_of_range', False));
+  Rows := StoreValueEntries(Context, [Entry]);
+  try
+    Result := Rows.Remove(0) as TJSONObject;
+  finally
+    Rows.Free;
+  end;
+end;
+
+function HandleAddValues(const Params: TJSONObject;
+  const Context: TToolContext): TJSONObject;
+var
+  Arr: TJSONArray;
+  Entries: TArray<TValueEntry>;
+  Factor: Double;
+  Confirm: Boolean;
+  Rows: TJSONArray;
+  I: Integer;
+begin
+  if (Params = nil) or not (Params.FindValue('values') is TJSONArray) then
+    raise Exception.Create(
+      'Missing required parameter: values (array of value objects)');
+  Arr := TJSONArray(Params.FindValue('values'));
+  if Arr.Count = 0 then
+    raise Exception.Create('values is empty; nothing was stored.');
+  if Arr.Count > MAX_VALUE_BATCH then
+    raise Exception.CreateFmt(
+      'values has %d entries; the maximum is %d. Split the batch.',
+      [Arr.Count, MAX_VALUE_BATCH]);
+  Confirm := GetOptBool(Params, 'confirm_out_of_range', False);
+  Factor := LoadToleranceFactor(Context.Manager);
+  SetLength(Entries, Arr.Count);
+  for I := 0 to Arr.Count - 1 do
+    try
+      if not (Arr.Items[I] is TJSONObject) then
+        raise Exception.Create('the entry is not a JSON object');
+      Entries[I] := ParseValueEntry(TJSONObject(Arr.Items[I]));
+      ValidateValueEntry(Context, Entries[I], Factor, Confirm);
+    except
+      on E: Exception do
+        raise Exception.CreateFmt('values[%d] refused; nothing was stored: %s',
+          [I, E.Message]);
+    end;
+
+  Rows := StoreValueEntries(Context, Entries);
+  Result := TJSONObject.Create;
+  Result.AddPair('count', TJSONNumber.Create(Rows.Count));
+  Result.AddPair('values', Rows);
+end;
+
+procedure AddValueSourceProps(Props: TJSONObject);
+var
+  P: TJSONObject;
+  Kinds: TJSONArray;
+begin
+  P := TJSONObject.Create;
+  P.AddPair('type', 'string');
+  Kinds := TJSONArray.Create;
+  Kinds.Add('Reader');
+  Kinds.Add('Manual');
+  Kinds.Add('Unknown');
+  P.AddPair('enum', Kinds);
+  P.AddPair('description', 'Source kind. Default: Reader when reader_id is ' +
+    'given, else Manual when source_file_id or source_note is given, else ' +
+    'Unknown. Reader needs source_file_id, reader_id and key_name; Manual ' +
+    'takes source_file_id and/or source_note; Unknown takes no source fields.');
+  Props.AddPair('source_kind', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'integer');
+  P.AddPair('description', 'File the number was read from or derived from. ' +
+    'It must be attached to the item, one of its ancestors or one of its ' +
+    'descendants in the same project.');
+  Props.AddPair('source_file_id', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'string');
+  P.AddPair('description', 'Reader identity (reader_id from extract_file_key_values)');
+  Props.AddPair('reader_id', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'string');
+  P.AddPair('description', 'Reader version (reader_version from extract_file_key_values)');
+  Props.AddPair('reader_version', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'string');
+  P.AddPair('description', 'Name of the reader key value that produced the number');
+  Props.AddPair('key_name', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'string');
+  P.AddPair('description', 'Free-text source, for example the analysis job, ' +
+    'run or script that produced the number (max 1000 characters)');
+  Props.AddPair('source_note', P);
+end;
+
+function MakeValueEntryProps: TJSONObject;
+var
+  P: TJSONObject;
+begin
+  Result := TJSONObject.Create;
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'integer');
+  P.AddPair('description', 'Item ID to attach the value to');
+  Result.AddPair('item_id', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'number');
+  P.AddPair('description', 'Numeric value in the units of the value type');
+  Result.AddPair('value', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'integer');
+  P.AddPair('description', 'Value type ID (from list_value_types)');
+  Result.AddPair('value_type_id', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'number');
+  P.AddPair('description', 'Tolerance in the same units as value (default: 0)');
+  Result.AddPair('tolerance', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'string');
+  P.AddPair('description', 'Description / notes');
+  Result.AddPair('description', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'string');
+  P.AddPair('description', 'Record type: EXP_CONDITION or TEST_RESULT (default: TEST_RESULT)');
+  Result.AddPair('rec_type', P);
+
+  AddValueSourceProps(Result);
+end;
+
+function MakeValueEntryRequired: TJSONArray;
+begin
+  Result := TJSONArray.Create;
+  Result.Add('item_id');
+  Result.Add('value');
+  Result.Add('value_type_id');
+end;
+
+function MakeConfirmProp: TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('type', 'boolean');
+  Result.AddPair('description', 'Store values outside the value type range ' +
+    'or with an inconsistent tolerance anyway (default: false). Set it only ' +
+    'after checking that the refused number and its units are correct.');
 end;
 
 function MakeAddValueSchema: TJSONObject;
 var
-  Props, P: TJSONObject;
+  Props: TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('type', 'object');
+  Props := MakeValueEntryProps;
+  Props.AddPair('confirm_out_of_range', MakeConfirmProp);
+  Result.AddPair('properties', Props);
+  Result.AddPair('required', MakeValueEntryRequired);
+end;
+
+function MakeAddValuesSchema: TJSONObject;
+var
+  Props, Values, Entry: TJSONObject;
   Req: TJSONArray;
 begin
   Result := TJSONObject.Create;
   Result.AddPair('type', 'object');
   Props := TJSONObject.Create;
 
-  P := TJSONObject.Create;
-  P.AddPair('type', 'integer');
-  P.AddPair('description', 'Item ID to attach the value to');
-  Props.AddPair('item_id', P);
+  Entry := TJSONObject.Create;
+  Entry.AddPair('type', 'object');
+  Entry.AddPair('properties', MakeValueEntryProps);
+  Entry.AddPair('required', MakeValueEntryRequired);
 
-  P := TJSONObject.Create;
-  P.AddPair('type', 'number');
-  P.AddPair('description', 'Numeric value');
-  Props.AddPair('value', P);
+  Values := TJSONObject.Create;
+  Values.AddPair('type', 'array');
+  Values.AddPair('minItems', TJSONNumber.Create(1));
+  Values.AddPair('maxItems', TJSONNumber.Create(MAX_VALUE_BATCH));
+  Values.AddPair('items', Entry);
+  Values.AddPair('description', 'Values to store, each with the add_value fields');
+  Props.AddPair('values', Values);
 
-  P := TJSONObject.Create;
-  P.AddPair('type', 'integer');
-  P.AddPair('description', 'Value type ID (from list_value_types)');
-  Props.AddPair('value_type_id', P);
-
-  P := TJSONObject.Create;
-  P.AddPair('type', 'number');
-  P.AddPair('description', 'Tolerance (default: 0)');
-  Props.AddPair('tolerance', P);
-
-  P := TJSONObject.Create;
-  P.AddPair('type', 'string');
-  P.AddPair('description', 'Description / notes');
-  Props.AddPair('description', P);
-
-  P := TJSONObject.Create;
-  P.AddPair('type', 'string');
-  P.AddPair('description', 'Record type: EXP_CONDITION or TEST_RESULT (default: TEST_RESULT)');
-  Props.AddPair('rec_type', P);
+  Props.AddPair('confirm_out_of_range', MakeConfirmProp);
 
   Result.AddPair('properties', Props);
   Req := TJSONArray.Create;
-  Req.Add('item_id');
-  Req.Add('value');
-  Req.Add('value_type_id');
+  Req.Add('values');
   Result.AddPair('required', Req);
 end;
 
@@ -1863,6 +2224,43 @@ begin
     end;
   finally
     Dic.Free;
+  end;
+end;
+
+function ItemListIds(Items: TList<TItem>): TArray<Integer>;
+var
+  I: Integer;
+begin
+  SetLength(Result, Items.Count);
+  for I := 0 to Items.Count - 1 do
+    Result[I] := Items[I].Id;
+end;
+
+function CollectItemTreeIds(const Context: TToolContext;
+  RootId: Integer): TArray<Integer>;
+var
+  Items: TList<TItem>;
+begin
+  Items := TList<TItem>.Create;
+  try
+    CollectItemTree(Context, RootId, True, Items);
+    Result := ItemListIds(Items);
+  finally
+    Items.Free;
+  end;
+end;
+
+function CollectProjectItemIds(const Context: TToolContext;
+  ProjectId: Integer): TArray<Integer>;
+var
+  Items: TList<TItem>;
+begin
+  Items := TList<TItem>.Create;
+  try
+    CollectProjectItems(Context, ProjectId, Items);
+    Result := ItemListIds(Items);
+  finally
+    Items.Free;
   end;
 end;
 
@@ -2593,9 +2991,36 @@ begin
     MakeRenameFileSchema, HandleRenameFile, tscProjectScoped);
 
   Registry.Register('add_value',
-    'Add a numeric value (measurement, condition) to an item. ' +
-    'Requires write access. Item must not be signed.',
+    'Add a numeric value (measurement, condition, analysis result) to an ' +
+    'item. Requires write access. Item must not be signed. Store analysis ' +
+    'and fit results as values with a source, not only as item text. For a ' +
+    'number from a reader, call extract_file_key_values first and pass ' +
+    'source_file_id = its file_id plus its reader_id, reader_version and ' +
+    'key_name = the key value name. For a number from an analysis, pass ' +
+    'source_file_id (the analysed file) and/or source_note with the job, ' +
+    'run or script IDs. A value written without any source field is stored ' +
+    'with source kind Unknown. The source file must belong to the item, one ' +
+    'of its ancestors or one of its descendants in the same project. A ' +
+    'value outside its value type range (list_value_types range_min/' +
+    'range_max), or with a tolerance larger than |value| or smaller than ' +
+    '|value| / tolerance_factor, is refused with the issue codes; check ' +
+    'the number and units, and repeat with confirm_out_of_range: true only ' +
+    'if it is correct. The response lists confirmed issues. Use add_values ' +
+    'to store several values in one step.',
     MakeAddValueSchema, HandleAddValue, tscProjectScoped);
+
+  Registry.Register('add_values',
+    'Add up to 200 values in one all-or-nothing step, for example all ' +
+    'results of one fit. Each entry takes the add_value fields (item_id, ' +
+    'value, value_type_id, tolerance, description, rec_type and the source ' +
+    'fields source_kind, source_file_id, reader_id, reader_version, ' +
+    'key_name, source_note) with the same rules: give a source for every ' +
+    'result; an entry without source fields is stored as Unknown. Every ' +
+    'entry is checked before anything is written; if one entry is refused, ' +
+    'the error names its index (values[i]) and nothing is stored. ' +
+    'confirm_out_of_range: true applies to all entries. One audit row is ' +
+    'written per value.',
+    MakeAddValuesSchema, HandleAddValues, tscProjectScoped);
 
   Registry.Register('move_item',
     'Move a root-level item (Proc, Specimen, etc.) and all its children to a different ' +

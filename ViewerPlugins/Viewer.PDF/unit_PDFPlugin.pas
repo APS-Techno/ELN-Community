@@ -9,7 +9,7 @@ uses
 
 type
 
-  TELNPDFViewerPlugin = class(TELNBaseViewerPlugin, IPreviewProvider)
+  TELNPDFViewerPlugin = class(TELNBaseViewerPlugin, IPreviewProvider, IReaderIdentity)
   private
     FFileName: string;
   protected
@@ -18,6 +18,8 @@ type
   public
     function LoadFromFile(const AFileName: string): Boolean; override;
     function GetPreview(MaxWidth, MaxHeight: Integer): TBitmap;
+    function GetReaderId: string;
+    function GetReaderVersion: string;
   end;
 
   procedure Register;
@@ -42,6 +44,16 @@ end;
 procedure UnRegister;
 begin
   APlugin.Free;
+end;
+
+function TELNPDFViewerPlugin.GetReaderId: string;
+begin
+  Result := 'aps.pdf';
+end;
+
+function TELNPDFViewerPlugin.GetReaderVersion: string;
+begin
+  Result := '1';
 end;
 
 function TELNPDFViewerPlugin.CreateViewerFrame: TFrame;

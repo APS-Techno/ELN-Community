@@ -39,6 +39,8 @@ type
   public
     constructor Create;
     function LoadFromFile(const AFileName: string): Boolean;
+    function LoadTable(const AFileName: string; const AColumns: TArray<TLogColumn>;
+      const ARows: TArray<TArray<string>>; const AFormat: TFormatSettings): Boolean;
     function ColumnCount: Integer;
     function RowCount: Integer;
     function ColumnAt(Idx: Integer): TLogColumn;
@@ -87,6 +89,7 @@ begin
   SetLength(FRows, 0);
   SetLength(FNumeric, 0);
   FTimeColIndex := -1;
+  FFmtSettings := TFormatSettings.Invariant;
 
   Lines := TStringList.Create;
   try
@@ -125,6 +128,26 @@ begin
   finally
     Lines.Free;
   end;
+end;
+
+function TLogFile.LoadTable(const AFileName: string; const AColumns: TArray<TLogColumn>;
+  const ARows: TArray<TArray<string>>; const AFormat: TFormatSettings): Boolean;
+begin
+  FFileName := AFileName;
+  FTruncated := False;
+  FTimeColIndex := -1;
+  FFmtSettings := AFormat;
+  FColumns := Copy(AColumns);
+  FRows := ARows;
+  SetLength(FNumeric, 0);
+  Result := Length(FColumns) > 0;
+  if not Result then
+  begin
+    SetLength(FRows, 0);
+    Exit;
+  end;
+  InferDTypes;
+  FillNumeric;
 end;
 
 procedure TLogFile.ParseHeader(const HeaderLine, UnitsLine: string);

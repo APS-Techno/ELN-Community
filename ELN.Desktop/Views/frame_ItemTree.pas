@@ -105,6 +105,7 @@ type
     miItemDelete: TMenuItem;
     miItemSep4: TMenuItem;
     miItemRegenPreviews: TMenuItem;
+    miItemCheckValueSources: TMenuItem;
     miItemRefresh: TMenuItem;
     miItemSep5: TMenuItem;
     miItemCopyMCPLink: TMenuItem;
@@ -240,6 +241,7 @@ type
     procedure miFileCopyMCPLinkClick(Sender: TObject);
     procedure TreeKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure tmrStartupTimer(Sender: TObject);
+    procedure miItemCheckValueSourcesClick(Sender: TObject);
     // Bound from the DFM, so these MUST stay in this implicitly published
     // section: DFM streaming resolves OnX = Handler through MethodAddress,
     // which only sees published RTTI. A private handler silently fails to bind.
@@ -296,9 +298,11 @@ type
     FOnPrepareFile: TPrepareItemFileEvent;
     FOnOpenHypotheses: TOpenHypothesisEvent;
     FOnHypothesisDecisionsChanged: TNotifyEvent;
+    FSkippedExtractedValues: Integer;
     procedure PreviewQueueStatus(const AText: string);
     procedure PreviewQueueUpdate(FileId: Int64; const APreviewPath: string);
-    procedure PreviewQueueKeyValuesExtracted(ItemId: Integer;
+    procedure PreviewQueueKeyValuesExtracted(ItemId: Integer; FileId: Int64;
+      const ReaderId, ReaderVersion: string;
       const KeyValues: TArray<TPluginKeyValue>);
     procedure SetStatusText(const AText: string);
     procedure actEditableUpdate(Sender: TObject);
@@ -480,12 +484,115 @@ uses
   dlg_HypothesisPick,
   dlg_HypothesisEdit,
   unit_TreeAppearance, System.IOUtils, Aurelius.Drivers.Interfaces,
-  unit_ItemModel, unit_Project, unit_AuditHelper;
+  unit_ItemModel, unit_Project, unit_AuditHelper,
+  Aurelius.Criteria.Linq, unit_ValueSource, unit_ValueChecks, unit_ValueDrift,
+  dlg_ValueDrift;
 {$R *.dfm}
 
 const
   CDefaultColor  = $00808080;  
 
+
+type
+  TDesktopValueReaderRunner = class(TInterfacedObject, IValueReaderRunner)
+  private
+    FViewer: TframeContentViewer;
+    FPrepareFile: TPrepareItemFileEvent;
+  public
+    constructor Create(AViewer: TframeContentViewer;
+      APrepareFile: TPrepareItemFileEvent);
+    function Run(FileId: Int64): TReaderRun;
+  end;
+
+constructor TDesktopValueReaderRunner.Create(AViewer: TframeContentViewer;
+  APrepareFile: TPrepareItemFileEvent);
+begin
+  inherited Create;
+  FViewer := AViewer;
+  FPrepareFile := APrepareFile;
+end;
+
+function TDesktopValueReaderRunner.Run(FileId: Int64): TReaderRun;
+var
+  AFile: unit_Item.TFile;
+  Path: string;
+  PluginOwner: TComponent;
+  Plugin: IViewerPlugin;
+  Provider: IKeyValueProvider;
+  KeyValues: TArray<TPluginKeyValue>;
+  I: Integer;
+begin
+  Result := Default(TReaderRun);
+  AFile := Model.Manager.Find<unit_Item.TFile>(FileId);
+  if not Assigned(AFile) or not Assigned(AFile.Item) or
+    not Model.Storage.Exists(
+      StringReplace(Model.GetFileName(FileId), '\', '/', [rfReplaceAll])) then
+  begin
+    Result.FileMissing := True;
+    Result.Error := 'The stored file is missing';
+    Exit;
+  end;
+  PluginOwner := TComponent.Create(nil);
+  try
+    try
+      Path := FPrepareFile(FileId);
+      if not Assigned(FViewer.FindPlugin(Path)) then
+        raise EInvalidOperation.Create('No reader is registered for this file type');
+      Plugin := FViewer.LoadPreviewPlugin(Path, AFile.Item.Id, FileId, PluginOwner);
+      if not Assigned(Plugin) then
+        raise EInvalidOperation.Create('The reader could not load the file');
+      ReaderIdentityOf(Plugin, Result.ReaderId, Result.ReaderVersion);
+      if not Supports(Plugin, IKeyValueProvider, Provider) then
+        raise EInvalidOperation.Create('The reader returns no key values');
+      KeyValues := Provider.GetKeyValues;
+      SetLength(Result.Values, Length(KeyValues));
+      for I := 0 to High(KeyValues) do
+      begin
+        Result.Values[I].Name := KeyValues[I].Name;
+        Result.Values[I].Value := KeyValues[I].Value;
+      end;
+      Result.Succeeded := True;
+    except
+      on E: Exception do
+        Result.Error := E.Message;
+    end;
+  finally
+    Provider := nil;
+    Plugin := nil;
+    PluginOwner.Free;
+  end;
+end;
+
+function SubtreeItemIds(Root: TItem): TArray<Integer>;
+var
+  All: TList<TItem>;
+  Ids: TList<Integer>;
+  Index: Integer;
+  Candidate: TItem;
+begin
+  Ids := TList<Integer>.Create;
+  try
+    Ids.Add(Root.Id);
+    All := Model.Manager.Find<TItem>
+      .Where((Linq['ProjectID'] = Root.ProjectID) and (Linq['IsDeleted'] = False))
+      .List;
+    try
+      Index := 0;
+      while Index < Ids.Count do
+      begin
+        for Candidate in All do
+          if (Candidate.Parent = Ids[Index]) and not Ids.Contains(Candidate.Id) then
+            Ids.Add(Candidate.Id);
+        Inc(Index);
+      end;
+    finally
+      All.Free;
+    end;
+    Result := Ids.ToArray;
+  finally
+    Ids.Free;
+  end;
+end;
 
 function HexToColor(const S: string): TColor;
 var
@@ -502,6 +609,14 @@ end;
 
 procedure TframeItemTree.PreviewQueueStatus(const AText: string);
 begin
+  if (AText = '') and (FSkippedExtractedValues > 0) then
+  begin
+    SetStatusText(Format('%d extracted value(s) not stored: outside the ' +
+      'plausible range of their value type. Use Extract Values to review them.',
+      [FSkippedExtractedValues]));
+    FSkippedExtractedValues := 0;
+    Exit;
+  end;
   SetStatusText(AText);
 end;
 
@@ -511,18 +626,20 @@ begin
 end;
 
 procedure TframeItemTree.PreviewQueueKeyValuesExtracted(ItemId: Integer;
+  FileId: Int64; const ReaderId, ReaderVersion: string;
   const KeyValues: TArray<TPluginKeyValue>);
 var
   KV: TPluginKeyValue;
   VT: TValueType;
   Item: TItem;
-  RecType: TRecType;
+  Factor: Double;
 begin
   Item := Model.Items.GetItem(ItemId);
   if Item = nil then
     Exit;
   if not Model.Access.CanWrite(Model.Manager, Model.User, Item.ProjectID) then Exit;
 
+  Factor := LoadToleranceFactor(Model.Manager);
   for KV in KeyValues do
   begin
     if not KV.IsKey then
@@ -532,13 +649,16 @@ begin
     if VT = nil then
       Continue;
 
-    if KV.RecType = prResult then
-      RecType := TEST_RESULT
-    else
-      RecType := EXP_CONDITION;
+    // Nobody can confirm here, so a value outside the plausible range waits
+    // for the interactive extract dialog instead of being stored.
+    if CheckValue(VT, KV.Value, 0, Factor) <> [] then
+    begin
+      Inc(FSkippedExtractedValues);
+      Continue;
+    end;
 
-    Model.Items.AddValue(VT, RecType, KV.Value, FVM.UserId, Item,
-      0, KV.Description);
+    WriteExtractedValue(Model.Items, VT, KV, FVM.UserId, Item,
+      FileId, ReaderId, ReaderVersion);
   end;
 end;
 
@@ -694,7 +814,7 @@ var
 begin
   for V in Source.Values do
     Model.Items.AddValue(V.ValueType, V.RecType, V.Value, Model.User.Id,
-      NewItem, V.Tol, V.Description);
+      NewItem, V.Tol, V.Description, ReadSource(V));
 end;
 
 procedure TframeItemTree.miNewProcClick(Sender: TObject);
@@ -1111,7 +1231,7 @@ begin
     if ShowValueDialog(dmNew, NewValue) then
     begin
       FVM.AddValue(NewValue.ValueType, NewValue.RecType, NewValue.Value,
-        ParentItem, NewValue.Tol, NewValue.Description);
+        ParentItem, NewValue.Tol, NewValue.Description, TValueSourceInfo.Manual);
       FVM.SelectItem(ParentItem.Id, 0);
       FillTree(FLocation);
       RestoreLastSelection;
@@ -1157,6 +1277,9 @@ begin
             TargetPath := StringReplace(Model.GetFileName(NewFile.Id), '\', '/', [rfReplaceAll]);
             try
               Model.Storage.CopyIn(Files[i].SourcePath, TargetPath);
+              NewFile.Hash := ComputeFileHash(Files[i].SourcePath);
+              if not Model.Items.UpdateFile(NewFile, Model.User.Id) then
+                raise EInvalidOperation.Create('File metadata update conflicted.');
             except
               FVM.DeleteFile(NewFile, ParentItem);
               SetStatusText('');
@@ -1614,13 +1737,14 @@ end;
 
 procedure TframeItemTree.LoadFileIcons;
 const
-  CExtToIcon: array[0..36] of record Ext, Icon: string end = (
+  CExtToIcon: array[0..38] of record Ext, Icon: string end = (
     (Ext: '.pdf';   Icon: 'PDF'),
     (Ext: '.xlsx';  Icon: 'XLSX'),
     (Ext: '.csv';   Icon: 'CSV'),
     (Ext: '.dat';   Icon: 'DAT'),
     (Ext: '.ascii'; Icon: 'ASCII'),
     (Ext: '.log';   Icon: 'LOG'),
+    (Ext: '.process.log'; Icon: 'LOG'),
     (Ext: '.tiff';  Icon: 'TIFF'),
     (Ext: '.tif';   Icon: 'TIFF'),
     (Ext: '.opju';  Icon: 'OPJU'),
@@ -1628,6 +1752,7 @@ const
     (Ext: '.xrdml'; Icon: 'XRDML'),
     (Ext: '.rp4';   Icon: 'RP4'),
     (Ext: '.dsc';   Icon: 'DSC'),
+    (Ext: '.rcpx';  Icon: 'RCPX'),
     (Ext: '.fibps'; Icon: 'FIBPS'),
     (Ext: '.zrw';   Icon: 'ZRW'),
     (Ext: '.zrv';   Icon: 'ZRW'),
@@ -3468,6 +3593,31 @@ begin
   FPreviewQueue.Start(Queue);
 end;
 
+procedure TframeItemTree.miItemCheckValueSourcesClick(Sender: TObject);
+var
+  Node: PVirtualNode;
+  Data: PNodeData;
+  Root: TItem;
+  Runner: IValueReaderRunner;
+  Report: TValueDriftReport;
+begin
+  if not Assigned(FVM) or not Assigned(FContentViewer) then Exit;
+  Node := Tree.GetFirstSelected;
+  if not Assigned(Node) then Exit;
+  Data := Tree.GetNodeData(Node);
+  if not Assigned(Data) or (Data.NodeType <> ntItem) then Exit;
+  Root := Data.Item;
+
+  Runner := TDesktopValueReaderRunner.Create(FContentViewer, PrepareFile);
+  Screen.Cursor := crHourGlass;
+  try
+    Report := CheckValueDrift(Model.Manager, SubtreeItemIds(Root), Runner);
+  finally
+    Screen.Cursor := crDefault;
+  end;
+  TdlgValueDrift.Execute(Root.Title, Report);
+end;
+
 
 procedure TframeItemTree.miFileRegenPreviewClick(Sender: TObject);
 begin
@@ -3503,7 +3653,7 @@ var
   Plugin: IViewerPlugin;
   KVProvider: IKeyValueProvider;
   KeyValues: TArray<TPluginKeyValue>;
-  FilePath: string;
+  FilePath, ReaderId, ReaderVersion: string;
 begin
   if not Assigned(FVM) or not FVM.CanEdit then Exit;
   Node := Tree.GetFirstSelected;
@@ -3552,7 +3702,9 @@ begin
     Exit;
   end;
 
-  if ShowExtractValuesDialog(KeyValues, ParentItem, FVM.UserId) then
+  ReaderIdentityOf(Plugin, ReaderId, ReaderVersion);
+  if ShowExtractValuesDialog(KeyValues, ParentItem, FVM.UserId, AFile.Id,
+    ReaderId, ReaderVersion) then
   begin
     FVM.SelectItem(ParentItem.Id, AFile.Id);
     FillTree(FLocation);

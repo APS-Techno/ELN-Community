@@ -1,0 +1,46 @@
+package ELNXRFXViewer;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This SHOULD NOT BE EDITED MANUALLY}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS ON}
+{$RANGECHECKS ON}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$RUNONLY}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  vcl,
+  vclimg,
+  vclwinx,
+  RaizeComponentsVcl,
+  TMSVCLPluginFrameworkPkgCoreDXE16,
+  ELNPluginCore,
+  Tee;
+
+contains
+  unit_XRFXPlugin in 'unit_XRFXPlugin.pas' {ELNXRFXViewerPlugin: TupfVisualPlugin},
+  frame_XRFXViewer in 'frame_XRFXViewer.pas' {frameXRFXViewer: TFrame},
+  unit_XRFXParser in 'unit_XRFXParser.pas';
+
+end.

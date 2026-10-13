@@ -1,0 +1,29 @@
+object frameFileViewer: TframeFileViewer
+  Left = 0
+  Top = 0
+  Width = 1310
+  Height = 958
+  Margins.Left = 6
+  Margins.Top = 6
+  Margins.Right = 6
+  Margins.Bottom = 6
+  TabOrder = 0
+  PixelsPerInch = 192
+  object JamFilePreview: TJamFilePreview
+    Left = 0
+    Top = 0
+    Width = 1310
+    Height = 958
+    Margins.Left = 6
+    Margins.Top = 6
+    Margins.Right = 6
+    Margins.Bottom = 6
+    ParentBackground = True
+    Align = alClient
+    ShowIcons = False
+    ExplicitLeft = 352
+    ExplicitTop = 256
+    ExplicitWidth = 370
+    ExplicitHeight = 82
+  end
+end

@@ -5,13 +5,21 @@ program LocalNotebookTests;
 uses
   System.SysUtils,
   System.IOUtils,
+  System.Variants,
+  System.RegularExpressions,
+  System.Math,
   System.Generics.Collections,
   Aurelius.Engine.ObjectManager,
+  Aurelius.Drivers.Interfaces,
   unit_LocalNotebook in '..\ELN.Community\unit_LocalNotebook.pas',
   unit_NotebookStorage in '..\ELN.Model\unit_NotebookStorage.pas',
   unit_User in '..\ELN.Domain\unit_User.pas',
   unit_Project in '..\ELN.Domain\unit_Project.pas',
   unit_Item in '..\ELN.Domain\unit_Item.pas',
+  unit_ItemTypes,
+  unit_ValueType,
+  unit_ItemModel,
+  unit_ValueSource,
   unit_ValueTypeModel,
   unit_ValueTypeCategories,
   unit_DBSettingsModel,
@@ -441,6 +449,223 @@ begin
   end;
 end;
 
+procedure ExecuteSQL(const SQL: string);
+var
+  Statement: IDBStatement;
+begin
+  Statement := Notebook.Connection.CreateStatement;
+  Statement.SetSQLCommand(SQL);
+  Statement.Execute;
+end;
+
+function QueryStrings(const SQL: string; FieldIndex: Integer = 0): TArray<string>;
+var
+  Statement: IDBStatement;
+  ResultSet: IDBResultSet;
+  Rows: TList<string>;
+begin
+  Statement := Notebook.Connection.CreateStatement;
+  Statement.SetSQLCommand(SQL);
+  ResultSet := Statement.ExecuteQuery;
+  Rows := TList<string>.Create;
+  try
+    while ResultSet.Next do
+      Rows.Add(VarToStr(ResultSet.GetFieldValue(FieldIndex)));
+    Result := Rows.ToArray;
+  finally
+    Rows.Free;
+  end;
+end;
+
+// The bundled SQLite predates DROP COLUMN, so the fixture rebuilds the table
+// from its stored DDL with the format 3 columns removed.
+procedure RebuildWithoutColumns(const Table: string;
+  const Removed: array of string);
+var
+  CreateSQL, Column, Kept: string;
+  Indexes, Columns: TArray<string>;
+  KeptList: TList<string>;
+  IsRemoved: Boolean;
+  R: string;
+begin
+  CreateSQL := QueryStrings('SELECT sql FROM sqlite_master WHERE type = ''table'' ' +
+    'AND name = ''' + Table + '''')[0];
+  Indexes := QueryStrings('SELECT sql FROM sqlite_master WHERE type = ''index'' ' +
+    'AND tbl_name = ''' + Table + ''' AND sql IS NOT NULL');
+  Columns := QueryStrings('PRAGMA table_info(' + Table + ')', 1);
+  KeptList := TList<string>.Create;
+  try
+    for Column in Columns do
+    begin
+      IsRemoved := False;
+      for R in Removed do
+        IsRemoved := IsRemoved or SameText(R, Column);
+      if not IsRemoved then
+        KeptList.Add(Column);
+    end;
+    Kept := string.Join(', ', KeptList.ToArray);
+  finally
+    KeptList.Free;
+  end;
+  for R in Removed do
+  begin
+    Check(TRegEx.IsMatch(CreateSQL, ',\s*"?' + R + '"?\s', [roIgnoreCase]),
+      'fixture DDL contains ' + R);
+    CreateSQL := TRegEx.Replace(CreateSQL,
+      ',\s*"?' + R + '"?\s+\w+(\s*\([^)]*\))?(\s+NULL)?', '', [roIgnoreCase]);
+  end;
+  ExecuteSQL('PRAGMA foreign_keys = OFF');
+  ExecuteSQL('PRAGMA legacy_alter_table = ON');
+  ExecuteSQL('ALTER TABLE ' + Table + ' RENAME TO ' + Table + '_format3');
+  ExecuteSQL(CreateSQL);
+  ExecuteSQL('INSERT INTO ' + Table + ' (' + Kept + ') SELECT ' + Kept +
+    ' FROM ' + Table + '_format3');
+  ExecuteSQL('DROP TABLE ' + Table + '_format3');
+  for R in Indexes do
+    ExecuteSQL(R);
+  ExecuteSQL('PRAGMA legacy_alter_table = OFF');
+  ExecuteSQL('PRAGMA foreign_keys = ON');
+end;
+
+procedure CreateFormat2Notebook(out ItemId, ValueId, ValueTypeId: Integer);
+var
+  Project: TProject;
+  Item: TItem;
+  VT: TValueType;
+  V: TValue;
+  Column: string;
+begin
+  CreateFixtureNotebook;
+  Project := TProject.Create;
+  Project.Title := 'Format 2 project';
+  Project.FileFolder := 'format-2';
+  Project.Owner := Notebook.Principal;
+  Project.CreatedBy := Notebook.Principal.Id;
+  Project.CreatedDate := Now;
+  Notebook.Manager.Save(Project);
+  Notebook.Manager.Flush;
+  Item := TItem.Create;
+  Item.Title := 'Format 2 specimen';
+  Item.ProjectID := Project.Id;
+  Item.CreatedBy := Notebook.Principal.Id;
+  Item.CreatedDate := Now;
+  Notebook.Manager.Save(Item);
+  VT := TValueType.Create;
+  VT.Symbol := 'd';
+  VT.Title := 'Thickness';
+  VT.Units := 'm';
+  VT.CreatedDate := Now;
+  Notebook.Manager.Save(VT);
+  Notebook.Manager.Flush;
+  V := TValue.Create;
+  V.Item := Item;
+  V.ValueType := VT;
+  V.RecType := TEST_RESULT;
+  V.Value := 2.279e-8;
+  V.Tol := 1e-10;
+  V.Description := 'pre-upgrade row';
+  V.CreatedDate := Now;
+  Notebook.Manager.Save(V);
+  Notebook.Manager.Flush;
+  ItemId := Item.Id;
+  ValueId := V.Id;
+  ValueTypeId := VT.Id;
+  RebuildWithoutColumns('DataValues', ['SourceKind', 'SourceFileId',
+    'ReaderId', 'ReaderVersion', 'KeyName', 'SourceNote']);
+  RebuildWithoutColumns('ValueTypes', ['RangeMin', 'RangeMax']);
+  ExecuteSQL('UPDATE DBSettings SET SettingValue = ''2'' ' +
+    'WHERE SettingKey = ''COMMUNITY_FORMAT_VERSION''');
+  FreeAndNil(Notebook);
+end;
+
+procedure TestFormat2NeedsExplicitUpgrade;
+var
+  ItemId, ValueId, ValueTypeId: Integer;
+  Before: TBytes;
+  Opened: TLocalNotebook;
+  UpgradeRequired: Boolean;
+begin
+  CreateFormat2Notebook(ItemId, ValueId, ValueTypeId);
+  Before := System.IOUtils.TFile.ReadAllBytes(DatabasePath);
+  UpgradeRequired := False;
+  Opened := nil;
+  try
+    try
+      Opened := TLocalNotebook.Open(DatabasePath, StorageRoot);
+    except
+      on E: ELocalNotebookUpgradeRequired do
+        UpgradeRequired := True;
+    end;
+  finally
+    Opened.Free;
+  end;
+  Check(UpgradeRequired, 'format 2 must ask for an upgrade');
+  CheckBytes(Before, System.IOUtils.TFile.ReadAllBytes(DatabasePath),
+    'refused open leaves the format 2 database unchanged');
+  Check(Length(TDirectory.GetFiles(FixtureDir, '*backup*')) = 0,
+    'refused open creates no backup');
+end;
+
+procedure TestFormat2UpgradeKeepsDataAndBackup;
+var
+  ItemId, ValueId, ValueTypeId: Integer;
+  Before: TBytes;
+  BackupPath: string;
+  V: TValue;
+  VT: TValueType;
+  Item: TItem;
+  Items: TItemModel;
+  NewValue: TValue;
+begin
+  CreateFormat2Notebook(ItemId, ValueId, ValueTypeId);
+  Before := System.IOUtils.TFile.ReadAllBytes(DatabasePath);
+  BackupPath := TLocalNotebook.Upgrade(DatabasePath);
+  Check(SameText(ExtractFileDir(BackupPath), ExtractFileDir(DatabasePath)),
+    'backup sits beside the notebook');
+  Check(Pos('format2-backup', ExtractFileName(BackupPath)) > 0,
+    'backup name marks the old format');
+  CheckBytes(Before, System.IOUtils.TFile.ReadAllBytes(BackupPath),
+    'backup holds the pre-upgrade bytes');
+  MustRaise(
+    procedure
+    begin
+      TLocalNotebook.Upgrade(DatabasePath);
+    end, 'a format 3 notebook is not upgraded again');
+
+  Notebook := TLocalNotebook.Open(DatabasePath, StorageRoot);
+  V := Notebook.Manager.Find<TValue>(ValueId);
+  Check(V <> nil, 'pre-upgrade value survives');
+  Check(SameValue(V.Value, 2.279e-8, 1e-20), 'value number survives');
+  Check(SameValue(V.Tol, 1e-10, 1e-22), 'tolerance survives');
+  Check(V.Description = 'pre-upgrade row', 'description survives');
+  Check(V.Item.Id = ItemId, 'value owner survives');
+  Check(not V.SourceKind.HasValue, 'pre-upgrade row has no stored source kind');
+  Check(V.EffectiveSourceKind = vskUnknown, 'pre-upgrade row reads as Unknown');
+  VT := Notebook.Manager.Find<TValueType>(ValueTypeId);
+  Check(not VT.RangeMin.HasValue and not VT.RangeMax.HasValue,
+    'existing value type has no range');
+
+  Item := Notebook.Manager.Find<TItem>(ItemId);
+  Items := TItemModel.Create(Notebook.Manager);
+  try
+    Items.AddValue(VT, EXP_CONDITION, 1.5, Notebook.Principal.Id, Item, 0,
+      'typed by hand', TValueSourceInfo.Manual('lab book p. 12'));
+  finally
+    Items.Free;
+  end;
+  FreeAndNil(Notebook);
+
+  Notebook := TLocalNotebook.Open(DatabasePath, StorageRoot);
+  Item := Notebook.Manager.Find<TItem>(ItemId);
+  NewValue := nil;
+  for V in Item.Values do
+    if V.Id <> ValueId then
+      NewValue := V;
+  Check(NewValue <> nil, 'post-upgrade value is stored');
+  Check(NewValue.EffectiveSourceKind = vskManual, 'post-upgrade value keeps Manual');
+  Check(NewValue.SourceNote = 'lab book p. 12', 'manual note is stored');
+end;
+
 begin
   try
     Passed := 0;
@@ -469,6 +694,10 @@ begin
       TestCreateNewPreservesPopulatedStorageRoot);
     RunTest('category state is notebook-local and read-only on open',
       TestCategoryIsolationAndReadOnlyLoad);
+    RunTest('format 2 notebook asks for an explicit upgrade',
+      TestFormat2NeedsExplicitUpgrade);
+    RunTest('format 2 upgrade keeps data, writes a backup and adds sources',
+      TestFormat2UpgradeKeepsDataAndBackup);
     WriteLn(Format('%d passed; %d failed', [Passed, Failed]));
     if Failed > 0 then
       ExitCode := 1;

@@ -130,6 +130,8 @@ type
     procedure BindNotebook(Notebook: TLocalNotebook; const DatabasePath, StorageRoot: string;
       Fresh: Boolean);
     procedure ReleaseNotebook;
+    function OpenNotebookWithUpgrade(const DatabasePath,
+      StorageRoot: string): TLocalNotebook;
     function PrepareFile(FileId: Int64): string;
     procedure DisplayFile(FileId: Int64);
     procedure OpenFile(FileId: Int64);
@@ -287,7 +289,8 @@ begin
   try
     if not TDirectory.Exists(FStartupStorage) then
       raise ELocalNotebookError.Create('Attachment directory is unavailable: ' + FStartupStorage);
-    Notebook := TLocalNotebook.Open(FStartupNotebook, FStartupStorage);
+    Notebook := OpenNotebookWithUpgrade(FStartupNotebook, FStartupStorage);
+    if not Assigned(Notebook) then Exit;
     try
       BindNotebook(Notebook, FStartupNotebook, FStartupStorage, False);
       Notebook := nil;
@@ -504,6 +507,31 @@ begin
   FDatabasePath := '';
   FStorageRoot := '';
   SetNotebookUI(False);
+end;
+
+function TfrmCommunityMain.OpenNotebookWithUpgrade(const DatabasePath,
+  StorageRoot: string): TLocalNotebook;
+var
+  BackupPath: string;
+begin
+  try
+    Exit(TLocalNotebook.Open(DatabasePath, StorageRoot));
+  except
+    on ELocalNotebookUpgradeRequired do
+      if MessageDlg('The notebook' + sLineBreak + DatabasePath + sLineBreak +
+        'uses notebook format 2. This version opens format 3 only.' +
+        sLineBreak + sLineBreak +
+        'The upgrade first copies the database beside it as a backup, then ' +
+        'adds the value source and plausible range columns. Older ELN ' +
+        'Community versions cannot open the upgraded notebook.' +
+        sLineBreak + sLineBreak + 'Upgrade the notebook now?',
+        mtConfirmation, [mbYes, mbNo], 0, mbNo) <> mrYes then
+        Exit(nil);
+  end;
+  BackupPath := TLocalNotebook.Upgrade(DatabasePath);
+  MessageDlg('The notebook now uses format 3. The format 2 copy is kept at:' +
+    sLineBreak + BackupPath, mtInformation, [mbOK], 0);
+  Result := TLocalNotebook.Open(DatabasePath, StorageRoot);
 end;
 
 function TfrmCommunityMain.PrepareFile(FileId: Int64): string;
@@ -749,7 +777,8 @@ begin
     Exit;
   end;
   // Validate the candidate before interrupting the active notebook.
-  Notebook := TLocalNotebook.Open(OpenNotebookDialog.FileName, StorageRoot);
+  Notebook := OpenNotebookWithUpgrade(OpenNotebookDialog.FileName, StorageRoot);
+  if not Assigned(Notebook) then Exit;
   try
     if not FinishEditorsAndDrafts then Exit;
     ReleaseNotebook;

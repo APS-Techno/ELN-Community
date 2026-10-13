@@ -1,0 +1,46 @@
+package ELNRecipeViewer;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS ON}
+{$RANGECHECKS ON}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  vcl,
+  vclimg,
+  vclwinx,
+  RaizeComponentsVcl,
+  TMSVCLPluginFrameworkPkgCoreDXE16,
+  ELNPluginCore,
+  xmlrtl,
+  SynEditDR;
+
+contains
+  unit_RecipeData in 'unit_RecipeData.pas',
+  unit_RecipePlugin in 'unit_RecipePlugin.pas' {ELNRecipeViewerPlugin: TupfVisualPlugin},
+  frame_RecipeViewer in 'frame_RecipeViewer.pas' {frameRecipeViewer: TFrame};
+
+end.

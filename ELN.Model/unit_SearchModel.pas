@@ -22,6 +22,9 @@ type
     ProjectId: Integer;
     FolderId: Integer;
     ItemTitle: string;
+    FileId: Int64;
+    FullName: string;
+    Extension: string;
     EntityName: string;
     MatchedField: string;
     ProjectPath: string;
@@ -70,7 +73,8 @@ implementation
 uses
   Aurelius.Criteria.Base,
   unit_Project,
-  unit_LabEntry;
+  unit_LabEntry,
+  unit_FilePaths;
 
 
 constructor TSearchModel.Create(Manager: TObjectManager;
@@ -147,7 +151,10 @@ end;
 
 function TSearchModel.MakeKey(const R: TSearchResult): string;
 begin
-  Result := Format('%d|%d|%s', [R.ItemId, Ord(R.Kind), R.EntityName]);
+  if R.Kind = srkFile then
+    Result := Format('%d|%d|%d', [R.ItemId, Ord(R.Kind), R.FileId])
+  else
+    Result := Format('%d|%d|%s', [R.ItemId, Ord(R.Kind), R.EntityName]);
 end;
 
 function TSearchModel.BuildProjectPath(ProjectId, FolderId: Integer): string;
@@ -178,6 +185,7 @@ var
   Key: string;
   MatchField: string;
 begin
+  R := Default(TSearchResult);
   Items := FManager.Find<TItem>
     .Where(
       (FItemDic.IsDeleted = False) and
@@ -225,6 +233,7 @@ var
   R: TSearchResult;
   Key: string;
 begin
+  R := Default(TSearchResult);
   Items := FManager.Find<TItem>
     .CreateAlias('FEntries', 'e')
     .Where(
@@ -264,45 +273,58 @@ end;
 procedure TSearchModel.SearchFiles(const Pattern: string;
   Results: TSearchResults; Seen: TDictionary<string, Boolean>);
 var
-  Items: TList<TItem>;
+  Files: TList<TFile>;
   Item: TItem;
   F: TFile;
   R: TSearchResult;
-  Key: string;
+  Key, NameTerm, LowerTerm, ASCIITerm: string;
+  FileId: Int64;
+  CloseBracket: Integer;
+  Criterion: TLinqExpression;
 begin
-  Items := FManager.Find<TItem>
-    .CreateAlias('FFilesList', 'f')
-    .Where(
-      (FItemDic.IsDeleted = False) and
-      Linq['f.Title'].Like(Pattern))
+  R := Default(TSearchResult);
+  NameTerm := UnescapeLikePattern(Pattern);
+  LowerTerm := NameTerm.ToLower;
+  Criterion := Linq['Title'].Concat(Linq['ft.Ext']).Lower.Position(LowerTerm) > 0;
+  // SQLite lower() folds ASCII only; other dialects also fold Unicode.
+  ASCIITerm := System.SysUtils.LowerCase(NameTerm);
+  if ASCIITerm <> LowerTerm then
+    Criterion := Criterion or
+      (Linq['Title'].Concat(Linq['ft.Ext']).Lower.Position(ASCIITerm) > 0);
+  CloseBracket := Pos(']', NameTerm);
+  if NameTerm.StartsWith('[') and (CloseBracket > 2) and
+    TryStrToInt64(Copy(NameTerm, 2, CloseBracket - 2), FileId) then
+    Criterion := Criterion or (Linq['Id'] = FileId);
+  Files := FManager.Find<TFile>
+    .CreateAlias('FItem', 'i')
+    .CreateAlias('FFileType', 'ft')
+    .Where((Linq['i.IsDeleted'] = False) and Criterion)
     .List;
   try
-    for Item in Items do
+    for F in Files do
     begin
-      for F in Item.Files do
-      begin
-        if F.Title.ToLower.Contains(UnescapeLikePattern(Pattern).ToLower) then
-        begin
-          R.Kind := srkFile;
-          R.ItemId := Item.Id;
-          R.ProjectId := Item.ProjectID;
-          R.FolderId := Item.FolderID;
-          R.ItemTitle := Item.Title;
-          R.EntityName := F.Title;
-          R.MatchedField := 'File Name';
-          R.ProjectPath := BuildProjectPath(Item.ProjectID, Item.FolderID);
-
-          Key := MakeKey(R);
-          if not Seen.ContainsKey(Key) then
-          begin
-            Seen.Add(Key, True);
-            Results.Add(R);
-          end;
-        end;
-      end;
+      R.FullName := F.FullName;
+      if not R.FullName.ToLower.Contains(LowerTerm) then
+        Continue;
+      Item := F.Item;
+      R.Kind := srkFile;
+      R.ItemId := Item.Id;
+      R.FileId := F.Id;
+      Key := MakeKey(R);
+      if Seen.ContainsKey(Key) then
+        Continue;
+      R.ProjectId := Item.ProjectID;
+      R.FolderId := Item.FolderID;
+      R.ItemTitle := Item.Title;
+      R.EntityName := F.Title;
+      R.Extension := FileFormatExtension(R.FullName, F.FileType.Ext);
+      R.MatchedField := 'File Name';
+      R.ProjectPath := BuildProjectPath(Item.ProjectID, Item.FolderID);
+      Seen.Add(Key, True);
+      Results.Add(R);
     end;
   finally
-    Items.Free;
+    Files.Free;
   end;
 end;
 
@@ -315,6 +337,7 @@ var
   R: TSearchResult;
   Key: string;
 begin
+  R := Default(TSearchResult);
   Items := FManager.Find<TItem>
     .CreateAlias('FValues', 'v')
     .Where(
@@ -362,6 +385,7 @@ var
   R: TSearchResult;
   Key: string;
 begin
+  R := Default(TSearchResult);
   Tags := FManager.Find<TTag>
     .Where(FTagDic.Name.Like(Pattern))
     .List;
@@ -405,8 +429,8 @@ end;
 
 function TSearchModel.Search(const Term: string): TSearchResults;
 var
-  Tokens: TArray<string>;
-  Token, Pattern, Existing: string;
+  Tokens, LowerTokens: TArray<string>;
+  Token, Pattern, Existing, LowerName, LowerTitle: string;
   Seen: TDictionary<string, Boolean>;
   TokenResults: TObjectList<TSearchResults>;
   TokenRes: TSearchResults;
@@ -417,6 +441,8 @@ var
   I, J, K, Count: Integer;
   R, R2: TSearchResult;
   Allowed: TDictionary<Integer, Boolean>;
+  SeenFiles: TDictionary<Int64, Boolean>;
+  AllTokensMatch: Boolean;
 begin
   Result := TSearchResults.Create;
   if Length(Term) < 2 then
@@ -443,6 +469,10 @@ begin
   Tokens := Term.Split([' '], TStringSplitOptions.ExcludeEmpty);
   if (Result.Count > 0) or (Length(Tokens) <= 1) then
     Exit;
+
+  SetLength(LowerTokens, Length(Tokens));
+  for I := 0 to High(Tokens) do
+    LowerTokens[I] := Tokens[I].ToLower;
 
   TokenResults := TObjectList<TSearchResults>.Create(True);
   try
@@ -505,6 +535,9 @@ begin
               begin
                 R.Kind := srkItem;
                 R.EntityName := R.ItemTitle;
+                R.FileId := 0;
+                R.FullName := '';
+                R.Extension := '';
                 ItemFields.Add(R.ItemId, R.MatchedField);
                 Result.Add(R);
               end
@@ -532,6 +565,32 @@ begin
         end;
       finally
         ItemFields.Free;
+      end;
+
+      SeenFiles := TDictionary<Int64, Boolean>.Create;
+      try
+        for TokenRes in TokenResults do
+          for R in TokenRes do
+            if (R.Kind = srkFile) and not SeenFiles.ContainsKey(R.FileId) and
+              ItemIdCounts.TryGetValue(R.ItemId, Count) and
+              (Count = TokenResults.Count) then
+            begin
+              SeenFiles.Add(R.FileId, True);
+              LowerName := R.FullName.ToLower;
+              LowerTitle := R.ItemTitle.ToLower;
+              AllTokensMatch := True;
+              for Token in LowerTokens do
+                if (Length(Token) >= 2) and
+                  not LowerName.Contains(Token) and not LowerTitle.Contains(Token) then
+                begin
+                  AllTokensMatch := False;
+                  Break;
+                end;
+              if AllTokensMatch then
+                Result.Add(R);
+            end;
+      finally
+        SeenFiles.Free;
       end;
     finally
       ItemIdCounts.Free;

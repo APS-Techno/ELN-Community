@@ -67,6 +67,7 @@ FILETYPE_ICONS = [
     'VK4',
     'MD',
     'DEPO',
+    'RCPX',
 ]
 
 MENU_ICONS = [

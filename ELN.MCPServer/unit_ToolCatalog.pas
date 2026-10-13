@@ -21,7 +21,8 @@ uses
   unit_ToolsWiki,
   unit_ToolsColumnar,
   unit_ToolsTags,
-  unit_ToolsHypotheses;
+  unit_ToolsHypotheses,
+  unit_ToolsValueChecks;
 
 procedure RegisterAllTools(Registry: TToolRegistry);
 begin
@@ -34,6 +35,7 @@ begin
   RegisterColumnarTools(Registry);
   RegisterTagTools(Registry);
   RegisterHypothesisTools(Registry);
+  RegisterValueCheckTools(Registry);
 end;
 
 end.

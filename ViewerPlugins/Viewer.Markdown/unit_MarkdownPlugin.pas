@@ -13,7 +13,7 @@ uses
 
 type
   TELNMarkdownViewerPlugin = class(TELNBaseViewerPlugin, IPreviewProvider,
-    IDetailedInfoProvider, IItemContextAware, IHostToolbarAware)
+    IDetailedInfoProvider, IItemContextAware, IHostToolbarAware, IReaderIdentity)
   private
     FRawMd: string;
     FSourceFile: string;
@@ -28,6 +28,8 @@ type
     function GetDetailedInfo: string;
     procedure SetItemContext(ItemId: Integer; FileId: Int64);
     function ShowHostToolbar: Boolean;
+    function GetReaderId: string;
+    function GetReaderVersion: string;
   end;
 
 procedure Register;
@@ -49,6 +51,16 @@ end;
 procedure UnRegister;
 begin
   APlugin.Free;
+end;
+
+function TELNMarkdownViewerPlugin.GetReaderId: string;
+begin
+  Result := 'aps.markdown';
+end;
+
+function TELNMarkdownViewerPlugin.GetReaderVersion: string;
+begin
+  Result := '1';
 end;
 
 function TELNMarkdownViewerPlugin.CreateViewerFrame: TFrame;

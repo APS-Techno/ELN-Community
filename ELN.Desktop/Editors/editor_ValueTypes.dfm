@@ -4,17 +4,17 @@ inherited edValueTypes: TedValueTypes
   Margins.Right = 2
   Margins.Bottom = 2
   Caption = 'Value Types'
-  ClientHeight = 403
+  ClientHeight = 461
   ClientWidth = 416
   ParentFont = True
   ExplicitWidth = 432
-  ExplicitHeight = 442
+  ExplicitHeight = 500
   TextHeight = 15
   inherited RzPanel1: TRzPanel
     Left = 2
     Top = 2
     Width = 412
-    Height = 352
+    Height = 410
     Margins.Left = 2
     Margins.Top = 2
     Margins.Right = 2
@@ -78,9 +78,42 @@ inherited edValueTypes: TedValueTypes
       Margins.Bottom = 2
       Caption = 'Description'
     end
+    object Label6: TLabel [5]
+      Left = 11
+      Top = 96
+      Width = 60
+      Height = 15
+      Margins.Left = 2
+      Margins.Top = 2
+      Margins.Right = 2
+      Margins.Bottom = 2
+      Caption = 'Range min'
+    end
+    object Label7: TLabel [6]
+      Left = 196
+      Top = 96
+      Width = 61
+      Height = 15
+      Margins.Left = 2
+      Margins.Top = 2
+      Margins.Right = 2
+      Margins.Bottom = 2
+      Caption = 'Range max'
+    end
+    object lblToleranceFactor: TLabel [7]
+      Left = 11
+      Top = 124
+      Width = 158
+      Height = 15
+      Margins.Left = 2
+      Margins.Top = 2
+      Margins.Right = 2
+      Margins.Bottom = 2
+      Caption = 'Tolerance factor (all types)'
+    end
     inherited DBGrid1: TDBGrid
       Left = 4
-      Top = 125
+      Top = 183
       Width = 404
       Height = 223
       Margins.Left = 2
@@ -123,6 +156,20 @@ inherited edValueTypes: TedValueTypes
         end
         item
           Expanded = False
+          FieldName = 'RangeMin'
+          Title.Caption = 'Min'
+          Width = 60
+          Visible = True
+        end
+        item
+          Expanded = False
+          FieldName = 'RangeMax'
+          Title.Caption = 'Max'
+          Width = 60
+          Visible = True
+        end
+        item
+          Expanded = False
           FieldName = 'CreatedDate'
           Title.Caption = 'Created'
           Width = 75
@@ -131,7 +178,7 @@ inherited edValueTypes: TedValueTypes
     end
     inherited RzDBNavigator1: TRzDBNavigator
       Left = 144
-      Top = 92
+      Top = 150
       Width = 260
       Height = 29
       Margins.Left = 2
@@ -140,7 +187,7 @@ inherited edValueTypes: TedValueTypes
       Margins.Bottom = 2
       Hints.Strings = ()
       ExplicitLeft = 144
-      ExplicitTop = 92
+      ExplicitTop = 150
       ExplicitWidth = 260
       ExplicitHeight = 29
     end
@@ -209,6 +256,65 @@ inherited edValueTypes: TedValueTypes
       DataSource = DataSource
       TabOrder = 6
     end
+    object edRangeMin: TDBEdit
+      Left = 80
+      Top = 93
+      Width = 100
+      Height = 23
+      Hint = 'Lowest plausible value in the type units; empty means no limit'
+      Margins.Left = 2
+      Margins.Top = 2
+      Margins.Right = 2
+      Margins.Bottom = 2
+      DataField = 'RangeMin'
+      DataSource = DataSource
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 9
+    end
+    object edRangeMax: TDBEdit
+      Left = 262
+      Top = 93
+      Width = 140
+      Height = 23
+      Hint = 'Highest plausible value in the type units; empty means no limit'
+      Margins.Left = 2
+      Margins.Top = 2
+      Margins.Right = 2
+      Margins.Bottom = 2
+      DataField = 'RangeMax'
+      DataSource = DataSource
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 10
+    end
+    object edToleranceFactor: TEdit
+      Left = 176
+      Top = 121
+      Width = 100
+      Height = 23
+      Hint = 'A tolerance more than this many times smaller than its value needs confirmation'
+      Margins.Left = 2
+      Margins.Top = 2
+      Margins.Right = 2
+      Margins.Bottom = 2
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 11
+    end
+    object btnToleranceFactor: TButton
+      Left = 282
+      Top = 120
+      Width = 60
+      Height = 25
+      Margins.Left = 2
+      Margins.Top = 2
+      Margins.Right = 2
+      Margins.Bottom = 2
+      Caption = 'Save'
+      TabOrder = 12
+      OnClick = btnToleranceFactorClick
+    end
     object pnlCategories: TPanel
       Align = alLeft
       Width = 140
@@ -275,7 +381,7 @@ inherited edValueTypes: TedValueTypes
   end
   inherited RzPanel2: TRzPanel
     Left = 2
-    Top = 358
+    Top = 416
     Width = 412
     Height = 43
     Margins.Left = 2
@@ -283,7 +389,7 @@ inherited edValueTypes: TedValueTypes
     Margins.Right = 2
     Margins.Bottom = 2
     ExplicitLeft = 2
-    ExplicitTop = 288
+    ExplicitTop = 346
     ExplicitWidth = 412
     ExplicitHeight = 43
     DesignSize = (

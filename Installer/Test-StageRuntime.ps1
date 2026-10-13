@@ -6,7 +6,10 @@ $SourceRoot = Split-Path $PSScriptRoot -Parent
 $CatalogNames = @('EquipmentTypes.csv', 'ValueTypes.csv', 'FileTypes.csv', 'Equipment.csv',
   'ActionTypes.csv', 'FileTypeLinks.csv', 'ActionTypeEquipment.csv')
 $ViewerDirectories = @('Core', 'Core.Protocol', 'Viewer.Image', 'Viewer.HTML',
-  'Viewer.Markdown', 'Viewer.ColumnarData', 'Viewer.PDF', 'Viewer.Protocol', 'Editor.Markdown')
+  'Viewer.Markdown', 'Viewer.ColumnarData', 'Viewer.PDF', 'Viewer.Protocol', 'Editor.Markdown',
+  'Viewer.JSON', 'Viewer.Note', 'Viewer.OLE', 'Viewer.File', 'Viewer.LAMMPS', 'Viewer.XRDML',
+  'Viewer.DM3', 'Viewer.OPJU', 'Viewer.XRayCalc', 'Viewer.XRFX', 'Viewer.Deposition',
+  'Viewer.ProcessLog', 'Viewer.Recipe', 'Viewer.DSC', 'Viewer.DSR')
 $StandardPackages = @('rtl370.bpl', 'vcl370.bpl', 'vclimg370.bpl', 'vclwinx370.bpl',
   'vcledge370.bpl', 'xmlrtl370.bpl', 'bindengine370.bpl', 'dbrtl370.bpl', 'vcldb370.bpl',
   'vclactnband370.bpl', 'vclx370.bpl', 'Tee9370.bpl')

@@ -25,6 +25,8 @@ type
     function FindPlugin(const AFileNameOrExt: string): IViewerPlugin;
     function ExtractDetailedInfo(const FilePath, Ext: string): string;
     function ExtractKeyValues(const FilePath, Ext: string): TArray<TPluginKeyValue>;
+    function ExtractReaderKeyValues(const FilePath, Ext: string;
+      out ReaderId, ReaderVersion: string): TArray<TPluginKeyValue>;
     function ListFileColumns(const FilePath, Ext: string): TJSONObject;
     function GetFileColumns(const FilePath, Ext: string;
                             const Req: TJSONObject): TJSONObject;
@@ -313,12 +315,21 @@ end;
 
 function TPluginHost.ExtractKeyValues(const FilePath, Ext: string): TArray<TPluginKeyValue>;
 var
+  ReaderId, ReaderVersion: string;
+begin
+  Result := ExtractReaderKeyValues(FilePath, Ext, ReaderId, ReaderVersion);
+end;
+
+function TPluginHost.ExtractReaderKeyValues(const FilePath, Ext: string;
+  out ReaderId, ReaderVersion: string): TArray<TPluginKeyValue>;
+var
   Plugin: IViewerPlugin;
   Provider: IKeyValueProvider;
 begin
   Plugin := FindPlugin(FilePath);
   if Plugin = nil then
     raise Exception.CreateFmt('No plugin found for extension: %s', [Ext]);
+  ReaderIdentityOf(Plugin, ReaderId, ReaderVersion);
 
   try
     if not Plugin.LoadFromFile(FilePath) then

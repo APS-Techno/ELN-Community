@@ -54,14 +54,24 @@
     <DCCReference Include="test_SharedDesktopViewer.pas"/>
     <DCCReference Include="test_TemplateDialogLifetime.pas"/>
     <DCCReference Include="test_ValueDialogValidation.pas"/>
+    <DCCReference Include="test_ValueSourceDesktop.pas"/>
     <DCCReference Include="test_FileIdentity.pas"/>
+    <DCCReference Include="test_MCPFileDiscovery.pas"/>
     <DCCReference Include="test_ProjectTreeIdentity.pas"/>
+    <DCCReference Include="test_ViewerParsers.pas"/>
+    <DCCReference Include="test_ViewerValues.pas"/>
+    <DCCReference Include="test_LAMMPSParser.pas"/>
+    <DCCReference Include="test_XRCProject.pas"/>
     <DCCReference Include="..\ViewerPlugins\Viewer.ColumnarData\test\test_SharedViewerRegressions.pas"/>
     <DCCReference Include="..\ViewerPlugins\Core.Protocol\test_ProtocolExtractionRegressions.pas"/>
     <DCCReference Include="..\ViewerPlugins\Viewer.Markdown\test\test_MarkdownContextRegressions.pas"/>
   </ItemGroup>
   <ItemGroup Condition="'$(MainSource)'=='MarkdownLauncherTests.dpr'">
     <DCCReference Include="..\ViewerPlugins\Editor.Markdown\test\test_MarkdownLauncherRegressions.pas"/>
+  </ItemGroup>
+  <ItemGroup Condition="'$(MainSource)'=='AuthorizationTests.dpr'">
+    <DCCReference Include="unit_AuthorizationTestSupport.pas"/>
+    <DCCReference Include="test_ValueSourceTools.pas"/>
   </ItemGroup>
   <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets"/>
 </Project>

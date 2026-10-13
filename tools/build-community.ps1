@@ -105,6 +105,11 @@ if ($Target -in @('DesktopRegressionTests', 'MarkdownLauncherTests')) {
   $unitPaths += @("$viewerRoot\Viewer.ColumnarData", "$viewerRoot\Viewer.Markdown",
     "$viewerRoot\Editor.Markdown")
 }
+if ($Target -eq 'DesktopRegressionTests') {
+  $unitPaths += @("$viewerRoot\Viewer.LAMMPS", "$viewerRoot\Viewer.XRDML",
+    "$viewerRoot\Viewer.DSC", "$viewerRoot\Viewer.DM3", "$viewerRoot\Viewer.XRFX",
+    "$viewerRoot\Viewer.XRayCalc")
+}
 if ($Target -eq 'MarkdownEditorAttachmentTests') {
   $unitPaths += @("$viewerRoot\Editor.Markdown", "$viewerRoot\Viewer.Markdown")
 }
@@ -113,7 +118,13 @@ if ($Target -eq 'ViewerPackages') {
   $viewerPackages += @('Viewer.Image\ELNImageViewer', 'Viewer.HTML\ELNHTMLViewer',
     'Viewer.Markdown\ELNMarkdownViewer', 'Viewer.ColumnarData\ELNColumnarDataViewer',
     'Viewer.PDF\ELNPDFViewer', 'Viewer.Protocol\ELNProtocolViewer',
-    'Editor.Markdown\ELNMarkdownEditor')
+    'Editor.Markdown\ELNMarkdownEditor', 'Viewer.JSON\ELNJSONViewer',
+    'Viewer.Note\ELNNoteViewer', 'Viewer.OLE\ELNOLEViewer', 'Viewer.File\ELNFileViewer',
+    'Viewer.LAMMPS\ELNLAMMPSViewer', 'Viewer.XRDML\ELNXRDMLViewer',
+    'Viewer.DM3\ELNDM3Viewer', 'Viewer.OPJU\ELNOPJUViewer', 'Viewer.XRayCalc\ELNXRCViewer',
+    'Viewer.XRFX\ELNXRFXViewer', 'Viewer.Deposition\ELNDepositionViewer',
+    'Viewer.ProcessLog\ELNProcessLogViewer', 'Viewer.Recipe\ELNRecipeViewer',
+    'Viewer.DSC\ELNDSCViewer', 'Viewer.DSR\ELNDSRViewer')
 }
 if ($viewerTarget) {
   foreach ($package in $viewerPackages) {

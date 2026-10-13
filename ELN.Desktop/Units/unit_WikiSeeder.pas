@@ -15,6 +15,7 @@ implementation
 uses
   System.SysUtils,
   System.Classes,
+  System.Hash,
   unit_FileType,
   unit_DataModel;
 
@@ -39,6 +40,8 @@ var
   NewFile: unit_Item.TFile;
   ExistingFile: unit_Item.TFile;
   Body: string;
+  Bytes: TBytes;
+  Hasher: THashMD5;
 begin
   if not Assigned(Item) then
     Exit;
@@ -61,10 +64,16 @@ begin
   if not Assigned(NewFile) then
     Exit;
 
+  Bytes := TEncoding.UTF8.GetPreamble + TEncoding.UTF8.GetBytes(Body);
   try
     Model.Storage.WriteBytes(
       StringReplace(Model.GetFileName(NewFile.Id), '\', '/', [rfReplaceAll]),
-      TEncoding.UTF8.GetPreamble + TEncoding.UTF8.GetBytes(Body));
+      Bytes);
+    Hasher := THashMD5.Create;
+    Hasher.Update(Bytes);
+    NewFile.Hash := Hasher.HashAsString;
+    if not Model.Items.UpdateFile(NewFile, UserId) then
+      raise EInvalidOperation.Create('Could not store the Wiki attachment hash');
   except
     on E: Exception do
     begin

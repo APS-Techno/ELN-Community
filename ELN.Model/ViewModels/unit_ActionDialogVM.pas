@@ -8,6 +8,15 @@ uses
   unit_ValueType, unit_ActionTypeModel, unit_EquipmentModel, unit_ItemModel;
 
 type
+  TValueFields = record
+    TypeId: Integer;
+    RecType: TRecType;
+    Value: Double;
+    Tol: Double;
+    Description: string;
+    class function Read(V: TValue): TValueFields; static;
+    function SameAs(const Other: TValueFields): Boolean;
+  end;
   TActionDialogVM = class
   private
     FActionTypeModel: TActionTypeModel;
@@ -64,7 +73,7 @@ type
     procedure AddValue(AValueType: TValueType; ARecType: TRecType;
       AValue, ATol: Double; const ADesc: string);
     procedure DeleteValue(Index: Integer);
-    procedure ValueEdited;
+    procedure ValueEdited(Value: TValue; const Before: TValueFields);
 
     procedure AddActionType(const ATitle: string; AKind: TActionKind);
     procedure AddEquipment(const AModel, AManufacturer, ALocation: string);
@@ -101,7 +110,28 @@ type
 implementation
 
 uses
-  unit_ValueTypeModel;
+  unit_ValueTypeModel,
+  unit_ValueSource,
+  unit_TimeHelper;
+
+class function TValueFields.Read(V: TValue): TValueFields;
+begin
+  if Assigned(V.ValueType) then
+    Result.TypeId := V.ValueType.Id
+  else
+    Result.TypeId := 0;
+  Result.RecType := V.RecType;
+  Result.Value := V.Value;
+  Result.Tol := V.Tol;
+  Result.Description := V.Description;
+end;
+
+function TValueFields.SameAs(const Other: TValueFields): Boolean;
+begin
+  Result := (TypeId = Other.TypeId) and (RecType = Other.RecType) and
+    (Value = Other.Value) and (Tol = Other.Tol) and
+    (Description = Other.Description);
+end;
 
 
 constructor TActionDialogVM.Create(
@@ -338,7 +368,8 @@ begin
   if not Assigned(FItem) then Exit;
 
   if FIsEditMode then
-    FItemModel.AddValue(AValueType, ARecType, AValue, FUserId, FItem, ATol, ADesc)
+    FItemModel.AddValue(AValueType, ARecType, AValue, FUserId, FItem, ATol,
+      ADesc, TValueSourceInfo.Manual)
   else
   begin
     V := TValue.Create;
@@ -348,6 +379,7 @@ begin
     V.Tol := ATol;
     V.Description := ADesc;
     V.Item := FItem;
+    ApplySource(V, TValueSourceInfo.Manual);
     FItem.Values.Add(V);
   end;
 
@@ -368,11 +400,18 @@ begin
   RefreshValuesDisplay;
   DoChanged;
 end;
-procedure TActionDialogVM.ValueEdited;
+procedure TActionDialogVM.ValueEdited(Value: TValue; const Before: TValueFields);
 begin
   if not Assigned(FItem) then Exit;
   if FIsEditMode then
+  begin
+    if not Before.SameAs(TValueFields.Read(Value)) then
+    begin
+      Value.ModifiedDate := UTCNow;
+      Value.ModifiedBy := FUserId;
+    end;
     if not FItemModel.UpdateItem(FItem, FUserId) then Exit;
+  end;
   RefreshValuesDisplay;
   DoChanged;
 end;

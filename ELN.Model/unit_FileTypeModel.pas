@@ -76,6 +76,8 @@ begin
   AddFileType('.xlsx','Excel Sheet');
   AddFileType('.dsc','Sputtering Recipie');
   AddFileType('.log','Sputtering log');
+  AddFileType('.process.log','Process Event Log');
+  AddFileType('.rcpx','Process Recipe');
   AddFileType('.rp4','3D Profile');
   AddFileType('.xrdml','XRD Data');
   AddFileType('.tiff','TIFF Image');

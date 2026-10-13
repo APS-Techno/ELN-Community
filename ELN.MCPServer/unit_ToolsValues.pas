@@ -15,7 +15,8 @@ uses
   Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq,
   Aurelius.Types.Nullable,
   unit_Item, unit_Project, unit_ItemTypes, unit_ELNDB_Dictionary,
-  unit_ValueType, unit_JSONCompact, unit_ToolScope;
+  unit_ValueType, unit_JSONCompact, unit_ToolScope, unit_ToolHelpers,
+  unit_ValueChecks;
 
 
 function DateToISO(const DT: TDateTime): string;
@@ -83,7 +84,6 @@ begin
   Result := Params.GetValue<Integer>(Key);
 end;
 
-
 function ValueToJSON(V: TValue): TJSONObject;
 var
   VT: TValueType;
@@ -111,6 +111,7 @@ begin
       Result.AddPair('type_title', '');
       Result.AddPair('units', '');
     end;
+    Result.AddPair('source', ValueSourceJSON(V));
   except
     Result.Free;
     raise;
@@ -160,6 +161,7 @@ begin
       Obj.AddPair('value', SmartNum(V.Value));
       Obj.AddPair('tolerance', SmartNum(V.Tol));
       Obj.AddPair('description', V.Description);
+      Obj.AddPair('source', ValueSourceJSON(V));
 
       case V.RecType of
         EXP_CONDITION: CondArr.AddElement(Obj);
@@ -301,6 +303,7 @@ begin
           Obj.AddPair('tolerance', SmartNum(V.Tol));
           Obj.AddPair('rec_type', RecTypeToStr(V.RecType));
           Obj.AddPair('created_date', DateToISO(V.CreatedDate));
+          Obj.AddPair('source', ValueSourceJSON(V));
 
           Arr.AddElement(Obj);
 
@@ -367,6 +370,8 @@ begin
         Obj.AddPair('units', VT.Units);
         Obj.AddPair('category', TJSONNumber.Create(VT.CatID));
         Obj.AddPair('description', VT.Description);
+        Obj.AddPair('range_min', NullableNumJSON(VT.RangeMin));
+        Obj.AddPair('range_max', NullableNumJSON(VT.RangeMax));
         Arr.AddElement(Obj);
       end;
     finally
@@ -379,6 +384,8 @@ begin
 
   Result := TJSONObject.Create;
   Result.AddPair('value_types', Arr);
+  Result.AddPair('tolerance_factor',
+    TJSONNumber.Create(LoadToleranceFactor(Context.Manager)));
 end;
 
 function HandleCorrelateValues(const Params: TJSONObject;
@@ -656,20 +663,25 @@ begin
   Registry.Register('get_values',
     'Get all recorded values for an item, grouped by type: experimental ' +
     'conditions (inputs) and test results (outputs). Each value includes ' +
-    'its type symbol, title, units, tolerance, and description.',
+    'its type symbol, title, units, tolerance, description and source ' +
+    '(kind Reader, Manual or Unknown, with file_id, reader_id, ' +
+    'reader_version, key_name and note when recorded).',
     MakeGetValuesSchema, HandleGetValues, tscProjectScoped);
 
   Registry.Register('query_values',
     'Search for values across items with optional filters by project, ' +
     'value type (title or symbol), record type (EXP_CONDITION or ' +
     'TEST_RESULT), and date range. Returns value details with item and ' +
-    'project context.',
+    'project context and the value source.',
     MakeQueryValuesSchema, HandleQueryValues, tscProjectScoped);
 
   Registry.Register('list_value_types',
     'List all defined value types (measurement parameters). Each type has ' +
-    'a symbol (e.g. W for power), title, units, and category. Optionally ' +
-    'filter by category ID.',
+    'a symbol (e.g. W for power), title, units, category and plausible ' +
+    'range (range_min/range_max in the type units, null = no limit). ' +
+    'tolerance_factor is the notebook limit for the tolerance check: a ' +
+    'tolerance must not exceed |value| and must not be smaller than ' +
+    '|value| / tolerance_factor. Optionally filter by category ID.',
     MakeListValueTypesSchema, HandleListValueTypes, tscGlobalRef);
 
   Registry.Register('correlate_values',

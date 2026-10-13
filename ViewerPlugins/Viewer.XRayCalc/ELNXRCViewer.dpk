@@ -1,0 +1,48 @@
+// JCL_DEBUG_EXPERT_GENERATEJDBG OFF
+package ELNXRCViewer;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS ON}
+{$RANGECHECKS ON}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  vcl,
+  vclimg,
+  vclwinx,
+  Tee,
+  RaizeComponentsVcl,
+  TMSVCLPluginFrameworkPkgCoreDXE16,
+  ELNPluginCore;
+
+contains
+  frame_XRCViewer in 'frame_XRCViewer.pas' {frameXRCViewer: TFrame},
+  unit_XRCPlugin in 'unit_XRCPlugin.pas' {XRCViewerPlugin: TupfVisualPlugin},
+  unit_LayerSequence in 'unit_LayerSequence.pas',
+  unit_XRCProject in 'unit_XRCProject.pas',
+  unit_XRCProjectOutput in 'unit_XRCProjectOutput.pas';
+
+end.

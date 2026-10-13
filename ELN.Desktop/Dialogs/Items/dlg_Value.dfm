@@ -226,5 +226,21 @@ object dlgValue: TdlgValue
       Text = ''
       TabOrder = 5
     end
+    object lblSource: TRzLabel
+      Left = 228
+      Top = 205
+      Width = 298
+      Height = 36
+      AutoSize = False
+      Caption = ''
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clGray
+      Font.Height = -12
+      Font.Name = 'Segoe UI'
+      Font.Style = []
+      ParentFont = False
+      Transparent = True
+      WordWrap = True
+    end
   end
 end

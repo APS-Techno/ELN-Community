@@ -10,7 +10,7 @@ uses
 type
 
   TELNImageViewerPlugin = class(TELNBaseViewerPlugin, IPreviewProvider,
-    IStatefulViewer)
+    IStatefulViewer, IReaderIdentity)
   protected
     function CreateViewerFrame: TFrame; override;
     function GetParams: TPluginParams; override;
@@ -20,6 +20,8 @@ type
     function GetPreview(MaxWidth, MaxHeight: Integer): TBitmap;
     function SaveState: string;
     procedure RestoreState(const AState: string);
+    function GetReaderId: string;
+    function GetReaderVersion: string;
   end;
 
   procedure Register;
@@ -44,6 +46,16 @@ end;
 procedure UnRegister;
 begin
   APlugin.Free;
+end;
+
+function TELNImageViewerPlugin.GetReaderId: string;
+begin
+  Result := 'aps.image';
+end;
+
+function TELNImageViewerPlugin.GetReaderVersion: string;
+begin
+  Result := '1';
 end;
 
 function TELNImageViewerPlugin.CreateViewerFrame: TFrame;

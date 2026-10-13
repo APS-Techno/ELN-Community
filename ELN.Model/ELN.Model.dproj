@@ -161,6 +161,10 @@
         <DCCReference Include="..\ELN.Domain\unit_ValueType.pas"/>
         <DCCReference Include="..\ELN.Domain\unit_ValueTypeCategories.pas"/>
         <DCCReference Include="unit_ValueTypeModel.pas"/>
+        <DCCReference Include="unit_ValueSource.pas"/>
+        <DCCReference Include="unit_ValueChecks.pas"/>
+        <DCCReference Include="unit_ValueDrift.pas"/>
+        <DCCReference Include="unit_StorageCheck.pas"/>
         <DCCReference Include="..\ELN.Domain\unit_Template.pas"/>
         <DCCReference Include="unit_ProtocolTemplateModel.pas"/>
         <DCCReference Include="unit_ProtocolTemplateHtmlGenerator.pas"/>

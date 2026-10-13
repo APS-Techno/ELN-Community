@@ -24,7 +24,8 @@ uses
   unit_FileType,
   unit_ValueType,
   unit_ELNDB_Dictionary,
-  unit_AuditLog;
+  unit_AuditLog,
+  unit_ValueSource;
 
 type
 
@@ -70,7 +71,8 @@ type
 
       procedure AddValue(ValueType: TValueType; RecType: TRecType;
         AValue: double; UserId: Integer; var Item: TItem;
-        Tol: double = 0; Description: string = '');
+        Tol: double; const Description: string;
+        const Source: TValueSourceInfo);
       procedure RemoveValue(Val: TValue; var Item: TItem; UserId: Integer);
       function RemoveFile(AFile: TFile; var Item: TItem; UserId: Integer): Boolean;
       procedure RemoveEntry(Entry: TLabEntry; var Item: TItem; UserId: Integer);
@@ -260,11 +262,12 @@ end;
 
 procedure TItemModel.AddValue(ValueType: TValueType; RecType: TRecType;
   AValue: double; UserId: Integer; var Item: TItem;
-  Tol: double; Description: string);
+  Tol: double; const Description: string; const Source: TValueSourceInfo);
 var
   ManagedValueType: TValueType;
   Val: TValue;
 begin
+  ValidateSource(Source);
   if IsItemSignedCheck(FManager, Item.Id) then
     Exit;
 
@@ -279,6 +282,7 @@ begin
   Val.CreatedDate := UTCNow;
   Val.CreatedBy := UserId;
   Val.Item := Item;
+  ApplySource(Val, Source);
 
   Item.Values.Add(Val);
   FManager.Update(Item);

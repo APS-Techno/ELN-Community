@@ -330,13 +330,15 @@ procedure TdlgAction.btnEditValueClick(Sender: TObject);
 var
   Idx: Integer;
   Val: unit_Item.TValue;
+  Before: TValueFields;
 begin
   Idx := lbValues.ItemIndex;
   if (Idx < 0) or not FVM.ShowValues then Exit;
 
   Val := unit_Item.TValue(lbValues.Items.Objects[Idx]);
+  Before := TValueFields.Read(Val);
   if ShowValueDialog(dmEdit, Val) then
-    FVM.ValueEdited;
+    FVM.ValueEdited(Val, Before);
 end;
 
 procedure TdlgAction.btnDeleteValueClick(Sender: TObject);

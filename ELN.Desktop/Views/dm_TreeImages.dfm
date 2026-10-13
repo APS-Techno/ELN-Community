@@ -732,6 +732,11 @@ object dmTreeImages: TdmTreeImages
         CollectionIndex = 30
         CollectionName = 'FileType\DEPO'
         Name = 'DEPO'
+      end
+      item
+        CollectionIndex = 31
+        CollectionName = 'FileType\RCPX'
+        Name = 'RCPX'
       end>
     ImageCollection = FileTypeImageCollection
     Width = 32

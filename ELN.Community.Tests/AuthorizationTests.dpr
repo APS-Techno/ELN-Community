@@ -6,6 +6,7 @@ uses
   System.SysUtils, System.JSON, System.Generics.Collections,
   Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq,
   unit_AuthorizationTestSupport,
+  test_ValueSourceTools,
   unit_ToolsWrite, unit_User, unit_Item, unit_ItemTypes, unit_Tag, unit_AuditLog, unit_ValueType;
 
 
@@ -159,6 +160,7 @@ begin
   RunTest('audit project lookup without device scope', TestAuditVisibility);
   RunTest('device scope confines policy-visible metadata', TestDeviceScope);
   RunTest('local value write persists owning item and actor', TestLocalValueWritePersistsOwner);
+  RunValueSourceTests;
   WriteLn('Passed: ', Passed, '; Failed: ', Failed);
   if Failed <> 0 then ExitCode := 1;
 end.

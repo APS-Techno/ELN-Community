@@ -41,6 +41,8 @@ type
     FByteCount: Int64;
     FTextTruncated: Boolean;
     FTableText: string;
+    FTableNames: TArray<string>;
+    FTableRows: TArray<TArray<string>>;
 
     procedure BuildSeries(ALines: TStrings;
       const AClassification: TColumnarClassification);
@@ -59,6 +61,9 @@ type
     procedure LoadFromFile(const FileName: string);
     function GetPreviewBitmap(MaxW, MaxH: Integer): TBitmap;
     function GetDetailedInfo: string;
+    property IsTabular: Boolean read FIsTabular;
+    property TableNames: TArray<string> read FTableNames;
+    property TableRows: TArray<TArray<string>> read FTableRows;
   end;
 
 implementation
@@ -257,6 +262,8 @@ begin
   FIsTabular := False;
   FTextTruncated := False;
   FTableText := '';
+  FTableNames := nil;
+  FTableRows := nil;
   SetLength(FColumnNames, 0);
 
   ClearSeries;
@@ -278,7 +285,9 @@ begin
 
     if FIsTabular then
     begin
-      FTableText := ColumnarTableToText(Lines, Classification);
+      FTableNames := ColumnarTableNames(Classification);
+      FTableRows := ColumnarTableRows(Lines, Classification);
+      FTableText := ColumnarTableToText(FTableNames, FTableRows);
       BuildSeries(Lines, Classification);
     end;
   finally

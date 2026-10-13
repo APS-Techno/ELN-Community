@@ -7,7 +7,7 @@ uses
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls,
   Vcl.CheckLst, Vcl.ExtCtrls,
   RzPanel, RzLabel, RzButton,
-  unit_ELNPluginTypes, unit_ValueType, unit_Item, unit_ItemTypes;
+  unit_ELNPluginTypes, unit_ValueType, unit_Item, unit_ItemTypes, unit_ItemModel;
 
 type
   TExtractedValue = record
@@ -41,16 +41,23 @@ type
     function GetSelectedValueType: TValueType;
     procedure SyncMappingToUI;
     procedure SyncUIToMapping;
+    function ConfirmSelectedIssues(Factor: Double): Boolean;
   end;
 
 function ShowExtractValuesDialog(
   const KeyValues: TArray<TPluginKeyValue>;
-  var Item: TItem; UserId: Integer): Boolean;
+  var Item: TItem; UserId: Integer;
+  FileId: Int64; const ReaderId, ReaderVersion: string): Boolean;
+
+procedure WriteExtractedValue(Items: TItemModel; ValueType: TValueType;
+  const KV: TPluginKeyValue; UserId: Integer; var Item: TItem;
+  FileId: Int64; const ReaderId, ReaderVersion: string);
 
 implementation
 
 uses
-  unit_DataModel, unit_ValueTypeModel, unit_ValueTypeCategories;
+  unit_DataModel, unit_ValueTypeModel, unit_ValueTypeCategories,
+  unit_ValueSource, unit_ValueChecks, dlg_Value;
 
 {$R *.dfm}
 
@@ -69,14 +76,29 @@ begin
     Result := Result + '  (result)';
 end;
 
+procedure WriteExtractedValue(Items: TItemModel; ValueType: TValueType;
+  const KV: TPluginKeyValue; UserId: Integer; var Item: TItem;
+  FileId: Int64; const ReaderId, ReaderVersion: string);
+var
+  RecType: TRecType;
+begin
+  if KV.RecType = prResult then
+    RecType := TEST_RESULT
+  else
+    RecType := EXP_CONDITION;
+  Items.AddValue(ValueType, RecType, KV.Value, UserId, Item, 0, KV.Description,
+    TValueSourceInfo.Reader(FileId, ReaderId, ReaderVersion, KV.Name));
+end;
+
 function ShowExtractValuesDialog(
   const KeyValues: TArray<TPluginKeyValue>;
-  var Item: TItem; UserId: Integer): Boolean;
+  var Item: TItem; UserId: Integer;
+  FileId: Int64; const ReaderId, ReaderVersion: string): Boolean;
 var
   Dlg: TdlgExtractValues;
   I, AddedCount: Integer;
   VT: TValueType;
-  RecType: TRecType;
+  Factor: Double;
 begin
   Result := False;
   if Length(KeyValues) = 0 then
@@ -111,8 +133,11 @@ begin
       Dlg.SyncMappingToUI;
     end;
 
-    if Dlg.ShowModal <> mrOK then
-      Exit;
+    Factor := LoadToleranceFactor(Model.Manager);
+    repeat
+      if Dlg.ShowModal <> mrOK then
+        Exit;
+    until Dlg.ConfirmSelectedIssues(Factor);
 
     AddedCount := 0;
     for I := 0 to High(Dlg.FValues) do
@@ -123,13 +148,8 @@ begin
       if VT = nil then
         Continue;
 
-      if KeyValues[I].RecType = prResult then
-        RecType := TEST_RESULT
-      else
-        RecType := EXP_CONDITION;
-
-      Model.Items.AddValue(VT, RecType, KeyValues[I].Value, UserId, Item,
-        0, KeyValues[I].Description);
+      WriteExtractedValue(Model.Items, VT, KeyValues[I], UserId, Item,
+        FileId, ReaderId, ReaderVersion);
       Inc(AddedCount);
     end;
 
@@ -137,6 +157,29 @@ begin
   finally
     Dlg.Free;
   end;
+end;
+
+function TdlgExtractValues.ConfirmSelectedIssues(Factor: Double): Boolean;
+var
+  I: Integer;
+  VT: TValueType;
+  Issues: TValueIssues;
+  Lines: string;
+begin
+  Lines := '';
+  for I := 0 to High(FValues) do
+  begin
+    VT := FValues[I].ValueType;
+    if not clbValues.Checked[I] or (VT = nil) then
+      Continue;
+    Issues := CheckValue(VT, FValues[I].KV.Value, 0, Factor);
+    if Issues <> [] then
+      Lines := Lines + sLineBreak + '- ' + FValues[I].KV.Name + ': ' +
+        DescribeValueIssues(Issues, VT, FValues[I].KV.Value, 0, Factor);
+  end;
+  Result := (Lines = '') or ConfirmValueIssues(
+    'Some selected values need checking:' + sLineBreak + Lines + sLineBreak +
+    sLineBreak + 'Store them anyway? Choose No to return to the list.');
 end;
 
 

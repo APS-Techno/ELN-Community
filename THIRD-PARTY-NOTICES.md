@@ -24,7 +24,7 @@ The Community Desktop links its own generated project resource for the applicati
 
 ## External developer and runtime dependencies
 
-Delphi, TMS Aurelius/BCL, TMS Plugin Framework, KSVC/Raize, TeeChart, SynEdit, VirtualTreeView and required toolchain/Indy units remain external. Use valid licensed developer installations. Do not commit their source, DCUs, DCPs, BPLs, license keys or installers.
+Delphi, TMS Aurelius/BCL, TMS Plugin Framework, KSVC/Raize, TeeChart, SynEdit, VirtualTreeView, JAM ShellBrowser and required toolchain/Indy units remain external. Use valid licensed developer installations. Do not commit their source, DCUs, DCPs, BPLs, license keys or installers.
 
 SQLite and WebView2 are external runtime prerequisites. The retained WebView2 SDK 1.0.3065.39 license and notice text is under `Notices/WebView2-1.0.3065.39`; no loader or runtime binary is included. Those texts do not grant redistribution rights for proprietary runtime BPLs. Exact source-build proof, official binary packaging and publisher entitlements are separate checks.
 

@@ -58,6 +58,14 @@ type
     [Description('')]
     FModifiedBy: Nullable<Integer>;
 
+    [Column('RangeMin', [])]
+    [Description('Lowest plausible value in the type units; NULL means no lower limit')]
+    FRangeMin: Nullable<Double>;
+
+    [Column('RangeMax', [])]
+    [Description('Highest plausible value in the type units; NULL means no upper limit')]
+    FRangeMax: Nullable<Double>;
+
   public
     property Id: Integer read FId write FId;
     property Symbol: string read FSymbol write FSymbol;
@@ -69,6 +77,8 @@ type
     property ModifiedDate: Nullable<TDateTime> read FModifiedDate write FModifiedDate;
     property CreatedBy: Nullable<Integer> read FCreatedBy write FCreatedBy;
     property ModifiedBy: Nullable<Integer> read FModifiedBy write FModifiedBy;
+    property RangeMin: Nullable<Double> read FRangeMin write FRangeMin;
+    property RangeMax: Nullable<Double> read FRangeMax write FRangeMax;
   end;
 
 implementation

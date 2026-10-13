@@ -10,7 +10,8 @@ uses
   unit_Item, unit_ItemTypes, unit_ActionType, unit_Equipment, unit_Protocol,
   unit_LabEntry, unit_FileType, unit_ValueType, unit_Tag, unit_Comment,
   unit_User, unit_Types, unit_HypothesisQueries, unit_TreeStateModel,
-  unit_ProjectAccessPolicy, unit_NotebookStorage, Aurelius.Types.Nullable;
+  unit_ProjectAccessPolicy, unit_NotebookStorage, Aurelius.Types.Nullable,
+  unit_ValueSource;
 
 type
   TItemTreeVM = class
@@ -84,7 +85,8 @@ type
       ParentId: Integer; const Description: string; AType: TActionType;
       AEquipment: TEquipment = nil; const Properties: string = ''): TItem;
     procedure AddValue(ValueType: TValueType; RecType: TRecType; AValue: double;
-      var ParentItem: TItem; Tol: double; const Description: string);
+      var ParentItem: TItem; Tol: double; const Description: string;
+      const Source: TValueSourceInfo);
     function AddFile(FileType: TFileType; const Title: string;
       var ParentItem: TItem): TFile;
     function AddNote(Protocol: TProtocol; var ParentItem: TItem): Boolean;
@@ -358,10 +360,10 @@ end;
 
 procedure TItemTreeVM.AddValue(ValueType: TValueType; RecType: TRecType;
   AValue: double; var ParentItem: TItem; Tol: double;
-  const Description: string);
+  const Description: string; const Source: TValueSourceInfo);
 begin
   FItemModel.AddValue(ValueType, RecType, AValue, UserId,
-    ParentItem, Tol, Description);
+    ParentItem, Tol, Description, Source);
   DoChanged;
 end;
 

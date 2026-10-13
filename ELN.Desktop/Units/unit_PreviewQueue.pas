@@ -17,7 +17,8 @@ type
 
   TPreviewStatusEvent = procedure(const AText: string) of object;
   TPreviewUpdateEvent = procedure(FileId: Int64; const PreviewPath: string) of object;
-  TKeyValuesExtractedEvent = procedure(ItemId: Integer;
+  TKeyValuesExtractedEvent = procedure(ItemId: Integer; FileId: Int64;
+    const ReaderId, ReaderVersion: string;
     const KeyValues: TArray<TPluginKeyValue>) of object;
 
   TPreviewQueue = class
@@ -143,7 +144,12 @@ begin
     begin
       var KVs := KVProvider.GetKeyValues;
       if Length(KVs) > 0 then
-        FOnKeyValuesExtracted(QItem.ItemId, KVs);
+      begin
+        var ReaderId, ReaderVersion: string;
+        ReaderIdentityOf(Plugin, ReaderId, ReaderVersion);
+        FOnKeyValuesExtracted(QItem.ItemId, QItem.FileId, ReaderId,
+          ReaderVersion, KVs);
+      end;
     end;
   end;
 

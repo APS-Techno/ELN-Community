@@ -311,6 +311,31 @@ type
     [Version]
     FVersion: Integer;
 
+    // NULL marks rows written before value sources existed; read it as vskUnknown.
+    [Column('SourceKind', [])]
+    [Description('Origin of the number: reader output, manual entry or unknown')]
+    FSourceKind: Nullable<TValueSourceKind>;
+
+    [Column('SourceFileId', [])]
+    [Description('File the number was read from or derived from')]
+    FSourceFileId: Nullable<Int64>;
+
+    [Column('ReaderId', [], 100)]
+    [Description('Stable identity of the reader plugin that produced the number')]
+    FReaderId: string;
+
+    [Column('ReaderVersion', [], 50)]
+    [Description('Reader output version at extraction time')]
+    FReaderVersion: string;
+
+    [Column('KeyName', [], 255)]
+    [Description('Reader key value name that produced the number')]
+    FKeyName: string;
+
+    [Column('SourceNote', [], 1000)]
+    [Description('Free-text source, for example an analysis job or run ID')]
+    FSourceNote: string;
+
     function GetValueType: TValueType;
     procedure SetValueType(const Value: TValueType);
     function GetItem: TItem;
@@ -328,6 +353,13 @@ type
     property ModifiedBy: Nullable<Integer> read FModifiedBy write FModifiedBy;
     property Item: TItem read GetItem write SetItem;
     property Version: Integer read FVersion write FVersion;
+    property SourceKind: Nullable<TValueSourceKind> read FSourceKind write FSourceKind;
+    property SourceFileId: Nullable<Int64> read FSourceFileId write FSourceFileId;
+    property ReaderId: string read FReaderId write FReaderId;
+    property ReaderVersion: string read FReaderVersion write FReaderVersion;
+    property KeyName: string read FKeyName write FKeyName;
+    property SourceNote: string read FSourceNote write FSourceNote;
+    function EffectiveSourceKind: TValueSourceKind;
   end;
 
 implementation
@@ -453,6 +485,14 @@ end;
 procedure TValue.SetItem(const Value: TItem);
 begin
   FItem.Value := Value;
+end;
+
+function TValue.EffectiveSourceKind: TValueSourceKind;
+begin
+  if FSourceKind.HasValue then
+    Result := FSourceKind.Value
+  else
+    Result := vskUnknown;
 end;
 
 initialization

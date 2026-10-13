@@ -4,6 +4,8 @@ unit unit_ToolHelpers;
 interface
 
 uses
+  System.JSON,
+  Aurelius.Types.Nullable,
   unit_Item;
 
 const
@@ -14,6 +16,9 @@ const
 
 function MakeElnItemUrl(Item: TItem): string;
 
+function ValueSourceJSON(Value: TValue): TJSONObject;
+function NullableNumJSON(const Value: Nullable<Double>): TJSONValue;
+
 // Raises if AValue is longer than AMax. The exception is deliberately the base
 // Exception class and nothing derived from it: unit_MCPDiag.ClientErrorMessage
 // forwards the message verbatim only on an exact class match, so a descendant
@@ -23,7 +28,8 @@ procedure CheckMaxLen(const AValue, AFieldName: string; AMax: Integer);
 implementation
 
 uses
-  System.SysUtils, System.NetEncoding, unit_ItemTypes;
+  System.SysUtils, System.NetEncoding, unit_ItemTypes, unit_ValueSource,
+  unit_JSONCompact;
 
 function MakeElnItemUrl(Item: TItem): string;
 begin
@@ -37,6 +43,33 @@ begin
     Result := 'eln://specimen/' + TNetEncoding.URL.Encode(Item.Title)
   else
     Result := 'eln://item/' + IntToStr(Item.Id);
+end;
+
+function ValueSourceJSON(Value: TValue): TJSONObject;
+var
+  Source: TValueSourceInfo;
+begin
+  Source := ReadSource(Value);
+  Result := TJSONObject.Create;
+  Result.AddPair('kind', SourceKindName(Source.Kind));
+  if Source.FileId > 0 then
+    Result.AddPair('file_id', TJSONNumber.Create(Source.FileId));
+  if Source.ReaderId <> '' then
+    Result.AddPair('reader_id', Source.ReaderId);
+  if Source.ReaderVersion <> '' then
+    Result.AddPair('reader_version', Source.ReaderVersion);
+  if Source.KeyName <> '' then
+    Result.AddPair('key_name', Source.KeyName);
+  if Source.Note <> '' then
+    Result.AddPair('note', Source.Note);
+end;
+
+function NullableNumJSON(const Value: Nullable<Double>): TJSONValue;
+begin
+  if Value.HasValue then
+    Result := SmartNum(Value.Value)
+  else
+    Result := TJSONNull.Create;
 end;
 
 procedure CheckMaxLen(const AValue, AFieldName: string; AMax: Integer);

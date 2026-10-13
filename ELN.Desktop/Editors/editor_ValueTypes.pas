@@ -29,11 +29,19 @@ type
     btnCatRename: TButton;
     btnCatMove: TButton;
     pnlDetail: TPanel;
+    Label6: TLabel;
+    Label7: TLabel;
+    edRangeMin: TDBEdit;
+    edRangeMax: TDBEdit;
+    lblToleranceFactor: TLabel;
+    edToleranceFactor: TEdit;
+    btnToleranceFactor: TButton;
     procedure cbCategoryChange(Sender: TObject);
     procedure lbCategoriesClick(Sender: TObject);
     procedure btnCatAddClick(Sender: TObject);
     procedure btnCatRenameClick(Sender: TObject);
     procedure btnCatMoveClick(Sender: TObject);
+    procedure btnToleranceFactorClick(Sender: TObject);
   private
     FCategoryMap: TDictionary<string, Integer>;
     FNextCatID: Integer;
@@ -44,6 +52,7 @@ type
     procedure DataSetFilterRecord(DataSet: TDataSet; var Accept: Boolean);
     procedure DataSetBeforeDelete(ADataSet: TDataSet);
     procedure DataSetAfterInsert(ADataSet: TDataSet);
+    procedure DataSetBeforePost(ADataSet: TDataSet);
     procedure BuildCategoryMap;
     procedure CatIDGetText(Sender: TField; var Text: string; DisplayText: Boolean);
   protected
@@ -62,7 +71,8 @@ uses
   Aurelius.Bind.Dataset,
   unit_DataModel,
   dlg_GreekPicker,
-  unit_TimeHelper;
+  unit_TimeHelper,
+  unit_ValueChecks;
 
 {$R *.dfm}
 
@@ -95,10 +105,17 @@ begin
   Label2.Parent := pnlDetail;
   Label3.Parent := pnlDetail;
   Label5.Parent := pnlDetail;
+  Label6.Parent := pnlDetail;
+  Label7.Parent := pnlDetail;
+  lblToleranceFactor.Parent := pnlDetail;
   edSymbol.Parent := pnlDetail;
   edTitle.Parent := pnlDetail;
   edUnits.Parent := pnlDetail;
   edDescription.Parent := pnlDetail;
+  edRangeMin.Parent := pnlDetail;
+  edRangeMax.Parent := pnlDetail;
+  edToleranceFactor.Parent := pnlDetail;
+  btnToleranceFactor.Parent := pnlDetail;
   RzDBNavigator1.Parent := pnlDetail;
   DBGrid1.Parent := pnlDetail;
 
@@ -139,10 +156,13 @@ begin
   DataSource.DataSet := DataSet;
   DataSet.BeforeDelete := DataSetBeforeDelete;
   DataSet.AfterInsert := DataSetAfterInsert;
+  DataSet.BeforePost := DataSetBeforePost;
   DataSet.OnFilterRecord := DataSetFilterRecord;
 
   if DataSet.FindField('CatID') <> nil then
     DataSet.FieldByName('CatID').OnGetText := CatIDGetText;
+
+  edToleranceFactor.Text := FloatToStr(LoadToleranceFactor(Model.Manager));
 
   ShowModal;
 
@@ -150,6 +170,7 @@ begin
   DataSet.OnFilterRecord := nil;
   DataSet.BeforeDelete := nil;
   DataSet.AfterInsert := nil;
+  DataSet.BeforePost := nil;
   DataSource.DataSet := nil;
 end;
 
@@ -231,6 +252,37 @@ begin
     ShowMessage(Reason);
     Abort;
   end;
+end;
+
+procedure TedValueTypes.DataSetBeforePost(ADataSet: TDataSet);
+var
+  MinField, MaxField: TField;
+begin
+  MinField := ADataSet.FindField('RangeMin');
+  MaxField := ADataSet.FindField('RangeMax');
+  if Assigned(MinField) and Assigned(MaxField) and
+     not MinField.IsNull and not MaxField.IsNull and
+     (MinField.AsFloat > MaxField.AsFloat) then
+  begin
+    ShowMessage('The plausible minimum is larger than the maximum. ' +
+      'Correct one of them, or leave a field empty for no limit.');
+    Abort;
+  end;
+end;
+
+procedure TedValueTypes.btnToleranceFactorClick(Sender: TObject);
+var
+  Factor: Double;
+begin
+  if not TryStrToFloat(Trim(edToleranceFactor.Text), Factor) or
+     not IsValidToleranceFactor(Factor) then
+  begin
+    ShowMessage('Enter a tolerance factor greater than 1, for example 1000.');
+    Exit;
+  end;
+  StoreToleranceFactor(Model.Manager, Factor);
+  edToleranceFactor.Text := FloatToStr(Factor);
+  ShowMessage('The tolerance factor is saved. It applies to all value types.');
 end;
 
 procedure TedValueTypes.cbCategoryChange(Sender: TObject);

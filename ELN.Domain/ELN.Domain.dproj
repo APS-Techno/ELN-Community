@@ -134,6 +134,7 @@
         <DCCReference Include="unit_UsersHistory.pas"/>
         <DCCReference Include="unit_FileTypeLink.pas"/>
         <DCCReference Include="unit_ValueType.pas"/>
+        <DCCReference Include="unit_ReaderValueMapping.pas"/>
         <DCCReference Include="unit_Template.pas"/>
         <DCCReference Include="unit_ProtocolStatusChange.pas"/>
         <DCCReference Include="unit_Hypothesis.pas"/>

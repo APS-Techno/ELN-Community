@@ -15,7 +15,7 @@ uses
   unit_Item, unit_Project, unit_ELNPluginTypes,
   unit_ValueChecks, unit_ValueDrift, unit_StorageCheck, unit_FilePaths,
   unit_JSONCompact, unit_ToolScope, unit_ToolDownloads, unit_ToolsWrite,
-  unit_ToolHelpers;
+  unit_ToolHelpers, unit_ItemTypes, unit_ValueSource;
 
 const
   MAX_ROWS = 5000;
@@ -33,7 +33,7 @@ type
     FContext: TToolContext;
   public
     constructor Create(const AContext: TToolContext);
-    function Run(FileId: Int64): TReaderRun;
+    function Run(FileId: Int64; const AnalysisSnapshot: string): TReaderRun;
   end;
 
 constructor TToolReaderRunner.Create(const AContext: TToolContext);
@@ -42,7 +42,8 @@ begin
   FContext := AContext;
 end;
 
-function TToolReaderRunner.Run(FileId: Int64): TReaderRun;
+function TToolReaderRunner.Run(FileId: Int64;
+  const AnalysisSnapshot: string): TReaderRun;
 var
   F: unit_Item.TFile;
   Project: TProject;
@@ -81,8 +82,9 @@ begin
     end;
     LocalPath := DownloadFileToLocal(FContext, FileId);
     try
-      KeyValues := FContext.PluginHost.ExtractReaderKeyValues(LocalPath, Ext,
-        Result.ReaderId, Result.ReaderVersion);
+      KeyValues := FContext.PluginHost.ExtractReaderSnapshotReplay(LocalPath,
+        Ext, FileId, AnalysisSnapshot, Result.ReaderId, Result.ReaderVersion,
+        Result.CurrentFileHash, Result.AnalysisStatus, Result.SnapshotKeys);
     finally
       DeleteLocalDownload(LocalPath);
     end;
@@ -98,6 +100,7 @@ begin
   begin
     Result.Values[I].Name := KeyValues[I].Name;
     Result.Values[I].Value := KeyValues[I].Value;
+    Result.Values[I].Units := KeyValues[I].Units;
   end;
   Result.Succeeded := True;
 end;
@@ -141,8 +144,10 @@ end;
 
 function DriftRowJSON(const Row: TValueDriftRow): TJSONObject;
 var
-  Flags: TJSONArray;
+  Flags, Inputs: TJSONArray;
   Flag: TValueDriftFlag;
+  Input: TValueDriftInput;
+  Entry: TJSONObject;
 begin
   Result := TJSONObject.Create;
   try
@@ -150,6 +155,7 @@ begin
     Result.AddPair('item_id', TJSONNumber.Create(Row.ItemId));
     Result.AddPair('file_id', TJSONNumber.Create(Row.FileId));
     Result.AddPair('key_name', Row.KeyName);
+    Result.AddPair('source_kind', SourceKindName(Row.SourceKind));
     Flags := TJSONArray.Create;
     Result.AddPair('flags', Flags);
     for Flag := Low(TValueDriftFlag) to High(TValueDriftFlag) do
@@ -165,6 +171,31 @@ begin
     Result.AddPair('current_reader_id', Row.CurrentReaderId);
     Result.AddPair('current_reader_version', Row.CurrentReaderVersion);
     Result.AddPair('message', Row.Message);
+    if Row.SourceKind = vskDerived then
+    begin
+      Result.AddPair('formula_id', Row.FormulaId);
+      Result.AddPair('stored_formula_version', TJSONNumber.Create(Row.StoredFormulaVersion));
+      if Row.CurrentFormulaVersion > 0 then
+        Result.AddPair('current_formula_version', TJSONNumber.Create(Row.CurrentFormulaVersion))
+      else
+        Result.AddPair('current_formula_version', TJSONNull.Create);
+      Inputs := TJSONArray.Create;
+      Result.AddPair('inputs', Inputs);
+      for Input in Row.Inputs do
+      begin
+        Entry := TJSONObject.Create;
+        Inputs.AddElement(Entry);
+        Entry.AddPair('role', Input.Role);
+        Entry.AddPair('value_id', TJSONNumber.Create(Input.ValueId));
+        Entry.AddPair('source_kind', SourceKindName(Input.SourceKind));
+        Entry.AddPair('used_value', TJSONNumber.Create(Input.UsedValue));
+        if Input.HasCurrentValue then
+          Entry.AddPair('current_value', TJSONNumber.Create(Input.CurrentValue))
+        else
+          Entry.AddPair('current_value', TJSONNull.Create);
+        Entry.AddPair('status', Input.Status);
+      end;
+    end;
   except
     Result.Free;
     raise;
@@ -614,12 +645,34 @@ begin
   Registry.Register('check_value_drift',
     'Read-only. For values with source kind Reader, runs the reader that ' +
     'extension routing selects today on the stored source file and ' +
-    'compares its output with the stored value. Give exactly one of ' +
+    'compares its output after the saved conversion with the stored value. ' +
+    'Legacy sources without conversion metadata compare raw output. Give exactly one of ' +
     'item_id (the item and its non-deleted descendants) or project_id. ' +
     'Returns checked and unchanged counts and lists only drifted values ' +
     'with flags: value_changed, reader_version_changed, reader_changed, ' +
-    'key_missing, file_missing, read_failed. current_value is null when ' +
-    'the reader gave no value for the key.',
+    'key_missing, file_missing, read_failed, reader_units_changed, ' +
+    'source_changed, selection_changed, interval_unusable. A value saved ' +
+    'with an analysis snapshot is recalculated over the stored interval, ' +
+    'also when the file hash changed: source_changed means the file hash ' +
+    'differs from the snapshot, selection_changed means the current shared ' +
+    'interval differs from the snapshot (a missing shared interval is a ' +
+    'change only for a manual snapshot), interval_unusable means the stored ' +
+    'interval holds fewer than two samples in the current file and the value ' +
+    'is not compared. current_value ' +
+    'uses the saved factor and is null when the key is missing, the interval ' +
+    'is unusable or the emitted unit changed. Mapping edits do not ' +
+    'reinterpret stored values. For values with source kind Derived, the ' +
+    'readers of the Reader inputs are re-run, Derived inputs are recomputed ' +
+    'recursively, and the result is recomputed with the saved formula ' +
+    'version; the row has source_kind Derived, formula_id, ' +
+    'stored_formula_version, current_formula_version and inputs (role, ' +
+    'value_id, used_value, current_value, status) and the flags ' +
+    'value_changed, input_changed (an input differs from the number used), ' +
+    'input_missing, formula_version_changed (a newer version exists; the ' +
+    'saved version was used), formula_version_mismatch (the saved version ' +
+    'is not available; the value is not recomputed), dependency_cycle, ' +
+    'read_failed and not_fully_rerunnable (an input in the tree is Manual ' +
+    'or Unknown).',
     MakeDriftSchema, HandleCheckValueDrift, tscProjectScoped);
 
   Registry.Register('report_value_issues',

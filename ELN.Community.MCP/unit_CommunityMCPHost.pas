@@ -13,7 +13,7 @@ uses
   unit_MCPTools, unit_MCPTransport, unit_ToolCatalog, unit_PluginHost,
   unit_User;
 
-function RequiredPath(const Name: string): string;
+function OptionalPath(const Name: string): string;
 var
   I: Integer;
   Arg, Value: string;
@@ -45,11 +45,18 @@ begin
     Inc(I);
   end;
   if Result = '' then
-    raise EArgumentException.Create('Required option: --' + Name);
+    Exit;
   if not ((Length(Result) >= 3) and (Result[2] = ':') and
     CharInSet(Result[3], ['\', '/'])) and not StartsStr('\\', Result) then
     raise EArgumentException.Create('--' + Name + ' requires an absolute path');
   Result := TPath.GetFullPath(Result);
+end;
+
+function RequiredPath(const Name: string): string;
+begin
+  Result := OptionalPath(Name);
+  if Result = '' then
+    raise EArgumentException.Create('Required option: --' + Name);
 end;
 
 procedure CheckOptions;
@@ -89,7 +96,7 @@ var
 begin
   CheckOptions;
   NotebookPath := RequiredPath('notebook');
-  StoragePath := RequiredPath('storage');
+  StoragePath := OptionalPath('storage');
   UploadPath := RequiredPath('upload-root');
   PluginsPath := RequiredPath('plugins');
   if not TDirectory.Exists(UploadPath) then
@@ -103,7 +110,13 @@ begin
   finally
     UploadValidator.Free;
   end;
-  Notebook := TLocalNotebook.Open(NotebookPath, StoragePath);
+  try
+    Notebook := TLocalNotebook.Open(NotebookPath, StoragePath);
+  except
+    on E: ELocalNotebookStorageRequired do
+      raise EArgumentException.Create(E.Message +
+        '. Pass --storage with the notebook''s attachment directory.');
+  end;
   try
     PrincipalId := Notebook.Principal.Id;
     // The notebook keeps its own principal alive. Clearing the tool manager
@@ -114,7 +127,7 @@ begin
       try
         Context := Default(TToolContext);
         Context.Manager := Manager;
-        Context.StorageRoot := StoragePath;
+        Context.StorageRoot := Notebook.StorageRoot;
         Context.Storage := Notebook.Storage;
         Context.AccessPolicy := Notebook.AccessPolicy;
         Context.PluginHost := Plugins;

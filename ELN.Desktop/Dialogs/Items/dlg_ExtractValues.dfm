@@ -53,22 +53,24 @@ object dlgExtractValues: TdlgExtractValues
       Left = 8
       Top = 8
       Width = 264
-      Height = 15
+      Height = 32
       Align = alNone
+      AutoSize = False
       Caption = 'Map to ValueType:'
+      WordWrap = True
     end
     object lblCategory: TRzLabel
       Left = 8
-      Top = 30
+      Top = 46
       Width = 264
       Height = 15
       Caption = 'Category:'
     end
     object lbCategory: TListBox
       Left = 8
-      Top = 48
+      Top = 64
       Width = 264
-      Height = 120
+      Height = 104
       TabOrder = 0
       OnClick = lbCategoryClick
     end
@@ -83,9 +85,21 @@ object dlgExtractValues: TdlgExtractValues
       Left = 8
       Top = 192
       Width = 264
-      Height = 200
+      Height = 172
       TabOrder = 1
       OnClick = lbValueTypeClick
+    end
+    object chkRemember: TCheckBox
+      Left = 8
+      Top = 372
+      Width = 264
+      Height = 19
+      Caption = 'Remember choices for this reader'
+      Checked = True
+      ParentShowHint = False
+      ShowHint = True
+      State = cbChecked
+      TabOrder = 2
     end
     object btnNewType: TRzButton
       Left = 8
@@ -93,7 +107,7 @@ object dlgExtractValues: TdlgExtractValues
       Width = 120
       Height = 28
       Caption = 'New ValueType...'
-      TabOrder = 2
+      TabOrder = 3
       OnClick = btnNewTypeClick
     end
   end

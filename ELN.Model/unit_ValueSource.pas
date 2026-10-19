@@ -4,6 +4,7 @@ interface
 
 uses
   System.SysUtils,
+  Aurelius.Types.Nullable,
   unit_ItemTypes,
   unit_Item;
 
@@ -15,11 +16,17 @@ type
     ReaderVersion: string;
     KeyName: string;
     Note: string;
+    ReaderUnits: Nullable<string>;
+    ConversionFactor: Nullable<Double>;
+    FormulaId: string;
+    FormulaVersion: Integer;
     class function Unknown: TValueSourceInfo; static;
     class function Manual(const ANote: string = '';
       AFileId: Int64 = 0): TValueSourceInfo; static;
     class function Reader(AFileId: Int64; const AReaderId, AReaderVersion,
-      AKeyName: string): TValueSourceInfo; static;
+      AKeyName, AReaderUnits: string; AConversionFactor: Double): TValueSourceInfo; static;
+    class function Derived(const AFormulaId: string;
+      AFormulaVersion: Integer): TValueSourceInfo; static;
   end;
 
   EValueSourceError = class(Exception);
@@ -35,13 +42,14 @@ procedure MarkManualEdit(Value: TValue);
 implementation
 
 uses
-  Aurelius.Types.Nullable;
+  System.Math;
 
 const
   MAX_READER_ID = 100;
   MAX_READER_VERSION = 50;
   MAX_KEY_NAME = 255;
   MAX_SOURCE_NOTE = 1000;
+  MAX_FORMULA_ID = 100;
 
 class function TValueSourceInfo.Unknown: TValueSourceInfo;
 begin
@@ -59,7 +67,8 @@ begin
 end;
 
 class function TValueSourceInfo.Reader(AFileId: Int64; const AReaderId,
-  AReaderVersion, AKeyName: string): TValueSourceInfo;
+  AReaderVersion, AKeyName, AReaderUnits: string;
+  AConversionFactor: Double): TValueSourceInfo;
 begin
   Result := Default(TValueSourceInfo);
   Result.Kind := vskReader;
@@ -67,6 +76,17 @@ begin
   Result.ReaderId := AReaderId;
   Result.ReaderVersion := AReaderVersion;
   Result.KeyName := AKeyName;
+  Result.ReaderUnits := AReaderUnits;
+  Result.ConversionFactor := AConversionFactor;
+end;
+
+class function TValueSourceInfo.Derived(const AFormulaId: string;
+  AFormulaVersion: Integer): TValueSourceInfo;
+begin
+  Result := Default(TValueSourceInfo);
+  Result.Kind := vskDerived;
+  Result.FormulaId := AFormulaId;
+  Result.FormulaVersion := AFormulaVersion;
 end;
 
 function SourceKindName(Kind: TValueSourceKind): string;
@@ -74,6 +94,7 @@ begin
   case Kind of
     vskReader: Result := 'Reader';
     vskManual: Result := 'Manual';
+    vskDerived: Result := 'Derived';
   else
     Result := 'Unknown';
   end;
@@ -88,6 +109,8 @@ begin
     Kind := vskManual
   else if SameText(Name, 'Unknown') then
     Kind := vskUnknown
+  else if SameText(Name, 'Derived') then
+    Kind := vskDerived
   else
     Result := False;
 end;
@@ -104,6 +127,21 @@ begin
   CheckLength('reader_version', Source.ReaderVersion, MAX_READER_VERSION);
   CheckLength('key_name', Source.KeyName, MAX_KEY_NAME);
   CheckLength('source_note', Source.Note, MAX_SOURCE_NOTE);
+  CheckLength('formula_id', Source.FormulaId, MAX_FORMULA_ID);
+  if (Source.Kind <> vskDerived) and
+    ((Source.FormulaId <> '') or (Source.FormulaVersion <> 0)) then
+    raise EValueSourceError.Create('formula_id and formula_version apply only to a Derived source');
+  if Source.ReaderUnits.HasValue then
+    CheckLength('reader_units', Source.ReaderUnits.Value, 100);
+  if Source.ReaderUnits.HasValue <> Source.ConversionFactor.HasValue then
+    raise EValueSourceError.Create('reader_units and conversion_factor must be supplied together');
+  if Source.ConversionFactor.HasValue and
+    (IsNan(Source.ConversionFactor.Value) or IsInfinite(Source.ConversionFactor.Value) or
+    (Source.ConversionFactor.Value = 0)) then
+    raise EValueSourceError.Create('conversion_factor must be finite and nonzero');
+  if (Source.Kind <> vskReader) and
+    (Source.ReaderUnits.HasValue or Source.ConversionFactor.HasValue) then
+    raise EValueSourceError.Create('Conversion provenance applies only to Reader sources');
   if Source.FileId < 0 then
     raise EValueSourceError.Create('source_file_id must be positive');
   case Source.Kind of
@@ -127,6 +165,17 @@ begin
         (Source.Note <> '') then
         raise EValueSourceError.Create(
           'An Unknown source takes no source fields; use Reader or Manual');
+    vskDerived:
+      begin
+        if (Source.FileId <> 0) or (Source.ReaderId <> '') or
+          (Source.ReaderVersion <> '') or (Source.KeyName <> '') then
+          raise EValueSourceError.Create(
+            'A Derived source takes no file or reader fields');
+        if Trim(Source.FormulaId) = '' then
+          raise EValueSourceError.Create('A Derived source requires formula_id');
+        if Source.FormulaVersion <= 0 then
+          raise EValueSourceError.Create('A Derived source requires a positive formula_version');
+      end;
   end;
 end;
 
@@ -145,6 +194,18 @@ begin
     Value.ReaderVersion := Source.ReaderVersion;
   Value.KeyName := Source.KeyName;
   Value.SourceNote := Source.Note;
+  Value.ReaderUnits := Source.ReaderUnits;
+  Value.ConversionFactor := Source.ConversionFactor;
+  if Source.Kind = vskDerived then
+  begin
+    Value.FormulaId := Source.FormulaId;
+    Value.FormulaVersion := Source.FormulaVersion;
+  end
+  else
+  begin
+    Value.FormulaId := SNull;
+    Value.FormulaVersion := SNull;
+  end;
 end;
 
 function ReadSource(Value: TValue): TValueSourceInfo;
@@ -157,6 +218,12 @@ begin
   Result.ReaderVersion := Value.ReaderVersion;
   Result.KeyName := Value.KeyName;
   Result.Note := Value.SourceNote;
+  Result.ReaderUnits := Value.ReaderUnits;
+  Result.ConversionFactor := Value.ConversionFactor;
+  if Value.FormulaId.HasValue then
+    Result.FormulaId := Value.FormulaId.Value;
+  if Value.FormulaVersion.HasValue then
+    Result.FormulaVersion := Value.FormulaVersion.Value;
 end;
 
 procedure MarkManualEdit(Value: TValue);
@@ -168,6 +235,9 @@ begin
   if Previous.Kind = vskReader then
     Note := Format('Edited by hand; was %s %s key "%s"',
       [Previous.ReaderId, Previous.ReaderVersion, Previous.KeyName])
+  else if Previous.Kind = vskDerived then
+    Note := Format('Edited by hand; was derived by %s version %d',
+      [Previous.FormulaId, Previous.FormulaVersion])
   else
     Note := Previous.Note;
   if Length(Note) > MAX_SOURCE_NOTE then

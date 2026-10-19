@@ -18,7 +18,7 @@ type
   TRecType = (EXP_CONDITION, TEST_RESULT);
 
   [Enumeration(TEnumMappingType.emInteger)]
-  TValueSourceKind = (vskUnknown, vskReader, vskManual);
+  TValueSourceKind = (vskUnknown, vskReader, vskManual, vskDerived);
 
 implementation
 

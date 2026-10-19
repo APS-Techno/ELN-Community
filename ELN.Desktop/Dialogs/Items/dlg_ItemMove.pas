@@ -32,13 +32,13 @@ type
     procedure TreeChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure TreeDblClick(Sender: TObject);
   private
-    FSourceItem: TItem;
+    FSourceItems: TArray<TItem>;
     FAvailableItems: TItems;
     procedure LoadTree;
     procedure UpdateMoveState;
   public
-    class function Execute(SourceItem: TItem; AvailableItems: TItems;
-      out NewParentId: Integer): Boolean;
+    class function Execute(const SourceItems: TArray<TItem>;
+      AvailableItems: TItems; out NewParentId: Integer): Boolean;
   end;
 
 implementation
@@ -46,8 +46,8 @@ implementation
 {$R *.dfm}
 
 
-class function TdlgItemMove.Execute(SourceItem: TItem; AvailableItems: TItems;
-  out NewParentId: Integer): Boolean;
+class function TdlgItemMove.Execute(const SourceItems: TArray<TItem>;
+  AvailableItems: TItems; out NewParentId: Integer): Boolean;
 var
   Dlg: TdlgItemMove;
   Node: PVirtualNode;
@@ -57,9 +57,12 @@ begin
   NewParentId := -1;
   Dlg := TdlgItemMove.Create(Application);
   try
-    Dlg.FSourceItem := SourceItem;
+    Dlg.FSourceItems := SourceItems;
     Dlg.FAvailableItems := AvailableItems;
-    Dlg.Caption := Format('Move "%s" to...', [SourceItem.Title]);
+    if Length(SourceItems) = 1 then
+      Dlg.Caption := Format('Move "%s" to...', [SourceItems[0].Title])
+    else
+      Dlg.Caption := Format('Move %d items to...', [Length(SourceItems)]);
     Dlg.LoadTree;
     Dlg.UpdateMoveState;
     if Dlg.ShowModal <> mrOK then Exit;
@@ -137,8 +140,8 @@ begin
         ParentList.Add(Item);
       end;
 
-      if Assigned(FSourceItem) then
-        CollectExcluded(FSourceItem.Id);
+      for Item in FSourceItems do
+        CollectExcluded(Item.Id);
 
       RootNode := Tree.AddChild(nil);
       RootData := Tree.GetNodeData(RootNode);
@@ -157,13 +160,13 @@ begin
     Tree.FullExpand;
 
     InitialNode := Tree.GetFirst;
-    if Assigned(FSourceItem) then
+    if Length(FSourceItems) > 0 then
     begin
       Walk := Tree.GetFirst;
       while Assigned(Walk) do
       begin
         WalkData := Tree.GetNodeData(Walk);
-        if Assigned(WalkData) and (WalkData.Id = FSourceItem.Parent) then
+        if Assigned(WalkData) and (WalkData.Id = FSourceItems[0].Parent) then
         begin
           InitialNode := Walk;
           Break;
@@ -213,18 +216,19 @@ procedure TdlgItemMove.UpdateMoveState;
 var
   Node: PVirtualNode;
   Data: PMoveNodeData;
-  CurrentParent: Integer;
+  Item: TItem;
 begin
   btnMove.Enabled := False;
   Node := Tree.GetFirstSelected;
   if not Assigned(Node) then Exit;
   Data := Tree.GetNodeData(Node);
   if not Assigned(Data) then Exit;
-  if Assigned(FSourceItem) then
-    CurrentParent := FSourceItem.Parent
-  else
-    CurrentParent := -1;
-  btnMove.Enabled := Data.Id <> CurrentParent;
+  for Item in FSourceItems do
+    if Item.Parent <> Data.Id then
+    begin
+      btnMove.Enabled := True;
+      Exit;
+    end;
 end;
 
 end.

@@ -48,13 +48,23 @@
     <DCCReference Include="test_ReportBuilder.pas"/>
     <DCCReference Include="test_ItemDurability.pas"/>
     <DCCReference Include="test_ScientificIntegrity.pas"/>
+    <DCCReference Include="test_XRCProject.pas"/>
+    <DCCReference Include="..\ViewerPlugins\Core\unit_ELNPluginTypes.pas"/>
+    <DCCReference Include="..\ViewerPlugins\Viewer.XRayCalc\unit_XRCProject.pas"/>
+    <DCCReference Include="..\ViewerPlugins\Viewer.XRayCalc\unit_XRCProjectOutput.pas"/>
+    <DCCReference Include="..\ViewerPlugins\Viewer.XRayCalc\unit_LayerSequence.pas"/>
   </ItemGroup>
   <ItemGroup Condition="'$(MainSource)'=='DesktopRegressionTests.dpr'">
     <DCCReference Include="test_SharedDesktopMutations.pas"/>
+    <DCCReference Include="test_ItemTreeBatch.pas"/>
     <DCCReference Include="test_SharedDesktopViewer.pas"/>
     <DCCReference Include="test_TemplateDialogLifetime.pas"/>
     <DCCReference Include="test_ValueDialogValidation.pas"/>
     <DCCReference Include="test_ValueSourceDesktop.pas"/>
+    <DCCReference Include="test_ReaderValueMapping.pas"/>
+    <DCCReference Include="test_ReaderValueStatistics.pas"/>
+    <DCCReference Include="test_DerivedValues.pas"/>
+    <DCCReference Include="..\ViewerPlugins\Viewer.Deposition\unit_DepositionData.pas"/>
     <DCCReference Include="test_FileIdentity.pas"/>
     <DCCReference Include="test_MCPFileDiscovery.pas"/>
     <DCCReference Include="test_ProjectTreeIdentity.pas"/>
@@ -62,6 +72,10 @@
     <DCCReference Include="test_ViewerValues.pas"/>
     <DCCReference Include="test_LAMMPSParser.pas"/>
     <DCCReference Include="test_XRCProject.pas"/>
+    <DCCReference Include="..\ViewerPlugins\Viewer.MitFile\unit_MitFileParser.pas"/>
+    <DCCReference Include="..\ViewerPlugins\Viewer.MitFile\unit_MitAnalysis.pas"/>
+    <DCCReference Include="test_MitReader.pas"/>
+    <DCCReference Include="test_MitMcp.pas"/>
     <DCCReference Include="..\ViewerPlugins\Viewer.ColumnarData\test\test_SharedViewerRegressions.pas"/>
     <DCCReference Include="..\ViewerPlugins\Core.Protocol\test_ProtocolExtractionRegressions.pas"/>
     <DCCReference Include="..\ViewerPlugins\Viewer.Markdown\test\test_MarkdownContextRegressions.pas"/>

@@ -1,7 +1,10 @@
 unit unit_TreeLook;
 
 { TTreeLook owns OnMeasureItem, OnAfterItemPaint, header owner-draw events and
-  WindowProc. The host must not replace them and must free the look before the tree. }
+  WindowProc. The host must not replace them and must free the look before the tree.
+  After StretchLastColumn it also owns OnHeaderDragged, Header.AutoSizeIndex and
+  hoAutoResize, and the host reads and sets column widths through ColumnWidth and
+  SetColumnWidth. }
 
 interface
 
@@ -29,6 +32,8 @@ type
     // The tree's own metrics at 96 PPI, taken once: every apply starts here.
     FBaseFont, FBaseHeaderFont, FBaseHeaderHeight: Integer;
     FBaseIndent: Integer;
+    FStretchColumn: TColumnIndex;
+    FStretchWidth, FStretchPPI: Integer;
     function NaturalRowHeight(out TextHeight: Integer): Integer;
     procedure WndProc(var Message: Winapi.Messages.TMessage);
     function ActionHit(const P: TPoint; out Node: PVirtualNode): Integer;
@@ -43,6 +48,8 @@ type
       var PaintInfo: THeaderPaintInfo; var Elements: THeaderPaintElements);
     procedure AdvancedHeaderDraw(Sender: TVTHeader;
       var PaintInfo: THeaderPaintInfo; const Elements: THeaderPaintElements);
+    procedure HeaderDragged(Sender: TVTHeader; Column: TColumnIndex;
+      OldPosition: Integer);
     function Background: TColor;
     function IsDark: Boolean;
     function LineLeft(ALevel: Integer): Integer;
@@ -55,6 +62,12 @@ type
     /// Call before Tree.Clear: forgets the hovered row.
     procedure ClearHover;
     procedure ApplyAppearance;
+    /// The last visible column fills the width the other columns leave free.
+    /// Call again after a column is shown or hidden.
+    procedure StretchLastColumn;
+    /// The stretched column reports and keeps the width it has when not stretched.
+    function ColumnWidth(Column: TColumnIndex): Integer;
+    procedure SetColumnWidth(Column: TColumnIndex; Width: Integer);
     class procedure ApplyAll;
     function PPI: Integer;
     function HeaderGap(Node: PVirtualNode): Integer;
@@ -93,6 +106,7 @@ begin
   FIsContainer := AIsContainer;
   FOnFocus := AOnFocus;
   FHoverAction := -1;
+  FStretchColumn := NoColumn;
 
   FTree.TreeOptions.MiscOptions := FTree.TreeOptions.MiscOptions + [toVariableNodeHeight];
   // Row height is ApplyAppearance's: VirtualTree must not reset it to its own
@@ -131,6 +145,7 @@ begin
     GLooks.Remove(Self);
   FTree.WindowProc := FOldWndProc;
   FTree.OnAfterItemPaint := nil;
+  FTree.OnHeaderDragged := nil;
   inherited;
 end;
 
@@ -211,6 +226,56 @@ end;
 function TTreeLook.PPI: Integer;
 begin
   Result := MulDiv(FTree.CurrentPPI, Appearance.Scale, 100);
+end;
+
+procedure TTreeLook.StretchLastColumn;
+var
+  Columns: TVirtualTreeColumns;
+  Last, Previous: TColumnIndex;
+  PreviousWidth: Integer;
+begin
+  Columns := FTree.Header.Columns;
+  Last := Columns.GetLastVisibleColumn;
+  if Last = NoColumn then Exit;
+  if (Last = FStretchColumn) and (hoAutoResize in FTree.Header.Options) then Exit;
+  Previous := FStretchColumn;
+  PreviousWidth := ColumnWidth(Previous);
+  FStretchColumn := Last;
+  FStretchWidth := Columns[Last].Width;
+  FStretchPPI := FTree.CurrentPPI;
+  FTree.Header.AutoSizeIndex := Last;
+  if not (hoAutoResize in FTree.Header.Options) then
+    FTree.Header.Options := FTree.Header.Options + [hoAutoResize];
+  FTree.OnHeaderDragged := HeaderDragged;
+  if Previous <> NoColumn then
+    Columns[Previous].Width := PreviousWidth;
+end;
+
+procedure TTreeLook.HeaderDragged(Sender: TVTHeader; Column: TColumnIndex;
+  OldPosition: Integer);
+begin
+  StretchLastColumn;
+end;
+
+function TTreeLook.ColumnWidth(Column: TColumnIndex): Integer;
+begin
+  if Column = NoColumn then
+    Result := 0
+  else if Column = FStretchColumn then
+    Result := MulDiv(FStretchWidth, FTree.CurrentPPI, FStretchPPI)
+  else
+    Result := FTree.Header.Columns[Column].Width;
+end;
+
+procedure TTreeLook.SetColumnWidth(Column: TColumnIndex; Width: Integer);
+begin
+  if Column = FStretchColumn then
+  begin
+    FStretchWidth := Width;
+    FStretchPPI := FTree.CurrentPPI;
+  end
+  else
+    FTree.Header.Columns[Column].Width := Width;
 end;
 
 
@@ -349,15 +414,22 @@ end;
 procedure TTreeLook.AfterItemPaint(Sender: TBaseVirtualTree; TargetCanvas: TCanvas;
   Node: PVirtualNode; ItemRect: TRect);
 var
-  Gap: Integer;
+  Gap, ColumnsRight: Integer;
 begin
-  Gap := HeaderGap(Node);
-  if Gap = 0 then Exit;
-  // Cell paint events are column-clipped; selection also fills unused row width.
   TargetCanvas.Brush.Style := bsSolid;
   TargetCanvas.Brush.Color := Background;
-  TargetCanvas.FillRect(Rect(ItemRect.Left, ItemRect.Top, ItemRect.Right,
-    ItemRect.Top + Gap));
+  // Cell paint events are column-clipped; selection also fills unused row width.
+  if FTree.Header.UseColumns then
+  begin
+    ColumnsRight := FTree.Header.Columns.TotalWidth;
+    if ColumnsRight < ItemRect.Right then
+      TargetCanvas.FillRect(Rect(ColumnsRight, ItemRect.Top, ItemRect.Right,
+        ItemRect.Bottom));
+  end;
+  Gap := HeaderGap(Node);
+  if Gap > 0 then
+    TargetCanvas.FillRect(Rect(ItemRect.Left, ItemRect.Top, ItemRect.Right,
+      ItemRect.Top + Gap));
 end;
 
 procedure TTreeLook.PaintText(TargetCanvas: TCanvas; Node: PVirtualNode;

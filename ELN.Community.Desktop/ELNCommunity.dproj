@@ -3,15 +3,16 @@
     <Config Condition="'$(Config)'==''">Debug</Config>
     <Platform Condition="'$(Platform)'==''">Win32</Platform>
     <ELN_ProductRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..'))</ELN_ProductRoot>
-    <ELN_OutputRoot>$(ELN_ProductRoot)\_OUT\CommunityDesktop\$(Platform)\$(Config)</ELN_OutputRoot>
+    <ELN_OutputRoot>$(ELN_ProductRoot)\_OUT\CommunityDesktop</ELN_OutputRoot>
+    <ELN_IntermediateRoot>$(ELN_OutputRoot)\Intermediate\$(Platform)\$(Config)</ELN_IntermediateRoot>
     <ELN_TmsRoot Condition="'$(ELN_TmsRoot)'==''">$(ELN_TMS_ROOT)</ELN_TmsRoot>
     <ELN_ExternalUnitPaths Condition="'$(ELN_ExternalUnitPaths)'==''">$(ELN_EXTERNAL_UNIT_PATHS)</ELN_ExternalUnitPaths>
     <ELN_ExternalUnitPaths Condition="'$(ELN_TmsRoot)'!=''">$(ELN_ExternalUnitPaths);$(ELN_TmsRoot)\tms.biz.aurelius\packages\d13\$(Platform)\$(Config);$(ELN_TmsRoot)\tms.biz.bcl\packages\d13\$(Platform)\$(Config)</ELN_ExternalUnitPaths>
-    <DCC_UnitSearchPath>$(ELN_OutputRoot)\Packages;..\ViewerPlugins\Core;..\ViewerPlugins\Core.Protocol;..\ELN.Community;..\ELN.Domain;..\ELN.Model;..\ELN.Model\ViewModels;..\ELN.DB;..\ELN.Components;..\ELN.Desktop\Units;..\ELN.Desktop\Views;..\ELN.Desktop\ViewModels;..\ELN.Desktop\Forms;..\ELN.Desktop\Editors;..\ELN.Desktop\Dialogs;..\ELN.Desktop\Dialogs\System;..\ELN.Desktop\Dialogs\Search;..\ELN.Desktop\Dialogs\Projects;..\ELN.Desktop\Dialogs\Items;..\ELN.Desktop\Dialogs\Protocols;..\ELN.Desktop\Dialogs\Protocols\Cards;..\ELN.Desktop\Dialogs\Hypotheses;..\ELN.Desktop\Dialogs\ExperimentTemplates;..\ELN.Desktop\Dialogs\Export;$(ELN_ExternalUnitPaths)</DCC_UnitSearchPath>
-    <DCC_DcpOutput>$(ELN_OutputRoot)\Packages</DCC_DcpOutput>
+    <DCC_UnitSearchPath>$(ELN_IntermediateRoot)\Packages;..\ViewerPlugins\Core;..\ViewerPlugins\Core.Protocol;..\ELN.Community;..\ELN.Domain;..\ELN.Model;..\ELN.Model\ViewModels;..\ELN.DB;..\ELN.Components;..\ELN.Desktop\Units;..\ELN.Desktop\Views;..\ELN.Desktop\ViewModels;..\ELN.Desktop\Forms;..\ELN.Desktop\Editors;..\ELN.Desktop\Dialogs;..\ELN.Desktop\Dialogs\System;..\ELN.Desktop\Dialogs\Search;..\ELN.Desktop\Dialogs\Projects;..\ELN.Desktop\Dialogs\Items;..\ELN.Desktop\Dialogs\Protocols;..\ELN.Desktop\Dialogs\Protocols\Cards;..\ELN.Desktop\Dialogs\Hypotheses;..\ELN.Desktop\Dialogs\ExperimentTemplates;..\ELN.Desktop\Dialogs\Export;$(ELN_ExternalUnitPaths)</DCC_UnitSearchPath>
+    <DCC_DcpOutput>$(ELN_IntermediateRoot)\Packages</DCC_DcpOutput>
     <DCC_BplOutput>$(ELN_OutputRoot)</DCC_BplOutput>
-    <DCC_HppOutput>$(ELN_OutputRoot)\Hpp</DCC_HppOutput>
-    <DCC_ResourceOutput>$(ELN_OutputRoot)\Resources</DCC_ResourceOutput>
+    <DCC_HppOutput>$(ELN_IntermediateRoot)\Hpp</DCC_HppOutput>
+    <DCC_ResourceOutput>$(ELN_IntermediateRoot)\Resources</DCC_ResourceOutput>
     <PreBuildEvent/>
     <PostBuildEvent/>
     <PreLinkEvent/>
@@ -27,7 +28,7 @@
     <TargetedPlatforms>1</TargetedPlatforms>
     <AppType>Application</AppType>
     <DCC_Namespace>Winapi;System.Win;System;Xml;Data;Vcl;Vcl.Imaging;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
-    <DCC_DcuOutput>$(ELN_OutputRoot)\DCU</DCC_DcuOutput>
+    <DCC_DcuOutput>$(ELN_IntermediateRoot)\DCU</DCC_DcuOutput>
     <DCC_ExeOutput>$(ELN_OutputRoot)</DCC_ExeOutput>
     <DCC_BplOutput>$(ELN_OutputRoot)</DCC_BplOutput>
     <DCC_UsePackage>rtl;vcl;vcledge;TMSVCLPluginFrameworkPkgCoreDXE16;ELNPluginCore;ELNProtocolCore;vclimg;vclwinx;Tee;RaizeComponentsVcl</DCC_UsePackage>
@@ -40,10 +41,10 @@
     <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
     <VerInfo_Locale>1033</VerInfo_Locale>
     <VerInfo_MajorVer>2</VerInfo_MajorVer>
-    <VerInfo_MinorVer>1</VerInfo_MinorVer>
+    <VerInfo_MinorVer>2</VerInfo_MinorVer>
     <VerInfo_Release>0</VerInfo_Release>
-    <VerInfo_Build>0</VerInfo_Build>
-    <VerInfo_Keys>FileDescription=ELN Community Desktop;ProductName=ELN Community;ProductVersion=2.1.0.0;FileVersion=2.1.0.0;OriginalFilename=ELNCommunity.exe</VerInfo_Keys>
+    <VerInfo_Build>39</VerInfo_Build>
+    <VerInfo_Keys>FileDescription=ELN Community Desktop;ProductName=ELN Community;ProductVersion=2.2.0.39;FileVersion=2.2.0.39;OriginalFilename=ELNCommunity.exe</VerInfo_Keys>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Config)'=='Debug'">
     <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
@@ -61,6 +62,14 @@
     <DCCReference Include="frm_CommunityMain.pas"><Form>frmCommunityMain</Form></DCCReference>
     <DCCReference Include="frm_LocalProfile.pas"><Form>dlgLocalProfile</Form></DCCReference>
     <DCCReference Include="frm_CommunityPreferences.pas"><Form>dlgCommunityPreferences</Form></DCCReference>
+    <DCCReference Include="frm_CommunitySplash.pas"><Form>frmCommunitySplash</Form></DCCReference>
+    <DCCReference Include="..\ELN.Desktop\Editors\editor_ReaderValueMappings.pas"><Form>ReaderValueMappingsEditor</Form></DCCReference>
+    <DCCReference Include="..\ELN.Domain\unit_ReaderValueMapping.pas"/>
+    <DCCReference Include="..\ELN.Model\unit_ReaderValueMappingModel.pas"/>
+    <DCCReference Include="..\ELN.Desktop\Dialogs\Items\dlg_DerivedValue.pas"><Form>dlgDerivedValue</Form></DCCReference>
+    <DCCReference Include="..\ELN.Model\unit_DerivedFormulas.pas"/>
+    <DCCReference Include="..\ELN.Model\unit_DerivedValueModel.pas"/>
+    <DCCReference Include="..\ELN.DB\unit_ValueSourceSeed.pas"/>
     <BuildConfiguration Include="Debug"><Key>Cfg_1</Key><CfgParent>Base</CfgParent></BuildConfiguration>
     <BuildConfiguration Include="Release"><Key>Cfg_2</Key><CfgParent>Base</CfgParent></BuildConfiguration>
   </ItemGroup>

@@ -1,0 +1,47 @@
+package ELNMitFileViewer;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This, SHOULD NOT BE EDITED MANUALLY}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS ON}
+{$RANGECHECKS ON}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$RUNONLY}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  vcl,
+  vclimg,
+  vclwinx,
+  RaizeComponentsVcl,
+  TMSVCLPluginFrameworkPkgCoreDXE16,
+  ELNPluginCore,
+  Tee;
+
+contains
+  unit_MitFilePlugin in 'unit_MitFilePlugin.pas' {ELNMitFileViewerPlugin: TupfVisualPlugin},
+  frame_MitFileViewer in 'frame_MitFileViewer.pas' {frameMitFileViewer: TFrame},
+  unit_MitFileParser in 'unit_MitFileParser.pas',
+  unit_MitAnalysis in 'unit_MitAnalysis.pas';
+
+end.

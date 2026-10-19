@@ -78,7 +78,7 @@ foreach ($key in @('IsccPath', 'RuntimeBplRoot', 'SQLiteRuntime', 'WebView2Runti
 foreach ($pair in @(@{ Key = 'SQLiteRuntime'; Name = 'sqlite3.dll' }, @{ Key = 'WebView2Runtime'; Name = 'WebView2Loader.dll' })) {
   if ([IO.Path]::GetFileName($runtime[$pair.Key]) -ine $pair.Name) { throw "$($pair.Key) must select $($pair.Name)." }
 }
-$hostRoot = Join-Path $RepoRoot "_OUT/CommunityDesktop/$Platform/$Configuration"
+$hostRoot = Join-Path $RepoRoot '_OUT/CommunityDesktop'
 $viewerRoot = Join-Path $RepoRoot "_OUT/ViewerPackages/$Platform/$Configuration"
 $files = [Collections.Generic.List[object]]::new()
 function Add-File([string]$Source, [string]$Relative, [bool]$Compiled = $false) {
@@ -112,7 +112,8 @@ foreach ($directory in @('Core', 'Core.Protocol', 'Viewer.Image', 'Viewer.HTML',
     'Viewer.ColumnarData', 'Viewer.PDF', 'Viewer.Protocol', 'Editor.Markdown', 'Viewer.JSON',
     'Viewer.Note', 'Viewer.OLE', 'Viewer.File', 'Viewer.LAMMPS', 'Viewer.XRDML', 'Viewer.DM3',
     'Viewer.OPJU', 'Viewer.XRayCalc', 'Viewer.XRFX', 'Viewer.Deposition', 'Viewer.ProcessLog',
-    'Viewer.Recipe', 'Viewer.DSC', 'Viewer.DSR')) {
+    'Viewer.Recipe', 'Viewer.DSC', 'Viewer.DSR', 'Viewer.ZRWViewer', 'Viewer.MitFile', 'Viewer.FIBPS',
+    'Viewer.TriboViewer', 'Viewer.VK4')) {
   $sourceDirectory = Join-Path $RepoRoot "ViewerPlugins/$directory"
   Assert-Input $sourceDirectory 'Container'
   $packages = @(Get-ChildItem -LiteralPath $sourceDirectory -Filter '*.dpk' -File)

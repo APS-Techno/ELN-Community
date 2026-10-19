@@ -342,7 +342,7 @@ begin
       Index := cbFileType.Items.IndexOfObject(FSelectedFileType);
       if Index < 0 then Index := 0;
       cbFileType.ItemIndex := Index;
-      edName.Text := TPath.GetFileNameWithoutExtension(Paths[0]);
+      edName.Text := SuggestedAttachmentName(Paths[0], FSelectedFileType);
       FValidationError := '';
     end;
   end
@@ -415,8 +415,8 @@ begin
   for I := 0 to High(Paths) do
   begin
     AFiles[I].SourcePath := Paths[I];
-    AFiles[I].Name := TPath.GetFileNameWithoutExtension(Paths[I]);
     AFiles[I].FileType := ResolveFileType(Paths[I], FAllFileTypes);
+    AFiles[I].Name := SuggestedAttachmentName(Paths[I], AFiles[I].FileType);
     if Length(Paths) = 1 then
     begin
       AFiles[I].Name := Trim(edName.Text);
@@ -478,8 +478,8 @@ begin
       else
       begin
         Result[I].SourcePath := Paths[I];
-        Result[I].Name := TPath.GetFileNameWithoutExtension(Paths[I]);
         Result[I].FileType := ResolveFileType(Paths[I], FAllFileTypes);
+        Result[I].Name := SuggestedAttachmentName(Paths[I], Result[I].FileType);
       end;
     end;
   finally

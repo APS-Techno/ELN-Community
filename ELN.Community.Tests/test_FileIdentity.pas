@@ -13,6 +13,8 @@ type
     [Test] procedure MessageHalvesRoundTripWithoutPointers;
     [Test] procedure PersistedLookupPathAndViewerStateKeepInt64;
     [Test] procedure ToolParametersKeepInt64;
+    [Test] procedure AttachmentTitleDropsTheWholeTypeExtension;
+    [Test] procedure ReplacementKeepsACompoundTypeAndItsName;
   end;
 
 implementation
@@ -26,12 +28,51 @@ uses
   unit_Project, unit_Item, unit_ItemTypes, unit_FileType,
   unit_FileLocator, unit_PreviewMessages, unit_TimeHelper, unit_FilePaths,
   unit_LocalElnFileService, unit_ToolsWrite, unit_AuditLog, unit_AuditHelper,
-  unit_MCPTools, unit_ToolDownloads, unit_User, unit_ELNPluginCore;
+  unit_MCPTools, unit_ToolDownloads, unit_User, unit_ELNPluginCore,
+  unit_FileSelection;
 
 procedure TFileIdentityTests.FileTokensKeepEveryDigit;
 begin
   Assert.AreEqual('[2147483648]', FileNameToken(Int64(2147483648)));
   Assert.AreEqual('[9007199254740993]', FileNameToken(Int64(9007199254740993)));
+end;
+
+procedure TFileIdentityTests.AttachmentTitleDropsTheWholeTypeExtension;
+begin
+  Assert.AreEqual('Deposition_2026-10-14_11-56-09', AttachmentTitle(
+    'h:\Runs\Deposition_2026-10-14_11-56-09.depo.json', '.depo.json'));
+  Assert.AreEqual('run', AttachmentTitle('RUN.DEPO.JSON', '.depo.json').ToLower);
+  Assert.AreEqual('events', AttachmentTitle('events.process.log', '.process.log'));
+  Assert.AreEqual('run.depo', AttachmentTitle('run.depo.json', '.json'));
+  Assert.AreEqual('notes', AttachmentTitle('notes.txt', '.json'));
+  Assert.AreEqual('notes', AttachmentTitle('notes.txt', ''));
+end;
+
+procedure TFileIdentityTests.ReplacementKeepsACompoundTypeAndItsName;
+var
+  Types: TFileTypes;
+  Json, Depo, Tsv: TFileType;
+begin
+  Types := TFileTypes.Create;
+  Json := TFileType.Create;
+  Depo := TFileType.Create;
+  Tsv := TFileType.Create;
+  try
+    Json.Ext := '.json';
+    Depo.Ext := '.depo.json';
+    Tsv.Ext := '.tsv';
+    Types.AddRange([Json, Depo, Tsv]);
+    Assert.AreSame(Depo, ResolveReplacementFileType('new.DEPO.JSON', Depo, Types));
+    Assert.AreSame(Json, ResolveReplacementFileType('new.depo.json', Json, Types));
+    Assert.AreSame(Depo, ResolveReplacementFileType('new.depo.json', Tsv, Types));
+    Assert.AreSame(Json, ResolveReplacementFileType('settings.json', Depo, Types));
+    Assert.IsNull(ResolveReplacementFileType('photo.png', Depo, Types));
+  finally
+    Types.Free;
+    Tsv.Free;
+    Depo.Free;
+    Json.Free;
+  end;
 end;
 
 procedure TFileIdentityTests.MessageHalvesRoundTripWithoutPointers;
@@ -96,6 +137,8 @@ var
   Registry: TToolRegistry;
   Params, Response: TJSONObject;
   DownloadPath: string;
+  RenamedStoragePath, RenameTitle: string;
+  Step: Integer;
 begin
   CreateGUID(Guid);
   Root := TPath.Combine(TPath.GetTempPath, 'ELN-FileIdentity-' + GUIDToString(Guid));
@@ -167,17 +210,45 @@ begin
         Registry := TToolRegistry.Create(Context);
         try
           RegisterWriteTools(Registry);
-          Params := TJSONObject.ParseJSONValue('{"file_id":' + IntToStr(Id) +
-            ',"new_title":"identity"}') as TJSONObject;
-          try
-            Response := Registry.Execute('rename_file', Params);
+          RenamedStoragePath := Format('Projects\%s\%s\%s',
+            [CleanFileName(Project.FileFolder), CleanFileName(Item.FolderName),
+             FileNameToken(Id) + 'identity-renamed.txt']);
+          for Step := 0 to 1 do
+          begin
+            if Step = 0 then
+              RenameTitle := 'identity-renamed'
+            else
+              RenameTitle := 'identity';
+            Params := TJSONObject.ParseJSONValue('{"file_id":' + IntToStr(Id) +
+              ',"new_title":"' + RenameTitle + '"}') as TJSONObject;
             try
-              Assert.AreEqual(Id, Response.GetValue<Int64>('id'));
+              Response := Registry.Execute('rename_file', Params);
+              try
+                Assert.AreEqual(Id, Response.GetValue<Int64>('id'));
+              finally
+                Response.Free;
+              end;
             finally
-              Response.Free;
+              Params.Free;
             end;
-          finally
-            Params.Free;
+            if Step = 0 then
+            begin
+              Assert.IsFalse(Notebook.Storage.Exists(StoragePath),
+                'Old storage path must be absent after rename');
+              Assert.IsTrue(Notebook.Storage.Exists(RenamedStoragePath),
+                'Renamed storage path must exist');
+              Assert.AreEqual('exact identity', TEncoding.UTF8.GetString(
+                Notebook.Storage.ReadBytes(RenamedStoragePath)));
+            end
+            else
+            begin
+              Assert.IsTrue(Notebook.Storage.Exists(StoragePath),
+                'Original storage path must exist after renaming back');
+              Assert.IsFalse(Notebook.Storage.Exists(RenamedStoragePath),
+                'Renamed storage path must be absent after renaming back');
+              Assert.AreEqual('exact identity', TEncoding.UTF8.GetString(
+                Notebook.Storage.ReadBytes(StoragePath)));
+            end;
           end;
         finally
           Registry.Free;

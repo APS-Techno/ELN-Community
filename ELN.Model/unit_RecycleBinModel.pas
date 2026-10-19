@@ -45,6 +45,7 @@ uses
   Aurelius.Criteria.Base,
   Aurelius.Criteria.Projections,
   unit_Hypothesis,
+  unit_AnalysisSettingsModel,
   unit_HypothesisGuard,
   unit_HypothesisModel,
   unit_AuditHelper,
@@ -142,7 +143,14 @@ end;
 procedure TRecycleBinModel.PurgeItemRows(AItemId: Integer);
 var
   I: Integer;
+  Analysis: TAnalysisSettingsModel;
 begin
+  Analysis := TAnalysisSettingsModel.Create(FManager);
+  try
+    Analysis.DeleteForItemRows(AItemId);
+  finally
+    Analysis.Free;
+  end;
   for I := Low(ItemChildDeletes) to High(ItemChildDeletes) do
     ExecSQL(StringReplace(ItemChildDeletes[I], '%ID%', IntToStr(AItemId),
       [rfReplaceAll]));

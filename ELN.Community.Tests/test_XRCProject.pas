@@ -74,6 +74,17 @@ type
     [Test] procedure Keys_ConditionsAndUnits;
     [Test] procedure Keys_RepeatedMaterialSuffix;
     [Test] procedure LayerSequence_UsesProfile;
+    [Test] procedure Keys_PolynomialStackMeans;
+    [Test] procedure Keys_TableStackMeans;
+    [Test] procedure Keys_SurfaceDoesNotRenameMainStack;
+    [Test] procedure Keys_NoMainStackHasNoPeriod;
+    [TestCase('Missing', 'seed=7')]
+    [TestCase('Invalid', 'chiSquared=invalid')]
+    [TestCase('Empty', 'chiSquared=')]
+    procedure Keys_InvalidChi2Omitted(const FitEntry: string);
+    [TestCase('Positive', '0.94,0.94')]
+    [TestCase('Zero', '0,0')]
+    procedure Keys_ValidChi2(const Text: string; Expected: Double);
   end;
 
 const
@@ -762,16 +773,17 @@ begin
     '{"T":"B","N":3,"Layers":[{"M":"W","H":4,"s":0,"r":19},{"M":"B4C","H":5,"s":0,"r":2.5}]}],' +
     '"Subs":{"M":"Si","s":0,"r":2.33}}'), [])));
   N := Names(KVs);
-  Assert.IsTrue(FindKV(KVs, 'C Thickness', KV), N);
+  Assert.IsTrue(FindKV(KVs, 'C Thickness (stack 1)', KV), N);
   Assert.AreEqual(1.0, KV.Value, 1e-9);
   Assert.IsTrue(FindKV(KVs, 'C Thickness (stack 1 layer 3)', KV), N);
   Assert.AreEqual(3.0, KV.Value, 1e-9);
   Assert.IsTrue(FindKV(KVs, 'W Thickness', KV), N);
-  Assert.AreEqual(2.0, KV.Value, 1e-9);
-  Assert.IsTrue(FindKV(KVs, 'W Thickness (stack 2)', KV), N);
   Assert.AreEqual(4.0, KV.Value, 1e-9);
+  Assert.IsTrue(FindKV(KVs, 'W Thickness (stack 1)', KV), N);
+  Assert.AreEqual(2.0, KV.Value, 1e-9);
   Assert.IsTrue(FindKV(KVs, 'B4C Thickness', KV), N);
-  Assert.IsTrue(FindKV(KVs, 'W Density (stack 2)', KV), N);
+  Assert.AreEqual(5.0, KV.Value, 1e-9);
+  Assert.IsTrue(FindKV(KVs, 'W Density (stack 1)', KV), N);
   Assert.IsTrue(FindKV(KVs, 'Period', KV), N);
   Assert.AreEqual(9.0, KV.Value, 1e-9);
 end;
@@ -794,6 +806,131 @@ begin
   finally
     J.Free;
   end;
+end;
+
+procedure TXRCProjectOutputTests.Keys_PolynomialStackMeans;
+var
+  P: TXRCProject;
+  KVs: TArray<TPluginKeyValue>;
+  KV: TPluginKeyValue;
+  J: TJSONObject;
+begin
+  P := LoadXRCProject(WriteXRCX('profile.xrcx', Params8,
+    Tree([GroupNode(0, [ModelNode(1, 'Model',
+      '{"Stacks":[{"N":20,"Layers":[{"M":"C","H":30,"s":2,"r":2},' +
+      '{"M":"Co","H":20,"s":3,"r":8}]}],"Subs":{"M":"Si","s":1,"r":2.3}}',
+      [ExtNode(0, 0, 0, [0.5]), ExtNode(0, 1, 0, [-0.25]),
+       ExtNode(0, 0, 1, [0.25]), ExtNode(0, 1, 2, [-0.125])])]),
+      GroupNode(1, [])]), []));
+  KVs := BuildXRCKeyValues(P);
+  Assert.IsTrue(FindKV(KVs, 'Period', KV));
+  Assert.AreEqual(52.375, KV.Value, 1e-9);
+  Assert.IsTrue(FindKV(KVs, 'C Thickness', KV));
+  Assert.AreEqual(34.75, KV.Value, 1e-9);
+  Assert.IsTrue(FindKV(KVs, 'Co Thickness', KV));
+  Assert.AreEqual(17.625, KV.Value, 1e-9);
+  Assert.IsTrue(FindKV(KVs, 'C Roughness', KV));
+  Assert.AreEqual(4.375, KV.Value, 1e-9);
+  Assert.IsTrue(FindKV(KVs, 'Co Density', KV));
+  Assert.AreEqual(6.8125, KV.Value, 1e-9);
+  J := Info(P);
+  try
+    Assert.AreEqual(50.0, J.GetValue<Double>('stacks[0].period_A'), 1e-9);
+  finally
+    J.Free;
+  end;
+end;
+
+procedure TXRCProjectOutputTests.Keys_TableStackMeans;
+var
+  KVs: TArray<TPluginKeyValue>;
+  KV: TPluginKeyValue;
+begin
+  KVs := BuildXRCKeyValues(LoadXRCProject(WriteXRCX('table.xrcx', Params8,
+    StdTree('{"Stacks":[{"N":3,"Layers":[' +
+      '{"M":"C","H":10,"s":1,"r":2,"ProfileH":"10;14;18","Profiles":"1;2;6"},' +
+      '{"M":"Co","H":20,"s":2,"r":8,"ProfileH":"20;22;30","Profiler":"8;7;6"}]}],' +
+      '"Subs":{"M":"Si","s":1,"r":2.3}}'), [])));
+  Assert.IsTrue(FindKV(KVs, 'Period', KV));
+  Assert.AreEqual(38.0, KV.Value, 1e-9);
+  Assert.IsTrue(FindKV(KVs, 'C Thickness', KV));
+  Assert.AreEqual(14.0, KV.Value, 1e-9);
+  Assert.IsTrue(FindKV(KVs, 'Co Thickness', KV));
+  Assert.AreEqual(24.0, KV.Value, 1e-9);
+  Assert.IsTrue(FindKV(KVs, 'C Roughness', KV));
+  Assert.AreEqual(3.0, KV.Value, 1e-9);
+  Assert.IsTrue(FindKV(KVs, 'Co Density', KV));
+  Assert.AreEqual(7.0, KV.Value, 1e-9);
+end;
+
+procedure TXRCProjectOutputTests.Keys_SurfaceDoesNotRenameMainStack;
+const
+  Main = '{"N":20,"Layers":[{"M":"C","H":30,"s":2,"r":2},' +
+    '{"M":"Co","H":20,"s":3,"r":8},{"M":"C","H":5,"s":1,"r":2}]}';
+var
+  KVs: TArray<TPluginKeyValue>;
+  KV: TPluginKeyValue;
+  Surface: Integer;
+  Stacks: string;
+begin
+  for Surface := 0 to 1 do
+  begin
+    Stacks := Main;
+    if Surface = 1 then
+      Stacks := '{"N":1,"Layers":[{"M":"C","H":11,"s":1,"r":2}]},' + Main;
+    KVs := BuildXRCKeyValues(LoadXRCProject(WriteXRCX(
+      IntToStr(Surface) + '.xrcx', Params8,
+      StdTree('{"Stacks":[' + Stacks + '],"Subs":{"M":"Si","s":1,"r":2.3}}'), [])));
+    Assert.IsTrue(FindKV(KVs, 'C Thickness', KV));
+    Assert.AreEqual(30.0, KV.Value, 1e-9);
+    Assert.IsTrue(FindKV(KVs, 'Co Thickness', KV));
+    Assert.AreEqual(20.0, KV.Value, 1e-9);
+    Assert.IsTrue(FindKV(KVs, Format('C Thickness (stack %d layer 3)',
+      [Surface + 1]), KV));
+    Assert.AreEqual(5.0, KV.Value, 1e-9);
+    Assert.IsTrue(FindKV(KVs, 'Period', KV));
+    Assert.AreEqual(55.0, KV.Value, 1e-9);
+    if Surface = 1 then
+    begin
+      Assert.IsTrue(FindKV(KVs, 'C Thickness (stack 1)', KV));
+      Assert.AreEqual(11.0, KV.Value, 1e-9);
+    end;
+  end;
+end;
+
+procedure TXRCProjectOutputTests.Keys_NoMainStackHasNoPeriod;
+var
+  KVs: TArray<TPluginKeyValue>;
+  KV: TPluginKeyValue;
+begin
+  KVs := BuildXRCKeyValues(LoadXRCProject(WriteXRCX('single.xrcx', Params8,
+    StdTree('{"Stacks":[{"N":1,"Layers":[{"M":"C","H":11,"s":1,"r":2}]}],' +
+      '"Subs":{"M":"Si","s":1,"r":2.3}}'), [])));
+  Assert.IsFalse(FindKV(KVs, 'Period', KV));
+  Assert.IsTrue(FindKV(KVs, 'C Thickness (stack 1)', KV));
+  Assert.AreEqual(11.0, KV.Value, 1e-9);
+end;
+
+procedure TXRCProjectOutputTests.Keys_InvalidChi2Omitted(const FitEntry: string);
+var
+  P: TXRCProject;
+  KV: TPluginKeyValue;
+begin
+  P := LoadXRCProject(WriteXRCX('chi.xrcx',
+    Params8('[FITRESULT]'#13#10 + FitEntry + #13#10), StdTree(WSI_JSON), []));
+  Assert.IsTrue(P.FitResult.Present);
+  Assert.IsFalse(FindKV(BuildXRCKeyValues(P), 'Chi2', KV));
+end;
+
+procedure TXRCProjectOutputTests.Keys_ValidChi2(const Text: string; Expected: Double);
+var
+  KVs: TArray<TPluginKeyValue>;
+  KV: TPluginKeyValue;
+begin
+  KVs := BuildXRCKeyValues(LoadXRCProject(WriteXRCX('chi.xrcx',
+    Params8('[FITRESULT]'#13#10'chiSquared=' + Text + #13#10), StdTree(WSI_JSON), [])));
+  Assert.IsTrue(FindKV(KVs, 'Chi2', KV));
+  Assert.AreEqual(Expected, KV.Value, 1e-9);
 end;
 
 initialization

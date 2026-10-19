@@ -254,7 +254,7 @@ begin
     Value.RecType := TRecType.TEST_RESULT;
     Value.Value := 2.5;
     ApplySource(Value, TValueSourceInfo.Reader(7, 'synthetic.reader', '1.2',
-      'Thickness'));
+      'Thickness', 'm', 1));
     Dialog := NewDialog(Thickness);
     Dialog.LoadValue(Value, 'scan.dat');
     Assert.Contains(Dialog.lblSource.Caption, 'synthetic.reader');
@@ -300,7 +300,7 @@ begin
     Value.ValueType := Thickness;
     Value.Value := Stored;
     ApplySource(Value, TValueSourceInfo.Reader(7, 'synthetic.reader', '1.2',
-      'Thickness'));
+      'Thickness', 'm', 1));
     Dialog := NewDialog(Thickness);
     Dialog.LoadValue(Value, '');
     Dialog.edDescription.Text := 'Only the description changes';

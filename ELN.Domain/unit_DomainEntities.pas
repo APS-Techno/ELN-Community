@@ -51,6 +51,7 @@ uses
   unit_UsersHistory,
   unit_UserTreeState,
   unit_ValueType,
+  unit_ReaderValueMapping,
   unit_ViewerState;
 
 function DomainEntityClasses: TArray<TClass>;
@@ -71,7 +72,7 @@ begin
     THypothesisEvidence,
     THypothesisRun,
     THypothesisStatusChange,
-    unit_Item.TItem, unit_Item.TFile, unit_Item.TValue,
+    unit_Item.TItem, unit_Item.TFile, unit_Item.TValue, unit_Item.TDerivedValueInput,
     TItemLink,
     TLabEntry,
     TLinkType,
@@ -89,6 +90,7 @@ begin
     TUsersHistory,
     TUserTreeState,
     TValueType,
+    TReaderValueMapping,
     TViewerState
   ];
 end;

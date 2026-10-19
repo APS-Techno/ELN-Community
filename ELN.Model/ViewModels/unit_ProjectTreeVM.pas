@@ -78,8 +78,8 @@ type
 
     procedure MoveFolder(Folder: TFolder; SrcProjectId, DstProjectId, DstParentFolderId: Integer;
       const Relocator: IFileRelocator = nil);
-    procedure MoveProc(Proc: TItem; NewProjectId, NewFolderId: Integer;
-      const Relocator: IFileRelocator = nil);
+    function MoveProc(Proc: TItem; NewProjectId, NewFolderId: Integer;
+      const Relocator: IFileRelocator = nil): Boolean;
     procedure ReparentFolderUp(Folder: TFolder);
     procedure ReorderProjects(const OrderedIds: TArray<Integer>);
     procedure ReorderFolders(const OrderedIds: TArray<Integer>);
@@ -442,11 +442,12 @@ begin
   DoChanged;
 end;
 
-procedure TProjectTreeVM.MoveProc(Proc: TItem; NewProjectId, NewFolderId: Integer;
-  const Relocator: IFileRelocator);
+function TProjectTreeVM.MoveProc(Proc: TItem; NewProjectId, NewFolderId: Integer;
+  const Relocator: IFileRelocator): Boolean;
 begin
-  FItemModel.MoveProc(Proc, NewProjectId, NewFolderId, UserId, Relocator);
-  DoChanged;
+  Result := FItemModel.MoveProc(Proc, NewProjectId, NewFolderId, UserId, Relocator);
+  if Result then
+    DoChanged;
 end;
 
 procedure TProjectTreeVM.ReparentFolderUp(Folder: TFolder);

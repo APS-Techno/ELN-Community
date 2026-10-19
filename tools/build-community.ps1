@@ -11,7 +11,8 @@ param(
   [switch]$RunTests,
   [string]$SourceRoot = (Split-Path $PSScriptRoot -Parent),
   [string]$ViewerRoot,
-  [string]$DependencyConfig
+  [string]$DependencyConfig,
+  [string]$RuntimeConfig
 )
 
 $ErrorActionPreference = 'Stop'
@@ -73,8 +74,29 @@ if ($Target -notin @('StorageTests', 'StorageSmoke', 'MarkdownEditorAttachmentTe
 $desktopTarget = $Target -eq 'CommunityDesktop'
 $viewerTarget = $Target -in @('AuthorizationTests', 'LocalFileTests', 'DesktopRegressionTests',
   'MarkdownLauncherTests', 'CommunityDesktop', 'CommunityMCP', 'ViewerPackages')
-$outputRoot = Join-Path $sourceRoot "_OUT\$Target\$Platform\$Configuration"
-$packageRoot = Join-Path $outputRoot 'Packages'
+$outputRoot = if ($desktopTarget) { Join-Path $sourceRoot '_OUT\CommunityDesktop' }
+  else { Join-Path $sourceRoot "_OUT\$Target\$Platform\$Configuration" }
+$intermediateRoot = if ($desktopTarget) { Join-Path $outputRoot "Intermediate\$Platform\$Configuration" }
+  else { $outputRoot }
+if ($desktopTarget) {
+  if (-not $RuntimeConfig) { $RuntimeConfig = Join-Path $sourceRoot 'installer-runtime.local.psd1' }
+  if (-not (Test-Path -LiteralPath $RuntimeConfig -PathType Leaf)) {
+    throw "Runtime configuration missing: $RuntimeConfig. CommunityDesktop needs its WebView2Runtime entry."
+  }
+  $webView2Loader = [string](Import-PowerShellDataFile -LiteralPath $RuntimeConfig).WebView2Runtime
+  if (-not [IO.Path]::IsPathFullyQualified($webView2Loader) -or
+      [IO.Path]::GetFileName($webView2Loader) -ine 'WebView2Loader.dll' -or
+      -not (Test-Path -LiteralPath $webView2Loader -PathType Leaf)) {
+    throw "WebView2Runtime must be an existing absolute WebView2Loader.dll path: $webView2Loader"
+  }
+  $header = [IO.File]::ReadAllBytes($webView2Loader)
+  $machine = [BitConverter]::ToUInt16($header, [BitConverter]::ToInt32($header, 0x3C) + 4)
+  $expectedMachine = if ($Platform -eq 'Win32') { 0x14C } else { 0x8664 }
+  if ($machine -ne $expectedMachine) {
+    throw "WebView2Runtime does not match platform ${Platform}: $webView2Loader"
+  }
+}
+$packageRoot = Join-Path $intermediateRoot 'Packages'
 $sourceName = switch ($Target) {
   'StorageTests' { 'CommunityStorageTests.dpr' }
   'StorageSmoke' { 'CommunityStorageSmoke.dpr' }
@@ -108,13 +130,13 @@ if ($Target -in @('DesktopRegressionTests', 'MarkdownLauncherTests')) {
 if ($Target -eq 'DesktopRegressionTests') {
   $unitPaths += @("$viewerRoot\Viewer.LAMMPS", "$viewerRoot\Viewer.XRDML",
     "$viewerRoot\Viewer.DSC", "$viewerRoot\Viewer.DM3", "$viewerRoot\Viewer.XRFX",
-    "$viewerRoot\Viewer.XRayCalc")
+    "$viewerRoot\Viewer.XRayCalc", "$viewerRoot\Viewer.ZRWViewer", "$viewerRoot\Viewer.MitFile")
 }
 if ($Target -eq 'MarkdownEditorAttachmentTests') {
   $unitPaths += @("$viewerRoot\Editor.Markdown", "$viewerRoot\Viewer.Markdown")
 }
 $viewerPackages = @('Core\ELNPluginCore', 'Core.Protocol\ELNProtocolCore')
-if ($Target -eq 'ViewerPackages') {
+if ($Target -eq 'ViewerPackages' -or $desktopTarget) {
   $viewerPackages += @('Viewer.Image\ELNImageViewer', 'Viewer.HTML\ELNHTMLViewer',
     'Viewer.Markdown\ELNMarkdownViewer', 'Viewer.ColumnarData\ELNColumnarDataViewer',
     'Viewer.PDF\ELNPDFViewer', 'Viewer.Protocol\ELNProtocolViewer',
@@ -124,7 +146,9 @@ if ($Target -eq 'ViewerPackages') {
     'Viewer.DM3\ELNDM3Viewer', 'Viewer.OPJU\ELNOPJUViewer', 'Viewer.XRayCalc\ELNXRCViewer',
     'Viewer.XRFX\ELNXRFXViewer', 'Viewer.Deposition\ELNDepositionViewer',
     'Viewer.ProcessLog\ELNProcessLogViewer', 'Viewer.Recipe\ELNRecipeViewer',
-    'Viewer.DSC\ELNDSCViewer', 'Viewer.DSR\ELNDSRViewer')
+    'Viewer.DSC\ELNDSCViewer', 'Viewer.DSR\ELNDSRViewer',
+    'Viewer.ZRWViewer\ELNZRWViewer', 'Viewer.MitFile\ELNMitFileViewer',
+    'Viewer.FIBPS\ELNFIBPSViewer', 'Viewer.TriboViewer\ELNTriboViewer', 'Viewer.VK4\ELNVK4Viewer')
 }
 if ($viewerTarget) {
   foreach ($package in $viewerPackages) {
@@ -179,9 +203,17 @@ if ($viewerTarget) {
   # Viewer contracts precede legacy same-name desktop units and installed DCPs.
   $unitPaths = @($packageRoot, "$viewerRoot\Core", "$viewerRoot\Core.Protocol") + $unitPaths
 }
+if ($Target -eq 'ViewerPackages' -or $desktopTarget) {
+  $pluginRoot = Join-Path $outputRoot 'Plugins'
+  $markdownRoot = Join-Path $pluginRoot 'MarkdownViewer'
+  New-Item -ItemType Directory -Force -Path $pluginRoot, $markdownRoot | Out-Null
+  Copy-Item -LiteralPath (Join-Path $viewerRoot 'Core.Protocol\Templates') -Destination $pluginRoot -Recurse -Force
+  Get-ChildItem -LiteralPath (Join-Path $viewerRoot 'Viewer.Markdown\assets') |
+    Copy-Item -Destination $markdownRoot -Recurse -Force
+}
 if ($Target -eq 'ViewerPackages') { return }
 $unitPaths += $externalPaths
-New-Item -ItemType Directory -Force -Path "$outputRoot\DCU", "$outputRoot\Hpp" | Out-Null
+New-Item -ItemType Directory -Force -Path "$intermediateRoot\DCU", "$intermediateRoot\Hpp" | Out-Null
 $encodedPaths = $unitPaths -join '%3B'
 $arguments = @(
   "`"$project`"", '/t:Build', "/p:MainSource=$sourceName",
@@ -193,9 +225,9 @@ $arguments = @(
   "`"/p:PluginCorePath=$viewerRoot\Core`"",
   "`"/p:ELN_ExternalUnitPaths=$($externalPaths -join '%3B')`"",
   "`"/p:DCC_UnitSearchPath=$encodedPaths`"",
-  "`"/p:DCC_ExeOutput=$outputRoot`"", "`"/p:DCC_DcuOutput=$outputRoot\DCU`"",
+  "`"/p:DCC_ExeOutput=$outputRoot`"", "`"/p:DCC_DcuOutput=$intermediateRoot\DCU`"",
   "`"/p:DCC_DcpOutput=$packageRoot`"", "`"/p:DCC_BplOutput=$outputRoot`"",
-  "`"/p:DCC_HppOutput=$outputRoot\Hpp`"", "`"/p:DCC_ResourceOutput=$outputRoot`"",
+  "`"/p:DCC_HppOutput=$intermediateRoot\Hpp`"", "`"/p:DCC_ResourceOutput=$intermediateRoot`"",
   '/p:DCC_MapFile=3', '/p:PreBuildEvent=', '/p:PostBuildEvent=', '/p:PreLinkEvent=', '/v:normal', '/nologo'
 )
 if ($Target -in @('DesktopRegressionTests', 'MarkdownLauncherTests')) {
@@ -222,6 +254,7 @@ if ($desktopTarget) {
   Copy-Item -LiteralPath $catalogSource -Destination $outputRoot -Recurse -Force
   $helpSource = Join-Path $sourceRoot 'ELN.Desktop\Assets\Runtime\Help'
   Copy-Item -LiteralPath $helpSource -Destination $outputRoot -Recurse -Force
+  Copy-Item -LiteralPath $webView2Loader -Destination $outputRoot -Force
 }
 if ($RunTests) {
   $executable = Join-Path $outputRoot ([IO.Path]::ChangeExtension($sourceName, '.exe'))

@@ -69,6 +69,9 @@ type
 
   function ShowActionDialog(const Mode: TDlgMode; var Item: TItem;
     AllowedLevels: TItemLevels): boolean;
+  function ShowQuickActionType(AItemType: TItemType;
+    out ATitle: string; out AKind: TActionKind): Boolean;
+  function ShowQuickEquipment(out AModel, AManufacturer, ALocation: string): Boolean;
 
 implementation
 
@@ -350,6 +353,43 @@ begin
 end;
 
 
+type
+  TRequiredEdits = class(TComponent)
+  private
+    FEdits: TArray<TEdit>;
+    FOk: TButton;
+    procedure EditChange(Sender: TObject);
+  public
+    constructor Create(AOwner: TComponent; const AEdits: TArray<TEdit>;
+      AOk: TButton); reintroduce;
+  end;
+
+constructor TRequiredEdits.Create(AOwner: TComponent; const AEdits: TArray<TEdit>;
+  AOk: TButton);
+var
+  Edit: TEdit;
+begin
+  inherited Create(AOwner);
+  FEdits := AEdits;
+  FOk := AOk;
+  for Edit in FEdits do
+    Edit.OnChange := EditChange;
+  EditChange(nil);
+end;
+
+procedure TRequiredEdits.EditChange(Sender: TObject);
+var
+  Edit: TEdit;
+begin
+  for Edit in FEdits do
+    if Trim(Edit.Text) = '' then
+    begin
+      FOk.Enabled := False;
+      Exit;
+    end;
+  FOk.Enabled := True;
+end;
+
 function ShowQuickActionType(AItemType: TItemType;
   out ATitle: string; out AKind: TActionKind): Boolean;
 var
@@ -424,10 +464,16 @@ begin
     btnCancel.Cancel := True;
     btnCancel.SetBounds(S(232), S(126), S(80), S(28));
 
+    lbl := TLabel.Create(Frm);
+    lbl.Parent := Frm;
+    lbl.SetBounds(S(12), S(132), S(130), S(20));
+    lbl.Caption := 'Title is required.';
+
+    TRequiredEdits.Create(Frm, [edTitle], btnOk);
+
     if Frm.ShowModal = mrOk then
     begin
       ATitle := Trim(edTitle.Text);
-      if ATitle = '' then Exit;
       AKind := TActionKind(cbKind.ItemIndex);
       Result := True;
     end;
@@ -503,12 +549,18 @@ begin
     btnCancel.Cancel := True;
     btnCancel.SetBounds(S(232), S(176), S(80), S(28));
 
+    lbl := TLabel.Create(Frm);
+    lbl.Parent := Frm;
+    lbl.SetBounds(S(12), S(182), S(130), S(20));
+    lbl.Caption := 'All fields are required.';
+
+    TRequiredEdits.Create(Frm, [edModel, edMfr, edLoc], btnOk);
+
     if Frm.ShowModal = mrOk then
     begin
       AModel := Trim(edModel.Text);
       AManufacturer := Trim(edMfr.Text);
       ALocation := Trim(edLoc.Text);
-      if (AModel = '') or (AManufacturer = '') or (ALocation = '') then Exit;
       Result := True;
     end;
   finally

@@ -14,7 +14,7 @@ type
   private
     FLogFile: TLogFile;
     FSnapshot: TDepoSnapshot;
-    FHasLog, FHasSnapshot: Boolean;
+    FHasLog, FHasSnapshot, FPreviewOverview: Boolean;
     FItemId: Integer;
     FFileId: Int64;
     function Viewer: TframeDepositionViewer;
@@ -204,6 +204,7 @@ var
 begin
   FHasLog := False;
   FHasSnapshot := False;
+  FPreviewOverview := False;
   Ext := LowerCase(ExtractFileExt(AFileName));
 
   if Ext = '.tsv' then
@@ -245,6 +246,7 @@ begin
   end;
 
   FHasSnapshot := True;
+  FPreviewOverview := True;
   FindPartnerTsv(AFileName, Text);
   Result := Viewer.DisplayRun(LogOrNil, FSnapshot);
 end;
@@ -261,7 +263,10 @@ end;
 
 function TELNDepositionViewerPlugin.GetPreview(MaxWidth, MaxHeight: Integer): TBitmap;
 begin
-  Result := Viewer.GetPreviewBitmap(MaxWidth, MaxHeight);
+  if FPreviewOverview then
+    Result := Viewer.GetOverviewPreviewBitmap(MaxWidth, MaxHeight)
+  else
+    Result := Viewer.GetPreviewBitmap(MaxWidth, MaxHeight);
 end;
 
 function TELNDepositionViewerPlugin.SaveState: string;

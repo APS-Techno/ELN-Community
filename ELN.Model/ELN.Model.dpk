@@ -35,6 +35,7 @@ requires
   aurelius;
 
 contains
+  unit_ReaderValueStatistics in 'unit_ReaderValueStatistics.pas',
   unit_TimeHelper in '..\ELN.Domain\unit_TimeHelper.pas',
   unit_ProjectAccessPolicy in 'unit_ProjectAccessPolicy.pas',
   unit_Hypothesis in '..\ELN.Domain\unit_Hypothesis.pas',
@@ -85,9 +86,13 @@ contains
   unit_ValueType in '..\ELN.Domain\unit_ValueType.pas',
   unit_ValueTypeCategories in '..\ELN.Domain\unit_ValueTypeCategories.pas',
   unit_ValueTypeModel in 'unit_ValueTypeModel.pas',
+  unit_ReaderValueMapping in '..\ELN.Domain\unit_ReaderValueMapping.pas',
+  unit_ReaderValueMappingModel in 'unit_ReaderValueMappingModel.pas',
   unit_ValueSource in 'unit_ValueSource.pas',
   unit_ValueChecks in 'unit_ValueChecks.pas',
   unit_ValueDrift in 'unit_ValueDrift.pas',
+  unit_DerivedFormulas in 'unit_DerivedFormulas.pas',
+  unit_DerivedValueModel in 'unit_DerivedValueModel.pas',
   unit_StorageCheck in 'unit_StorageCheck.pas',
   unit_Template in '..\ELN.Domain\unit_Template.pas',
   unit_ProtocolTemplateModel in 'unit_ProtocolTemplateModel.pas',
@@ -115,6 +120,7 @@ contains
   unit_DBSetting in '..\ELN.Domain\unit_DBSetting.pas',
   unit_ServiceImport in 'unit_ServiceImport.pas',
   unit_DBSettingsModel in 'unit_DBSettingsModel.pas',
+  unit_AnalysisSettingsModel in 'unit_AnalysisSettingsModel.pas',
   unit_SearchModel in 'unit_SearchModel.pas',
   unit_ReportBuilder in 'unit_ReportBuilder.pas',
   unit_ItemLink in '..\ELN.Domain\unit_ItemLink.pas',
@@ -129,6 +135,7 @@ contains
   unit_DomainEntities in '..\ELN.Domain\unit_DomainEntities.pas',
   unit_SchemaUpdate in '..\ELN.DB\unit_SchemaUpdate.pas',
   unit_ItemLinkMigrationSeed in '..\ELN.DB\unit_ItemLinkMigrationSeed.pas',
+  unit_ValueSourceSeed in '..\ELN.DB\unit_ValueSourceSeed.pas',
   unit_AuditModel in 'unit_AuditModel.pas',
   unit_ViewerStateModel in 'unit_ViewerStateModel.pas',
   unit_TemplateTagsModel in 'unit_TemplateTagsModel.pas',

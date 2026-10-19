@@ -7,7 +7,7 @@ uses
   System.SysUtils, System.Classes, System.Generics.Collections,
   Vcl.Controls, Vcl.Forms, Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls,
   Vcl.Dialogs, Vcl.Graphics,
-  unit_Tag;
+  unit_Tag, unit_ItemTreeBatch;
 
 type
   TdlgTagManager = class(TForm)
@@ -29,6 +29,8 @@ type
     procedure lvTagsItemChecked(Sender: TObject; Item: TListItem);
   private
     FItemId: Integer;
+    FItemIds: TArray<Integer>;
+    FBatch: TItemTreeBatch;
     FItemTitle: string;
     FChanged: Boolean;
     FLoading: Boolean;
@@ -37,6 +39,8 @@ type
     procedure LoadTags;
   public
     class procedure ShowTagManager(ItemId: Integer; const ItemTitle: string);
+    class procedure ShowTagManagerBatch(ABatch: TItemTreeBatch;
+      const ItemIds: TArray<Integer>);
     class function ShowTagEditor: Boolean;
   end;
 
@@ -210,15 +214,24 @@ end;
 
 procedure TdlgTagManager.ApplyMode;
 begin
-  if FAssignMode then
+  if FAssignMode and (Length(FItemIds) > 1) then
+  begin
+    Caption := Format('Tags - %d items', [Length(FItemIds)]);
+    lblTitle.Caption := Format(
+      'Check a tag to assign it to all %d items. Uncheck it to remove it from all.',
+      [Length(FItemIds)]);
+  end
+  else if FAssignMode then
   begin
     Caption := 'Tags - ' + FItemTitle;
     lblTitle.Caption := 'Check tags to assign to "' + FItemTitle + '"';
+    lvTags.Columns[2].Width := 0;
   end
   else
   begin
     Caption := 'Tag Editor';
     lblTitle.Caption := 'Manage tags: add, edit, or delete';
+    lvTags.Columns[2].Width := 0;
   end;
   lvTags.Checkboxes := FAssignMode;
 end;
@@ -229,6 +242,7 @@ var
   Tag, ItemTag: TTag;
   LI: TListItem;
   IsAssigned: Boolean;
+  Count: Integer;
 begin
   FLoading := True;
   try
@@ -236,7 +250,7 @@ begin
     try
       lvTags.Items.Clear;
       AllTags := Model.Tags.GetAllTags;
-      if FAssignMode then
+      if FAssignMode and (Length(FItemIds) <= 1) then
         ItemTags := Model.Tags.GetTagsForItem(FItemId)
       else
         ItemTags := nil;
@@ -247,6 +261,13 @@ begin
           LI.Caption := Tag.Name;
           LI.SubItems.Add(Tag.Color);
           LI.Data := Pointer(Tag.Id);
+
+          if FAssignMode and (Length(FItemIds) > 1) then
+          begin
+            Count := FBatch.CountTagged(FItemIds, Tag.Id);
+            LI.SubItems.Add(Format('%d of %d', [Count, Length(FItemIds)]));
+            LI.Checked := Count = Length(FItemIds);
+          end;
 
           if FAssignMode and Assigned(ItemTags) then
           begin
@@ -315,7 +336,16 @@ begin
   if FLoading or not FAssignMode then Exit;
 
   TagId := Integer(Item.Data);
-  if Item.Checked then
+  if Length(FItemIds) > 1 then
+  begin
+    if Item.Checked then
+      FBatch.AssignTagToAll(FItemIds, TagId)
+    else
+      FBatch.UnassignTagFromAll(FItemIds, TagId);
+    Item.SubItems[1] := Format('%d of %d',
+      [FBatch.CountTagged(FItemIds, TagId), Length(FItemIds)]);
+  end
+  else if Item.Checked then
     Model.Tags.AssignTag(FItemId, TagId)
   else
     Model.Tags.UnassignTag(FItemId, TagId);
@@ -402,6 +432,26 @@ begin
   try
     Dlg.FItemId := ItemId;
     Dlg.FItemTitle := ItemTitle;
+    Dlg.FChanged := False;
+    Dlg.FAssignMode := True;
+    Dlg.ApplyMode;
+    Dlg.LoadTags;
+    Dlg.ShowModal;
+  finally
+    Dlg.Free;
+  end;
+end;
+
+class procedure TdlgTagManager.ShowTagManagerBatch(ABatch: TItemTreeBatch;
+  const ItemIds: TArray<Integer>);
+var
+  Dlg: TdlgTagManager;
+begin
+  Dlg := TdlgTagManager.Create(Application);
+  try
+    Dlg.FBatch := ABatch;
+    Dlg.FItemIds := ItemIds;
+    Dlg.FItemTitle := '';
     Dlg.FChanged := False;
     Dlg.FAssignMode := True;
     Dlg.ApplyMode;

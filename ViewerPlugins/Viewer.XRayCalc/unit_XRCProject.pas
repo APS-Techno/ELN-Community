@@ -83,6 +83,7 @@ type
 
   TXRCFitResult = record
     Present: Boolean;
+    HasChi2: Boolean;
     Chi2, Chi2Plain, ScaleRatio: Double;
     Chi2Scale, Mode, Date, AppVersion: string;
     Seed: Int64;
@@ -246,7 +247,8 @@ begin
     P.FitResult.Present := Ini.SectionExists('FITRESULT');
     if P.FitResult.Present then
     begin
-      P.FitResult.Chi2 := IniFloat(Ini, 'FITRESULT', 'chiSquared', 0);
+      P.FitResult.HasChi2 := Ini.ValueExists('FITRESULT', 'chiSquared') and
+        ParseFloat(Ini.ReadString('FITRESULT', 'chiSquared', ''), P.FitResult.Chi2);
       P.FitResult.Chi2Plain := IniFloat(Ini, 'FITRESULT', 'chiSquaredPlain', 0);
       P.FitResult.ScaleRatio := IniFloat(Ini, 'FITRESULT', 'scaleRatio', 1);
       P.FitResult.Chi2Scale := Ini.ReadString('FITRESULT', 'chi2Scale', '');

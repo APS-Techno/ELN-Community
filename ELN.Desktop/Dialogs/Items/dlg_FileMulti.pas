@@ -111,7 +111,7 @@ begin
     if not FAllFileTypes.Contains(FFiles[I].FileType) then
       FFiles[I].FileType := ResolveFileType(FFiles[I].SourcePath, FAllFileTypes);
     if FFiles[I].Name = '' then
-      FFiles[I].Name := TPath.GetFileNameWithoutExtension(FFiles[I].SourcePath);
+      FFiles[I].Name := SuggestedAttachmentName(FFiles[I].SourcePath, FFiles[I].FileType);
     FOriginalNames[I] := FFiles[I].Name;
   end;
   lblError.Caption := '';

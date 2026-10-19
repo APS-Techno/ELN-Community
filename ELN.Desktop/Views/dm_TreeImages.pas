@@ -83,7 +83,7 @@ const
     'Project', 'Folder'
   );
 
-  CMenuOrder: array[0..62] of string = (
+  CMenuOrder: array[0..68] of string = (
     'Export', 'Import', 'Logout', 'Exit', 'Dashboard', 'Copy',
     'Add File', 'Add Folder', 'Edit', 'Delete Document',
     'Arrow Up', 'Down Right', 'Refresh', 'Duplicate',
@@ -98,7 +98,9 @@ const
     'Bug Report', 'Registration', 'About', 'Export Config',
     'Search', 'Clear', 'Eye', 'Move',
     'Regen Previews', 'Favorite', 'New Item', 'DB Maintenance',
-    'Extract Values', 'Audit Rules', 'Data Completeness'
+    'Extract Values', 'Audit Rules', 'Data Completeness',
+    'Link Types', 'Go To', 'Show IDs', 'Web Devices',
+    'Save Draft', 'Reload Draft'
   );
 
   CFileTypeOrder: array[0..31] of string = (

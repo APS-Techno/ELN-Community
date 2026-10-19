@@ -48,6 +48,7 @@ type
     BlankCard: TCard;
     FDashboard: TFrame;
     FCurrentFilePath: string;
+    FPreviewLoadError: string;
     FOnUpdateFile: TNotifyEvent;
     FOnUpdatePreview: TNotifyEvent;
     FOnExtractValues: TNotifyEvent;
@@ -75,6 +76,7 @@ type
     function FindPlugin(const AFileNameOrExt: string): IViewerPlugin;
     function LoadPreviewPlugin(const FileName: string; ItemId: Integer; FileId: Int64;
       AOwner: TComponent): IViewerPlugin;
+    property PreviewLoadError: string read FPreviewLoadError;
     destructor Destroy; override;
     procedure Clear;
     procedure ResetSession;
@@ -110,7 +112,8 @@ uses
   unit_Item,
   unit_Helpers,
   unit_ViewerExtMatch,
-  unit_ViewerState;
+  unit_ViewerState,
+  unit_ElnAnalysisSettings;
 
 
 procedure TframeContentViewer.CreateParams(var Params: TCreateParams);
@@ -155,6 +158,32 @@ var
   State: TViewerState;
   FileEnt: unit_Item.TFile;
   Ctx: IItemContextAware;
+
+  procedure LoadReader(const Plugin: IViewerPlugin);
+  var
+    Analysis: IAnalysisKeyValueProvider;
+    Detail: string;
+  begin
+    try
+      if Plugin.LoadFromFile(FileName) then
+        Exit;
+      Detail := '';
+      if Supports(Plugin, IAnalysisKeyValueProvider, Analysis) then
+        Detail := Analysis.GetLoadError;
+      if Detail = '' then
+        Detail := 'The reader rejected the file.';
+      raise EReadError.CreateFmt('%s could not open "%s": %s',
+        [Plugin.Caption, FileName, Detail]);
+    except
+      FCurrentFileId := 0;
+      FCurrentItemId := 0;
+      FCurrentFilePath := '';
+      Cards.ActiveCard := BlankCard;
+      ShowFileButtons(False);
+      raise;
+    end;
+  end;
+
 begin
   // Save current plugin state before switching (uses OLD FCurrentFileId)
   SaveCurrentState;
@@ -177,7 +206,6 @@ begin
   end;
 
   HideDownloadProgress;
-  FCurrentFilePath := FileName;
   BestIdx   := -1;
   BestScore := 0;
   for I := 0 to High(Frames) do
@@ -201,7 +229,7 @@ begin
     if Supports(Rec.Frame, IItemContextAware, Ctx) then
       Ctx.SetItemContext(FCurrentItemId, FCurrentFileId);
 
-    Rec.Frame.LoadFromFile(FileName);
+    LoadReader(Rec.Frame);
     if Cards.ActiveCard <> Rec.Tab then
       Cards.ActiveCard := Rec.Tab;
     Found := True;
@@ -220,6 +248,16 @@ begin
           OutputDebugString(PChar('ViewerState restore error: ' + E.Message));
       end;
     end;
+
+    if (AFileId > 0) and Assigned(Model) then
+    begin
+      try
+        AttachAnalysisContext(Rec.Frame, FileName, AFileId);
+      except
+        on E: Exception do
+          OutputDebugString(PChar('Analysis context error: ' + E.Message));
+      end;
+    end;
   end;
   if not Found then
     for Rec in Frames do
@@ -228,7 +266,7 @@ begin
         if Supports(Rec.Frame, IItemContextAware, Ctx) then
           Ctx.SetItemContext(FCurrentItemId, FCurrentFileId);
 
-        Rec.Frame.LoadFromFile(FileName);
+        LoadReader(Rec.Frame);
         if Cards.ActiveCard <> Rec.Tab then
           Cards.ActiveCard := Rec.Tab;
         Found := True;
@@ -238,6 +276,7 @@ begin
         Break;
       end;
 
+  FCurrentFilePath := FileName;
   if not Found then
   begin
     ButtonsPanel.Visible := True;
@@ -387,8 +426,10 @@ var
   Rec: TViewerFrameRec;
   Instance: TComponent;
   Context: IItemContextAware;
+  Analysis: IAnalysisKeyValueProvider;
 begin
   Result := nil;
+  FPreviewLoadError := '';
   if not Assigned(AOwner) then
     raise EArgumentNilException.Create('Preview owner is required');
   Source := FindPlugin(FileName);
@@ -403,7 +444,11 @@ begin
       if Supports(Result, IItemContextAware, Context) then
         Context.SetItemContext(ItemId, FileId);
       if not Result.LoadFromFile(FileName) then
+      begin
+        if Supports(Result, IAnalysisKeyValueProvider, Analysis) then
+          FPreviewLoadError := Analysis.GetLoadError;
         Result := nil;
+      end;
       Exit;
     end;
 end;

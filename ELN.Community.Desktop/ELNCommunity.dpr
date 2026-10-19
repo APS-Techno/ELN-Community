@@ -11,6 +11,7 @@ uses
   frm_CommunityMain in 'frm_CommunityMain.pas' {frmCommunityMain},
   frm_LocalProfile in 'frm_LocalProfile.pas' {dlgLocalProfile},
   frm_CommunityPreferences in 'frm_CommunityPreferences.pas' {dlgCommunityPreferences},
+  frm_CommunitySplash in 'frm_CommunitySplash.pas' {frmCommunitySplash},
   dm_TreeImages in '..\ELN.Desktop\Views\dm_TreeImages.pas' {dmTreeImages: TDataModule},
   frame_ProjectsPanel in '..\ELN.Desktop\Views\frame_ProjectsPanel.pas',
   frame_ItemTree in '..\ELN.Desktop\Views\frame_ItemTree.pas',
@@ -22,6 +23,8 @@ uses
   editor_Equipment in '..\ELN.Desktop\Editors\editor_Equipment.pas' {edEquipment},
   editor_ActionTypes in '..\ELN.Desktop\Editors\editor_ActionTypes.pas' {edActionTypes},
   editor_ValueTypes in '..\ELN.Desktop\Editors\editor_ValueTypes.pas' {edValueTypes},
+  editor_ReaderValueMappings in '..\ELN.Desktop\Editors\editor_ReaderValueMappings.pas',
+  dlg_DerivedValue in '..\ELN.Desktop\Dialogs\Items\dlg_DerivedValue.pas' {dlgDerivedValue},
   editor_LinkTypes in '..\ELN.Desktop\Editors\editor_LinkTypes.pas' {edLinkTypes},
   unit_LocalNotebook in '..\ELN.Community\unit_LocalNotebook.pas',
   unit_LocalNotebookStorage in '..\ELN.Community\unit_LocalNotebookStorage.pas',
@@ -35,6 +38,7 @@ var
   Settings: TNotebookSettings;
   SavedTheme, ThemeName: string;
   I: Integer;
+  Splash: TfrmCommunitySplash;
 begin
   // Install the isolated preference location BEFORE streaming any scientific
   // frame; several frames read UI preferences in their constructors.
@@ -63,13 +67,23 @@ begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
   Application.Title := 'ELN Community';
-  Application.CreateForm(TdmTreeImages, dmTreeImages);
-  Application.CreateForm(TfrmCommunityMain, frmCommunityMain);
-  Application.CreateForm(TedFileTypes, edFileTypes);
-  Application.CreateForm(TedEquipmentTypes, edEquipmentTypes);
-  Application.CreateForm(TedEquipment, edEquipment);
-  Application.CreateForm(TedActionTypes, edActionTypes);
-  Application.CreateForm(TedValueTypes, edValueTypes);
-  Application.CreateForm(TedLinkTypes, edLinkTypes);
+  Splash := TfrmCommunitySplash.Display;
+  try
+    Splash.SetStatus('Loading images');
+    Application.CreateForm(TdmTreeImages, dmTreeImages);
+    Splash.SetStatus('Building main window');
+    Application.CreateForm(TfrmCommunityMain, frmCommunityMain);
+    Splash.SetStatus('Loading reference editors');
+    Application.CreateForm(TedFileTypes, edFileTypes);
+    Application.CreateForm(TedEquipmentTypes, edEquipmentTypes);
+    Application.CreateForm(TedEquipment, edEquipment);
+    Application.CreateForm(TedActionTypes, edActionTypes);
+    Application.CreateForm(TedValueTypes, edValueTypes);
+    Application.CreateForm(TedLinkTypes, edLinkTypes);
+  except
+    FreeAndNil(Splash);
+    raise;
+  end;
+  FreeAndNil(Splash);
   Application.Run;
 end.

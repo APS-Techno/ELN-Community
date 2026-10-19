@@ -258,7 +258,15 @@ begin
 end;
 
 procedure TestMoveRejectsTraversal;
+var
+  OutsideSource, OutsideEscaped, StolenPath: string;
+  OutsideBytes: TBytes;
 begin
+  OutsideSource := TPath.Combine(FixtureDir, 'outside-source.bin');
+  OutsideEscaped := TPath.Combine(FixtureDir, 'escaped.bin');
+  StolenPath := TPath.Combine(NotebookRoot, 'stolen.bin');
+  OutsideBytes := TBytes.Create(9, 8, 7, 0, 255, 13, 10);
+  TFile.WriteAllBytes(OutsideSource, OutsideBytes);
   Storage.WriteBytes('safe.bin', BinaryData);
   MustRaise(
     procedure
@@ -268,8 +276,12 @@ begin
   MustRaise(
     procedure
     begin
-      Storage.MoveFile('../escaped.bin', 'safe.bin');
+      Storage.MoveFile('../outside-source.bin', 'stolen.bin');
     end, 'move source traversal');
+  Check(FileExists(OutsideSource), 'rejected source traversal keeps outside source');
+  CheckBytes(OutsideBytes, TFile.ReadAllBytes(OutsideSource), 'outside source bytes unchanged');
+  Check(not FileExists(StolenPath), 'rejected source traversal creates no destination');
+  Check(not FileExists(OutsideEscaped), 'rejected destination traversal creates no escaped file');
   CheckBytes(BinaryData, Storage.ReadBytes('safe.bin'), 'rejected move retains source');
 end;
 

@@ -161,9 +161,14 @@
         <DCCReference Include="..\ELN.Domain\unit_ValueType.pas"/>
         <DCCReference Include="..\ELN.Domain\unit_ValueTypeCategories.pas"/>
         <DCCReference Include="unit_ValueTypeModel.pas"/>
+        <DCCReference Include="..\ELN.Domain\unit_ReaderValueMapping.pas"/>
+        <DCCReference Include="unit_ReaderValueMappingModel.pas"/>
+        <DCCReference Include="unit_ReaderValueStatistics.pas"/>
         <DCCReference Include="unit_ValueSource.pas"/>
         <DCCReference Include="unit_ValueChecks.pas"/>
         <DCCReference Include="unit_ValueDrift.pas"/>
+        <DCCReference Include="unit_DerivedFormulas.pas"/>
+        <DCCReference Include="unit_DerivedValueModel.pas"/>
         <DCCReference Include="unit_StorageCheck.pas"/>
         <DCCReference Include="..\ELN.Domain\unit_Template.pas"/>
         <DCCReference Include="unit_ProtocolTemplateModel.pas"/>
@@ -191,6 +196,7 @@
         <DCCReference Include="..\ELN.Domain\unit_DBSetting.pas"/>
         <DCCReference Include="unit_ServiceImport.pas"/>
         <DCCReference Include="unit_DBSettingsModel.pas"/>
+        <DCCReference Include="unit_AnalysisSettingsModel.pas"/>
         <DCCReference Include="unit_SearchModel.pas"/>
         <DCCReference Include="unit_ReportBuilder.pas"/>
         <DCCReference Include="..\ELN.Domain\unit_ItemLink.pas"/>
@@ -205,6 +211,7 @@
         <DCCReference Include="..\ELN.Domain\unit_DomainEntities.pas"/>
         <DCCReference Include="..\ELN.DB\unit_SchemaUpdate.pas"/>
         <DCCReference Include="..\ELN.DB\unit_ItemLinkMigrationSeed.pas"/>
+        <DCCReference Include="..\ELN.DB\unit_ValueSourceSeed.pas"/>
         <DCCReference Include="unit_AuditModel.pas"/>
         <DCCReference Include="unit_ViewerStateModel.pas"/>
         <DCCReference Include="unit_TemplateTagsModel.pas"/>

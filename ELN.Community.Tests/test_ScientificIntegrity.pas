@@ -25,6 +25,8 @@ type
     [Test] procedure VersionedTemplateKeepsHistoricalSchema;
     [Test] procedure UnusedTemplateSavesDraftInPlace;
     [Test] procedure ConcentrationDimensionsCannotMix;
+    [Test] procedure ReaderUnitFactorsStayWithinOneDimension;
+    [Test] procedure InlineValuesSummarizeRepeatsOfOneQuantity;
     [Test] procedure FailedPackageLeavesNoTrackedImports;
     [Test] procedure FailedItemTemplateRollsBackTreeAndAudit;
     [Test] procedure FailedFolderTemplateRollsBackTreeAndAudit;
@@ -44,7 +46,7 @@ uses
   Aurelius.Drivers.Interfaces,
   unit_Project, unit_ProjectModel, unit_ItemTypes, unit_Protocol,
   unit_Template, unit_ProtocolTemplateModel, unit_Signature,
-  unit_FileType, unit_ValueType,
+  unit_FileType, unit_ValueType, unit_ValueTypeModel,
   unit_SignatureModel, unit_UnitConverter, unit_PackageImport,
   unit_ExperimentTemplate, unit_ExperimentTemplateModel, unit_ActionType,
   unit_AuditLog;
@@ -369,6 +371,73 @@ begin
   Assert.AreEqual<Double>(1, TUnitConverter.Convert(1, 'mg/mL', 'g/L'));
   Assert.AreEqual<Double>(1000, TUnitConverter.Convert(1, 'mg/mL', 'mg/L'));
   Assert.AreEqual<Double>(1000, TUnitConverter.Convert(1, 'mol/L', 'mmol/L'));
+end;
+
+procedure TScientificIntegrityTests.ReaderUnitFactorsStayWithinOneDimension;
+var
+  Factor: Double;
+begin
+  Assert.IsTrue(TUnitConverter.TryFactor('um', 'm', Factor));
+  Assert.AreEqual(1e-6, Factor, 1e-18);
+  Assert.IsTrue(TUnitConverter.TryFactor('um', 'mm', Factor));
+  Assert.AreEqual(1e-3, Factor, 1e-15);
+  Assert.IsTrue(TUnitConverter.TryFactor('um2', 'mm' + WideChar($00B2), Factor));
+  Assert.AreEqual(1e-6, Factor, 1e-18);
+  Assert.IsTrue(TUnitConverter.TryFactor('um3', 'mm' + WideChar($00B3), Factor));
+  Assert.AreEqual(1e-9, Factor, 1e-21);
+  Assert.IsTrue(TUnitConverter.TryFactor('mTorr', 'Pa', Factor));
+  Assert.AreEqual(0.133322368, Factor, 1e-12);
+  Assert.IsTrue(TUnitConverter.TryFactor('sec', 'ms', Factor));
+  Assert.AreEqual(1000.0, Factor, 1e-9);
+  Assert.IsTrue(TUnitConverter.TryFactor('', '', Factor));
+  Assert.AreEqual<Double>(1, Factor);
+  Assert.IsFalse(TUnitConverter.TryFactor('A', 'm', Factor),
+    'A is ampere to the converter; a reader angstrom must not become metres');
+  Assert.IsFalse(TUnitConverter.TryFactor(WideChar($00B0) + 'C', 'K', Factor),
+    'Offset units cannot be expressed as a factor');
+  Assert.IsFalse(TUnitConverter.TryFactor('x', 'm', Factor));
+  Assert.IsFalse(TUnitConverter.TryFactor('um', 'mm' + WideChar($00B2), Factor));
+end;
+
+procedure TScientificIntegrityTests.InlineValuesSummarizeRepeatsOfOneQuantity;
+var
+  VT: TValueType;
+  Values: TValues;
+  Val: TValue;
+
+  procedure Add(AValue: Double; ARecType: TRecType; const ADescription: string);
+  var
+    V: TValue;
+  begin
+    V := TValue.Create;
+    V.ValueType := VT;
+    V.Value := AValue;
+    V.RecType := ARecType;
+    V.Description := ADescription;
+    Values.Add(V);
+  end;
+
+begin
+  VT := TValueType.Create;
+  Values := TValues.Create;
+  try
+    VT.Symbol := 'd';
+    VT.Units := 'm';
+    Add(304.2e-9, TEST_RESULT, '');
+    Add(100e-9, EXP_CONDITION, '');
+    Add(304.2e-9, TEST_RESULT, '');
+    Add(50e-9, TEST_RESULT, 'Co');
+    Add(331.8e-9, TEST_RESULT, '');
+    Add(351e-9, TEST_RESULT, '');
+    Assert.AreEqual('d = 322.8 ' + WideChar($00B1) + ' 22.9 nm (n=4);  d = 100 nm;  ' +
+      'd = 50 nm [Co]', FormatValuesInline(Values),
+      'Only results of one type and description are averaged; sample SD');
+  finally
+    for Val in Values do
+      Val.Free;
+    Values.Free;
+    VT.Free;
+  end;
 end;
 
 procedure TScientificIntegrityTests.FailedPackageLeavesNoTrackedImports;

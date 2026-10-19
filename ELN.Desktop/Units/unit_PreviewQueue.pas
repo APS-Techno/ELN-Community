@@ -4,7 +4,7 @@ interface
 
 uses
   System.SysUtils, System.Classes, Vcl.ExtCtrls,
-  unit_ELNPluginTypes, frame_ContentViewer;
+  unit_ELNPluginTypes, unit_ELNPluginCore, frame_ContentViewer;
 
 type
   TPreviewQueueItem = record
@@ -19,7 +19,8 @@ type
   TPreviewUpdateEvent = procedure(FileId: Int64; const PreviewPath: string) of object;
   TKeyValuesExtractedEvent = procedure(ItemId: Integer; FileId: Int64;
     const ReaderId, ReaderVersion: string;
-    const KeyValues: TArray<TPluginKeyValue>) of object;
+    const KeyValues: TArray<TPluginKeyValue>;
+    const Analysis: IAnalysisKeyValueProvider) of object;
 
   TPreviewQueue = class
   private
@@ -35,6 +36,7 @@ type
   public
     constructor Create(AOwner: TComponent; AContentViewer: TframeContentViewer);
     destructor Destroy; override;
+    procedure ProcessItem(const QItem: TPreviewQueueItem);
     procedure Start(const AQueue: TArray<TPreviewQueueItem>);
     procedure Stop;
     function IsRunning: Boolean;
@@ -49,7 +51,7 @@ implementation
 uses
   Vcl.Graphics,
   Vcl.Imaging.PngImage,
-  unit_ELNPluginCore,
+  unit_ElnAnalysisSettings,
   unit_DataModel;
 
 
@@ -97,12 +99,6 @@ end;
 procedure TPreviewQueue.TimerFire(Sender: TObject);
 var
   QItem: TPreviewQueueItem;
-  Plugin: IViewerPlugin;
-  PreviewProvider: IPreviewProvider;
-  KVProvider: IKeyValueProvider;
-  Bmp: TBitmap;
-  Png: TPngImage;
-  PreviewOwner: TComponent;
 begin
   // Session guard: if the user has logged out (model torn down / rebuilt),
   // abort rather than write extracted values via a stale session VM.
@@ -130,25 +126,48 @@ begin
   if Assigned(FOnStatus) then
     FOnStatus(Format('Generating preview %d of %d...', [FIndex, Length(FQueue)]));
 
+  ProcessItem(QItem);
+end;
+
+procedure TPreviewQueue.ProcessItem(const QItem: TPreviewQueueItem);
+var
+  Plugin: IViewerPlugin;
+  PreviewProvider: IPreviewProvider;
+  KVProvider: IKeyValueProvider;
+  Analysis: IAnalysisKeyValueProvider;
+  Bmp: TBitmap;
+  Png: TPngImage;
+  PreviewOwner: TComponent;
+begin
   if not FileExists(QItem.FilePath) then Exit;
 
   PreviewOwner := TComponent.Create(nil);
   try
   Plugin := FContentViewer.LoadPreviewPlugin(QItem.FilePath,
     QItem.ItemId, QItem.FileId, PreviewOwner);
-  if not Assigned(Plugin) then Exit;
+  if not Assigned(Plugin) then
+  begin
+    if (FContentViewer.PreviewLoadError <> '') and Assigned(FOnStatus) then
+      FOnStatus(ExtractFileName(QItem.FilePath) + ': ' +
+        FContentViewer.PreviewLoadError);
+    Exit;
+  end;
 
   if Assigned(FOnKeyValuesExtracted) then
   begin
     if Supports(Plugin, IKeyValueProvider, KVProvider) then
     begin
+      Analysis := AttachAnalysisContext(Plugin, QItem.FilePath, QItem.FileId);
       var KVs := KVProvider.GetKeyValues;
-      if Length(KVs) > 0 then
+      var Status := '';
+      if Analysis <> nil then
+        Status := Analysis.GetAnalysisStatus;
+      if (Length(KVs) > 0) or (Status <> '') then
       begin
         var ReaderId, ReaderVersion: string;
         ReaderIdentityOf(Plugin, ReaderId, ReaderVersion);
         FOnKeyValuesExtracted(QItem.ItemId, QItem.FileId, ReaderId,
-          ReaderVersion, KVs);
+          ReaderVersion, KVs, Analysis);
       end;
     end;
   end;
@@ -180,6 +199,7 @@ begin
   if Assigned(FOnUpdate) then
     FOnUpdate(QItem.FileId, QItem.PreviewPath);
   finally
+    Analysis := nil;
     KVProvider := nil;
     PreviewProvider := nil;
     Plugin := nil;

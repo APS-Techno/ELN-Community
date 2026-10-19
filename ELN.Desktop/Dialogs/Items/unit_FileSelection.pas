@@ -6,6 +6,9 @@ uses
   unit_FileType;
 
 function ResolveFileType(const APath: string; ATypes: TFileTypes): TFileType;
+function SuggestedAttachmentName(const APath: string; AType: TFileType): string;
+function ResolveReplacementFileType(const APath: string; ACurrent: TFileType;
+  ATypes: TFileTypes): TFileType;
 function CollectRelevantFileTypes(AAllTypes, AActionTypes: TFileTypes): TFileTypes;
 function ValidateFileSelection(const APath, AName: string;
   AType: TFileType; out AError: string): Boolean;
@@ -13,7 +16,7 @@ function ValidateFileSelection(const APath, AName: string;
 implementation
 
 uses
-  System.SysUtils, unit_ViewerExtMatch;
+  System.SysUtils, unit_ViewerExtMatch, unit_FilePaths;
 
 function ResolveFileType(const APath: string; ATypes: TFileTypes): TFileType;
 var
@@ -33,6 +36,22 @@ begin
         Result := FT;
       end;
     end;
+end;
+
+function SuggestedAttachmentName(const APath: string; AType: TFileType): string;
+begin
+  if Assigned(AType) then
+    Result := AttachmentTitle(APath, AType.Ext)
+  else
+    Result := AttachmentTitle(APath, '');
+end;
+
+function ResolveReplacementFileType(const APath: string; ACurrent: TFileType;
+  ATypes: TFileTypes): TFileType;
+begin
+  if Assigned(ACurrent) and (ExtMatchScore(APath, ACurrent.Ext) > 0) then
+    Exit(ACurrent);
+  Result := ResolveFileType(APath, ATypes);
 end;
 
 function CollectRelevantFileTypes(AAllTypes, AActionTypes: TFileTypes): TFileTypes;

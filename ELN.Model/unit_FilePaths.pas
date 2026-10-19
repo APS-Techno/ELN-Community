@@ -4,6 +4,7 @@ interface
 
 function CleanFileName(const Input: string): string;
 function FileFormatExtension(const FileName, StoredExtension: string): string;
+function AttachmentTitle(const FileName, TypeExtension: string): string;
 function AttachmentRelativePath(const ProjectFileFolder, ItemFolderName,
   FileFullName: string): string;
 
@@ -30,6 +31,18 @@ begin
     Result := '.process.log'
   else
     Result := StoredExtension;
+end;
+
+function AttachmentTitle(const FileName, TypeExtension: string): string;
+var
+  Name: string;
+begin
+  Name := TPath.GetFileName(FileName);
+  if (TypeExtension <> '') and (Length(Name) > Length(TypeExtension)) and
+    EndsText(TypeExtension, Name) then
+    Result := Copy(Name, 1, Length(Name) - Length(TypeExtension))
+  else
+    Result := TPath.GetFileNameWithoutExtension(Name);
 end;
 
 function AttachmentRelativePath(const ProjectFileFolder, ItemFolderName,

@@ -232,7 +232,7 @@ object frameItemTree: TframeItemTree
         ShowHint = True
         TabOrder = 0
         TreeOptions.PaintOptions = [toShowButtons, toShowDropmark, toShowRoot, toThemeAware, toUseBlendedImages, toFullVertGridLines]
-        TreeOptions.SelectionOptions = [toFullRowSelect, toSelectNextNodeOnRemoval]
+        TreeOptions.SelectionOptions = [toFullRowSelect, toMultiSelect, toSelectNextNodeOnRemoval]
         OnAfterCellPaint = TreeAfterCellPaint
         OnBeforeCellPaint = TreeBeforeCellPaint
         OnClick = TreeClick
@@ -558,6 +558,11 @@ object frameItemTree: TframeItemTree
         ImageIndex = 25
         OnClick = miItemAddValueClick
       end
+      object miItemAddDerivedValue: TMenuItem
+        Caption = 'Derived Value...'
+        ImageIndex = 25
+        OnClick = miItemAddDerivedValueClick
+      end
       object miItemAnalyze: TMenuItem
         Caption = 'Analyze...'
         ImageIndex = 26
@@ -758,6 +763,36 @@ object frameItemTree: TframeItemTree
       Caption = 'Copy MCP Link'
       ImageIndex = 5
       OnClick = miFileCopyMCPLinkClick
+    end
+  end
+  object pmBatch: TPopupMenu
+    Images = dmTreeImages.vilMenuImages
+    Left = 518
+    Top = 380
+    object miBatchDelete: TMenuItem
+      Caption = 'Delete'
+      ImageIndex = 9
+      OnClick = miBatchDeleteClick
+    end
+    object miBatchExtract: TMenuItem
+      Caption = 'Extract Values...'
+      ImageIndex = 60
+      OnClick = miBatchExtractClick
+    end
+    object miBatchMoveTo: TMenuItem
+      Caption = 'Move to...'
+      ImageIndex = 55
+      OnClick = miBatchMoveToClick
+    end
+    object miBatchTags: TMenuItem
+      Caption = 'Tags...'
+      ImageIndex = 43
+      OnClick = miBatchTagsClick
+    end
+    object miBatchExport: TMenuItem
+      Caption = 'Export...'
+      ImageIndex = 0
+      OnClick = miBatchExportClick
     end
   end
   object tmrStartup: TTimer

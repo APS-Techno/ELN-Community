@@ -52,6 +52,7 @@ contains
   unit_UsersHistory in 'unit_UsersHistory.pas',
   unit_FileTypeLink in 'unit_FileTypeLink.pas',
   unit_ValueType in 'unit_ValueType.pas',
+  unit_ReaderValueMapping in 'unit_ReaderValueMapping.pas',
   unit_Template in 'unit_Template.pas',
   unit_ProtocolStatusChange in 'unit_ProtocolStatusChange.pas',
   unit_Hypothesis in 'unit_Hypothesis.pas',

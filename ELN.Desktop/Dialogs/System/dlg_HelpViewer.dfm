@@ -47,6 +47,7 @@ object dlgHelpViewer: TdlgHelpViewer
       Top = 8
       Width = 120
       Height = 44
+      Anchors = [akRight, akBottom]
       Caption = 'Close'
       ModalResult = 8
       TabOrder = 0

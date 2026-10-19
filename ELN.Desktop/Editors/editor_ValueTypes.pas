@@ -36,6 +36,8 @@ type
     lblToleranceFactor: TLabel;
     edToleranceFactor: TEdit;
     btnToleranceFactor: TButton;
+    btnReaderMappings: TButton;
+    procedure btnReaderMappingsClick(Sender: TObject);
     procedure cbCategoryChange(Sender: TObject);
     procedure lbCategoriesClick(Sender: TObject);
     procedure btnCatAddClick(Sender: TObject);
@@ -72,7 +74,8 @@ uses
   unit_DataModel,
   dlg_GreekPicker,
   unit_TimeHelper,
-  unit_ValueChecks;
+  unit_ValueChecks,
+  editor_ReaderValueMappings;
 
 {$R *.dfm}
 
@@ -268,6 +271,11 @@ begin
       'Correct one of them, or leave a field empty for no limit.');
     Abort;
   end;
+end;
+
+procedure TedValueTypes.btnReaderMappingsClick(Sender: TObject);
+begin
+  TReaderValueMappingsEditor.Execute;
 end;
 
 procedure TedValueTypes.btnToleranceFactorClick(Sender: TObject);

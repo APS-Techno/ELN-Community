@@ -308,6 +308,8 @@ uses
   unit_WikiSeeder,
   unit_ExperimentTemplateModel,
   frame_ItemTree,
+  unit_ItemTreeBatch,
+  dlg_BatchSummary,
   dlg_AuditReport;
 
 {$R *.dfm}
@@ -493,29 +495,24 @@ var
   Data: PNodeData;
 begin
   Result := nil;
+  Data := Tree.GetNodeData(Root);
+  if Assigned(Data) and (Data.NodeType = ntProject) and
+    (Data.Project.ID = LastProjectID) and (LastFolderID <= 0) then
+    Result := Root;
   Node := Tree.GetFirstChild(Root);
-
   while Assigned(Node) do
   begin
     Data := Tree.GetNodeData(Node);
-    if Assigned(Data) then
+    if Assigned(Data) and (Data.NodeType = ntFolder) then
     begin
-      case Data.NodeType of
-        ntProject: begin
-          Tree.Expanded[Node] := FVM.IsNodeExpanded(tnkProject, Data.Project.ID,
-            Data.Project.Expanded);
-          if LastProjectID = Data.Project.ID then
-            Result := Node;
-        end;
-        ntFolder: begin
-          Tree.Expanded[Node] := FVM.IsNodeExpanded(tnkFolder, Data.Folder.ID,
-            Data.Folder.Expanded);
-          if LastFolderID = Data.Folder.ID then
-            Result := Node;
-        end;
-      end;
+      Tree.Expanded[Node] := FVM.IsNodeExpanded(tnkFolder, Data.Folder.ID,
+        Data.Folder.Expanded);
+      if (LastFolderID > 0) and (LastFolderID = Data.Folder.ID) then
+        Result := Node;
     end;
     Node := Tree.GetNext(Node, True);
+    if Assigned(Node) and not Tree.HasAsParent(Node, Root) then
+      Break;
   end;
 end;
 
@@ -1037,7 +1034,6 @@ begin
   FVM.TreeState := Model.TreeState;
 
   CreateActions;
-  LoadColumnWidths;
 
   if not Assigned(FLook) then
     FLook := TTreeLook.Create(Tree, RowColor,
@@ -1052,6 +1048,8 @@ begin
       begin
         TreeClick(Tree);   
       end);
+  LoadColumnWidths;
+  FLook.StretchLastColumn;
 
   var Settings := TNotebookSettings.Create;
   try
@@ -1096,8 +1094,8 @@ end;
 destructor TframeProjectTree.Destroy;
 begin
   ResetSession;
-  FLook.Free;   // before the tree goes: it restores the tree's WindowProc
   SaveColumnWidths;
+  FLook.Free;   // before the tree goes: it restores the tree's WindowProc
   inherited;
 end;
 
@@ -1106,11 +1104,12 @@ var
   Settings: TNotebookSettings;
   I: Integer;
 begin
+  if not Assigned(FLook) then Exit;
   Settings := TNotebookSettings.Create;
   try
     for I := 0 to Tree.Header.Columns.Count - 1 do
       Settings.SaveUIValue('ProjectTree', 'ColWidth' + IntToStr(I),
-        Tree.Header.Columns[I].Width);
+        FLook.ColumnWidth(I));
   finally
     Settings.Free;
   end;
@@ -1127,7 +1126,7 @@ begin
     begin
       W := Settings.LoadUIValue('ProjectTree', 'ColWidth' + IntToStr(I), 0);
       if W > 0 then
-        Tree.Header.Columns[I].Width := W;
+        FLook.SetColumnWidth(I, W);
     end;
   finally
     Settings.Free;
@@ -2212,8 +2211,8 @@ var
 begin
   if (Source is TBaseVirtualTree) and (TBaseVirtualTree(Source).Owner is TframeItemTree) then
   begin
-    var DraggedProc := TframeItemTree(TBaseVirtualTree(Source).Owner).DraggedProc;
-    if not Assigned(DraggedProc) then Exit;
+    var DraggedProcs := TframeItemTree(TBaseVirtualTree(Source).Owner).DraggedProcs;
+    if Length(DraggedProcs) = 0 then Exit;
 
     TargetNode := Sender.GetNodeAt(Pt);
     if not Assigned(TargetNode) then Exit;
@@ -2236,19 +2235,65 @@ begin
 
     if not CanWriteToProject(NewProjectID) then Exit;
 
-    // Initialize Access too: ItemTree uses it to decide whether editing is allowed.
-    OldLoc := Default(TLocation);
-    OldLoc.ProjectID := DraggedProc.ProjectID;
-    OldLoc.FolderID  := DraggedProc.FolderID;
-    if OldLoc.FolderID < 0 then
-      OldLoc.FolderID := 0;
-    OldLoc.Path      := '';
-    OldLoc.Access    := FVM.GetProjectAccess(DraggedProc.ProjectID);
+    var OldLocs := TList<TLocation>.Create;
+    var Failures := TList<TBatchSkip>.Create;
+    try
+      var Done := 0;
+      try
+      for var Proc in DraggedProcs do
+      begin
+        // Initialize Access too: ItemTree uses it to decide whether editing is allowed.
+        OldLoc := Default(TLocation);
+        OldLoc.ProjectID := Proc.ProjectID;
+        OldLoc.FolderID  := Proc.FolderID;
+        if OldLoc.FolderID < 0 then
+          OldLoc.FolderID := 0;
+        OldLoc.Path      := '';
+        OldLoc.Access    := FVM.GetProjectAccess(Proc.ProjectID);
 
-    FVM.MoveProc(DraggedProc, NewProjectID, NewFolderID, Model.Relocator);
-    FillTree;
-    TMessageManager.DefaultManager.SendMessage(Self,
-      TMessage<TLocation>.Create(OldLoc), True);
+        var Known := False;
+        for var Seen in OldLocs do
+          if (Seen.ProjectID = OldLoc.ProjectID) and (Seen.FolderID = OldLoc.FolderID) then
+          begin
+            Known := True;
+            Break;
+          end;
+        if not Known then
+          OldLocs.Add(OldLoc);
+
+        try
+          if FVM.MoveProc(Proc, NewProjectID, NewFolderID, Model.Relocator) then
+            Inc(Done)
+          else
+          begin
+            var NotMoved: TBatchSkip;
+            NotMoved.Target := TBatchTarget.ForItem(Proc);
+            NotMoved.Reason := 'Not moved: signed, changed or deleted.';
+            Failures.Add(NotMoved);
+          end;
+        except
+          on EAbort do raise;
+          on E: Exception do
+          begin
+            var Failure: TBatchSkip;
+            Failure.Target := TBatchTarget.ForItem(Proc);
+            Failure.Reason := E.Message;
+            Failures.Add(Failure);
+          end;
+        end;
+      end;
+      finally
+        FillTree;
+        for var Loc in OldLocs do
+          TMessageManager.DefaultManager.SendMessage(Self,
+            TMessage<TLocation>.Create(Loc), True);
+      end;
+      if Failures.Count > 0 then
+        TdlgBatchSummary.Report('Move', Done, [], Failures.ToArray);
+    finally
+      Failures.Free;
+      OldLocs.Free;
+    end;
     Exit;
   end;
 
@@ -2550,7 +2595,7 @@ begin
 
   if TBaseVirtualTree(Source).Owner is TframeItemTree then
   begin
-    if not Assigned(TframeItemTree(TBaseVirtualTree(Source).Owner).DraggedProc) then Exit;
+    if Length(TframeItemTree(TBaseVirtualTree(Source).Owner).DraggedProcs) = 0 then Exit;
     TargetNode := Sender.GetNodeAt(Pt);
     if not Assigned(TargetNode) then Exit;
     TargetData := Sender.GetNodeData(TargetNode);

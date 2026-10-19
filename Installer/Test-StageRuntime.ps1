@@ -9,7 +9,8 @@ $ViewerDirectories = @('Core', 'Core.Protocol', 'Viewer.Image', 'Viewer.HTML',
   'Viewer.Markdown', 'Viewer.ColumnarData', 'Viewer.PDF', 'Viewer.Protocol', 'Editor.Markdown',
   'Viewer.JSON', 'Viewer.Note', 'Viewer.OLE', 'Viewer.File', 'Viewer.LAMMPS', 'Viewer.XRDML',
   'Viewer.DM3', 'Viewer.OPJU', 'Viewer.XRayCalc', 'Viewer.XRFX', 'Viewer.Deposition',
-  'Viewer.ProcessLog', 'Viewer.Recipe', 'Viewer.DSC', 'Viewer.DSR')
+  'Viewer.ProcessLog', 'Viewer.Recipe', 'Viewer.DSC', 'Viewer.DSR', 'Viewer.ZRWViewer',
+  'Viewer.MitFile', 'Viewer.FIBPS', 'Viewer.TriboViewer', 'Viewer.VK4')
 $StandardPackages = @('rtl370.bpl', 'vcl370.bpl', 'vclimg370.bpl', 'vclwinx370.bpl',
   'vcledge370.bpl', 'xmlrtl370.bpl', 'bindengine370.bpl', 'dbrtl370.bpl', 'vcldb370.bpl',
   'vclactnband370.bpl', 'vclx370.bpl', 'Tee9370.bpl')
@@ -64,7 +65,7 @@ function New-StageFixture([switch]$WithoutCompiledInput) {
   }
   if (-not $WithoutCompiledInput) {
     foreach ($name in @('ELNCommunity.exe', 'ELNPluginCore.bpl', 'ELNProtocolCore.bpl', 'Icons/ELNIcons.dll')) {
-      Write-FixtureFile (Join-Path $repo "_OUT/CommunityDesktop/Win32/Release/$name")
+      Write-FixtureFile (Join-Path $repo "_OUT/CommunityDesktop/$name")
     }
   }
   foreach ($name in @('rsvars.bat', 'dcc32.exe', 'msbuild.exe', 'cmd.exe') + $StandardPackages) {

@@ -113,9 +113,27 @@ begin
         if Source.Note <> '' then
           Result := Result + ' - ' + Source.Note;
       end;
+    vskDerived:
+      Result := Format('Source: derived by %s version %d',
+        [Source.FormulaId, Source.FormulaVersion]);
   else
     Result := 'Source: unknown (recorded before value sources)';
   end;
+end;
+
+function DerivedInputsText(Value: TValue): string;
+var
+  Link: TDerivedValueInput;
+begin
+  Result := '';
+  for Link in Value.DerivedInputs do
+  begin
+    if Result <> '' then
+      Result := Result + ', ';
+    Result := Result + Format('%s = value %d', [Link.Role, Link.InputValueId]);
+  end;
+  if Result <> '' then
+    Result := ' from ' + Result;
 end;
 
 function SourceFileName(FileId: Int64): string;
@@ -248,6 +266,9 @@ begin
   FLoadedValueText := edValue.Text;
   FLoadedToleranceText := edTolerance.Text;
   lblSource.Caption := DescribeValueSource(ReadSource(Value), SourceFileName);
+  if Value.EffectiveSourceKind = vskDerived then
+    lblSource.Caption := lblSource.Caption + DerivedInputsText(Value) +
+      '. Editing the number makes it a manual entry.';
 end;
 
 function TdlgValue.TryReadValue(out ValueType: TValueType;

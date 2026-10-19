@@ -19,6 +19,8 @@ type
     procedure ExerciseActionDialog(Sender: TObject);
     procedure CaptureLocation(const Sender: TObject; const M: TMessage);
     procedure ExerciseDuplicatePicker(Sender: TObject);
+    procedure ExerciseQuickEquipment(Sender: TObject);
+    procedure ExerciseQuickActionType(Sender: TObject);
   public
     [Setup] procedure Setup;
     [TearDown] procedure TearDown;
@@ -28,10 +30,14 @@ type
     [Test] procedure EditedDraftValueRemainsNewAndTransfersOwner;
     [Test] procedure InUseExtensionChangeIsRefusedBeforeMutation;
     [Test] procedure TypedActionFieldsSurviveSelectionChanges;
+    [Test] procedure QuickEquipmentOkWaitsForAllFields;
+    [Test] procedure QuickActionTypeOkWaitsForTitle;
     [Test] procedure WideFileSelectionKeepsFileCommandsVisible;
+    [Test] procedure SelectFileKeepsMultiSelectionThatContainsIt;
     [Test] procedure ProjectRootSelectionIncludesLegacyRootItems;
     [Test] procedure DuplicatePickerProjectRootUsesZero;
     [Test] procedure LegacyRootFolderAndPositiveChildRemainVisible;
+    [Test] procedure StartupRestoresLastSelectedProjectAndFolder;
   end;
 
 implementation
@@ -41,7 +47,7 @@ uses
   unit_Project, unit_ItemTypes, unit_Types,
   unit_ProjectAccessPolicy, unit_Protocol, unit_ValueType, unit_ActionDialogVM, unit_FileType,
   editor_FileTypes, dlg_Action, dlg_ItemPicker, unit_DlgConstants, Vcl.Forms, Vcl.ExtCtrls,
-  Vcl.Controls, Aurelius.Drivers.Interfaces, VirtualTrees.Types, RzSplit,
+  Vcl.Controls, Vcl.StdCtrls, Aurelius.Drivers.Interfaces, VirtualTrees.Types, RzSplit, unit_ActionType,
   frame_ProjectsPanel, frame_ItemTree, frame_ContentViewer, unit_ELNThumbnailList,
   test_SharedDesktopViewer, dm_TreeImages, unit_DataModel;
 
@@ -137,6 +143,76 @@ begin
       Assert.AreEqual(FileId, Model.LastChild);
       Assert.IsTrue(Viewer.btnUpdateFile.Visible,
         'A valid file above MaxInt must retain its file commands');
+    finally
+      Items.Free;
+    end;
+  finally
+    Host.Free;
+    if OwnImages then
+      FreeAndNil(dmTreeImages);
+  end;
+end;
+
+procedure TSharedDesktopMutationTests.SelectFileKeepsMultiSelectionThatContainsIt;
+var
+  FileType: TFileType;
+  Files: array[0..2] of unit_Item.TFile;
+  Nodes: array[0..2] of PVirtualNode;
+  Host: TForm;
+  Viewer: TframeContentViewer;
+  Items: TframeItemTree;
+  Thumbnails: TELNThumbnailList;
+  Splitter: TRzSplitter;
+  Data: PNodeData;
+  OwnImages: Boolean;
+  I: Integer;
+begin
+  FileType := TFileType.Create;
+  FileType.Ext := '.txt';
+  FileType.CreatedDate := Now;
+  Model.Manager.Save(FileType);
+  Model.Manager.Flush;
+  for I := 0 to 2 do
+    Files[I] := Model.Items.AddFile(FileType, 'file ' + IntToStr(I),
+      Model.User.Id, FItem);
+  OwnImages := not Assigned(dmTreeImages);
+  if OwnImages then
+    dmTreeImages := TdmTreeImages.Create(nil);
+  Host := nil;
+  try
+    Host := TForm.CreateNew(nil);
+    Viewer := TframeContentViewer.Create(Host);
+    Viewer.Parent := Host;
+    InitializeEmptyViewer(Viewer);
+    Thumbnails := TELNThumbnailList.Create(Host);
+    Thumbnails.Parent := Host;
+    Splitter := TRzSplitter.Create(Host);
+    Splitter.Parent := Host;
+    Items := TframeItemTree.Create(Host);
+    Items.Parent := Host;
+    try
+      Items.Init(Thumbnails, Viewer, Splitter);
+      Items.tmrStartup.Enabled := False;
+      for I := 0 to 2 do
+      begin
+        Nodes[I] := Items.Tree.AddChild(nil);
+        Data := Items.Tree.GetNodeData(Nodes[I]);
+        Data.NodeType := ntFile;
+        Data.AFile := Files[I];
+      end;
+      Items.Tree.Selected[Nodes[0]] := True;
+      Items.Tree.Selected[Nodes[1]] := True;
+      Items.Tree.FocusedNode := Nodes[0];
+
+      Assert.IsTrue(Items.SelectFile(Files[1].Id));
+      Assert.AreEqual(Cardinal(2), Items.Tree.SelectedCount,
+        'Selecting a file inside the selection must keep the selection');
+      Assert.IsTrue(Items.Tree.FocusedNode = Nodes[1]);
+
+      Assert.IsTrue(Items.SelectFile(Files[2].Id));
+      Assert.AreEqual(Cardinal(1), Items.Tree.SelectedCount,
+        'Selecting a file outside the selection must select only that file');
+      Assert.IsTrue(Items.Tree.Selected[Nodes[2]]);
     finally
       Items.Free;
     end;
@@ -334,6 +410,121 @@ begin
   finally
     Timer.Free;
     Draft.Free;
+  end;
+end;
+
+procedure TSharedDesktopMutationTests.ExerciseQuickEquipment(Sender: TObject);
+var
+  Form: TForm;
+  Edits: TArray<TEdit>;
+  Ok: TButton;
+  I: Integer;
+begin
+  TTimer(Sender).Enabled := False;
+  Form := Screen.ActiveForm;
+  try
+    Ok := nil;
+    for I := 0 to Form.ComponentCount - 1 do
+      if Form.Components[I] is TEdit then
+        Edits := Edits + [TEdit(Form.Components[I])]
+      else if (Form.Components[I] is TButton) and
+        (TButton(Form.Components[I]).Caption = 'OK') then
+        Ok := TButton(Form.Components[I]);
+    Assert.AreEqual(3, Length(Edits));
+    Assert.IsNotNull(Ok);
+    Edits[0].Text := 'Synthetic model';
+    Edits[2].Text := 'Synthetic lab';
+    Assert.IsFalse(Ok.Enabled, 'OK must wait for the manufacturer');
+    Edits[1].Text := '   ';
+    Assert.IsFalse(Ok.Enabled, 'Blank text is not a manufacturer');
+    Edits[1].Text := 'Synthetic maker';
+    Assert.IsTrue(Ok.Enabled, 'All fields filled must enable OK');
+    Ok.Click;
+  except
+    on E: Exception do
+    begin
+      FDialogError := E.Message;
+      Form.ModalResult := mrCancel;
+    end;
+  end;
+end;
+
+procedure TSharedDesktopMutationTests.QuickEquipmentOkWaitsForAllFields;
+var
+  Timer: TTimer;
+  AModel, AManufacturer, ALocation: string;
+begin
+  Timer := TTimer.Create(nil);
+  try
+    FDialogError := '';
+    Timer.Interval := 1;
+    Timer.OnTimer := ExerciseQuickEquipment;
+    Timer.Enabled := True;
+    Assert.IsTrue(ShowQuickEquipment(AModel, AManufacturer, ALocation),
+      FDialogError);
+    Assert.AreEqual('', FDialogError);
+    Assert.AreEqual('Synthetic model', AModel);
+    Assert.AreEqual('Synthetic maker', AManufacturer);
+    Assert.AreEqual('Synthetic lab', ALocation);
+  finally
+    Timer.Free;
+  end;
+end;
+
+procedure TSharedDesktopMutationTests.ExerciseQuickActionType(Sender: TObject);
+var
+  Form: TForm;
+  Title: TEdit;
+  Ok: TButton;
+  I: Integer;
+begin
+  TTimer(Sender).Enabled := False;
+  Form := Screen.ActiveForm;
+  try
+    Title := nil;
+    Ok := nil;
+    for I := 0 to Form.ComponentCount - 1 do
+      if Form.Components[I] is TEdit then
+        Title := TEdit(Form.Components[I])
+      else if (Form.Components[I] is TButton) and
+        (TButton(Form.Components[I]).Caption = 'OK') then
+        Ok := TButton(Form.Components[I]);
+    Assert.IsNotNull(Title);
+    Assert.IsNotNull(Ok);
+    Assert.IsFalse(Ok.Enabled, 'OK must wait for a title');
+    Title.Text := '   ';
+    Assert.IsFalse(Ok.Enabled, 'Blank text is not a title');
+    Title.Text := 'Synthetic type';
+    Assert.IsTrue(Ok.Enabled, 'A title must enable OK');
+    Ok.Click;
+  except
+    on E: Exception do
+    begin
+      FDialogError := E.Message;
+      Form.ModalResult := mrCancel;
+    end;
+  end;
+end;
+
+procedure TSharedDesktopMutationTests.QuickActionTypeOkWaitsForTitle;
+var
+  Timer: TTimer;
+  ATitle: string;
+  AKind: TActionKind;
+begin
+  Timer := TTimer.Create(nil);
+  try
+    FDialogError := '';
+    Timer.Interval := 1;
+    Timer.OnTimer := ExerciseQuickActionType;
+    Timer.Enabled := True;
+    Assert.IsTrue(ShowQuickActionType(TItemType.Measurement, ATitle, AKind),
+      FDialogError);
+    Assert.AreEqual('', FDialogError);
+    Assert.AreEqual('Synthetic type', ATitle);
+    Assert.IsTrue(AKind = TActionKind.Measurement);
+  finally
+    Timer.Free;
   end;
 end;
 
@@ -549,6 +740,72 @@ begin
     Assert.AreEqual(0, Destination.ParentItemId);
   finally
     Timer.Free;
+  end;
+end;
+
+procedure TSharedDesktopMutationTests.StartupRestoresLastSelectedProjectAndFolder;
+var
+  Project: TProject;
+  Folder: TFolder;
+  OwnImages: Boolean;
+  Kind: frame_ProjectsPanel.TNodeType;
+  Id: Integer;
+
+  procedure SelectedAfterInit(out AKind: frame_ProjectsPanel.TNodeType; out AId: Integer);
+  var
+    Host: TForm;
+    Projects: TframeProjectTree;
+    Node: PVirtualNode;
+    Data: frame_ProjectsPanel.PNodeData;
+  begin
+    Host := TForm.CreateNew(nil);
+    try
+      Projects := TframeProjectTree.Create(Host);
+      Projects.Parent := Host;
+      Projects.Init;
+      Projects.RestoreLastSelection;
+      Node := Projects.Tree.GetFirstSelected;
+      Assert.IsTrue(Assigned(Node), 'Startup must select the remembered node');
+      Data := Projects.Tree.GetNodeData(Node);
+      AKind := Data.NodeType;
+      case AKind of
+        frame_ProjectsPanel.ntProject: AId := Data.Project.Id;
+        frame_ProjectsPanel.ntFolder: AId := Data.Folder.Id;
+      else
+        AId := 0;
+      end;
+    finally
+      Host.Free;
+    end;
+  end;
+
+begin
+  Project := Model.Manager.Find<TProject>(FItem.ProjectID);
+  Folder := TFolder.Create;
+  Folder.Title := 'Remembered folder';
+  Folder.ParentFolderID := 0;
+  Folder.CreatedDate := Now;
+  Folder.CreatedBy := Model.User.Id;
+  Project.Folders.Add(Folder);
+  Model.Manager.Flush;
+  OwnImages := not Assigned(dmTreeImages);
+  if OwnImages then
+    dmTreeImages := TdmTreeImages.Create(nil);
+  try
+    Model.History.UserRecord.LastProject := Project.Id;
+    Model.History.UserRecord.LastFolder := 0;
+    SelectedAfterInit(Kind, Id);
+    Assert.IsTrue(Kind = frame_ProjectsPanel.ntProject, 'A remembered project is selected');
+    Assert.AreEqual(Project.Id, Id);
+
+    Model.History.UserRecord.LastProject := Project.Id;
+    Model.History.UserRecord.LastFolder := Folder.Id;
+    SelectedAfterInit(Kind, Id);
+    Assert.IsTrue(Kind = frame_ProjectsPanel.ntFolder, 'A remembered folder is selected');
+    Assert.AreEqual(Folder.Id, Id);
+  finally
+    if OwnImages then
+      FreeAndNil(dmTreeImages);
   end;
 end;
 

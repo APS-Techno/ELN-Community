@@ -961,6 +961,105 @@ def icon_data_completeness(pal):
     return finalize(img, pal)
 
 
+def icon_link_types(pal):
+    """Two interlocked chain links."""
+    def link(box, color):
+        layer = make_canvas()
+        d = ImageDraw.Draw(layer)
+        x1, y1, x2, y2 = (S(v) for v in box)
+        d.rounded_rectangle([x1, y1, x2, y2], radius=S(7), outline=_c(pal['OUTLINE']), width=S(6))
+        inset = S(1.5)
+        d.rounded_rectangle([x1 + inset, y1 + inset, x2 - inset, y2 - inset], radius=S(5.5),
+                            outline=_c(color), width=S(3))
+        return layer
+
+    left = link((3, 13, 25, 27), body_mid(pal))
+    right = link((15, 13, 37, 27), pal['ACCENT'])
+    img = Image.alpha_composite(make_canvas(), left)
+    img = Image.alpha_composite(img, right)
+    crossing = (S(19), S(12), S(26), S(20))
+    img.paste(left.crop(crossing), crossing[:2], left.crop(crossing))
+    return finalize(img, pal)
+
+
+def icon_go_to(pal):
+    """Target with an arrow pointing into its centre."""
+    img = make_canvas()
+    img = gfill_ellipse(img, [S(12), S(4), S(36), S(28)], pal, 'body')
+    d = ImageDraw.Draw(img)
+    d.ellipse([S(12), S(4), S(36), S(28)], outline=_c(pal['OUTLINE']), width=LW)
+    d.ellipse([S(18), S(10), S(30), S(22)], outline=_c(pal['DETAIL']), width=LW_THIN)
+    d.ellipse([S(22), S(14), S(26), S(18)], fill=_c(pal['ACCENT']))
+    d.line([(S(5), S(35)), (S(19), S(21))], fill=_c(pal['ACCENT']), width=int(2.5 * SCALE))
+    d.polygon([(S(23), S(17)), (S(13), S(20)), (S(20), S(27))], fill=_c(pal['ACCENT']))
+    return finalize(img, pal)
+
+
+def icon_show_ids(pal):
+    """List rows, each with a hash identifier."""
+    img = make_canvas()
+    img = gfill_rect(img, S(4), S(6), S(36), S(34), pal, 'body', rx=S(3))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle([S(4), S(6), S(36), S(34)], radius=S(3),
+                        outline=_c(pal['OUTLINE']), width=LW)
+    for cy in (13, 20, 27):
+        d.line([(S(10), S(cy - 3)), (S(9), S(cy + 3))], fill=_c(pal['ACCENT']), width=LW_THIN)
+        d.line([(S(14), S(cy - 3)), (S(13), S(cy + 3))], fill=_c(pal['ACCENT']), width=LW_THIN)
+        d.line([(S(8), S(cy - 1)), (S(16), S(cy - 1))], fill=_c(pal['ACCENT']), width=LW_THIN)
+        d.line([(S(7), S(cy + 1.5)), (S(15), S(cy + 1.5))], fill=_c(pal['ACCENT']), width=LW_THIN)
+        d.line([(S(20), S(cy)), (S(31), S(cy))], fill=_c(pal['DETAIL']), width=LW_THIN)
+    return finalize(img, pal)
+
+
+def icon_web_devices(pal):
+    """Phone with wireless signal arcs."""
+    img = make_canvas()
+    img = gfill_rect(img, S(6), S(8), S(22), S(36), pal, 'body', rx=S(3))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle([S(6), S(8), S(22), S(36)], radius=S(3),
+                        outline=_c(pal['OUTLINE']), width=LW)
+    d.rectangle([S(9), S(12), S(19), S(28)], fill=_c(pal['FILL']))
+    d.ellipse([S(13), S(30), S(15), S(32)], fill=_c(pal['OUTLINE']))
+    for r in (5, 10, 15):
+        d.arc([S(22) - S(r), S(12) - S(r), S(22) + S(r), S(12) + S(r)],
+              start=-60, end=0, fill=_c(pal['ACCENT']), width=LW)
+    return finalize(img, pal)
+
+
+def icon_save_draft(pal):
+    """Floppy disk with a pencil."""
+    img = make_canvas()
+    pts = [(S(4), S(4)), (S(26), S(4)), (S(32), S(10)), (S(32), S(32)), (S(4), S(32))]
+    img = gfill_polygon(img, pts, pal, 'body')
+    d = ImageDraw.Draw(img)
+    d.polygon(pts, outline=_c(pal['OUTLINE']), width=LW)
+    d.rectangle([S(10), S(4), S(24), S(13)], fill=_c(pal['FILL']), outline=_c(pal['OUTLINE']), width=LW_THIN)
+    d.rectangle([S(19), S(6), S(22), S(11)], fill=_c(pal['OUTLINE']))
+    d.rectangle([S(9), S(19), S(27), S(32)], fill=_c(pal['DETAIL']), outline=_c(pal['OUTLINE']), width=LW_THIN)
+    mid = body_mid(pal)
+    d.line([(S(22), S(37)), (S(37), S(22))], fill=(*mid, 255), width=S(5))
+    d.line([(S(22), S(37)), (S(37), S(22))], fill=_c(pal['ACCENT']), width=S(3))
+    d.polygon([(S(19), S(39)), (S(20), S(34)), (S(24), S(38))], fill=_c(pal['OUTLINE']))
+    return finalize(img, pal)
+
+
+def icon_reload_draft(pal):
+    """Document with a circular reload arrow."""
+    img = make_canvas()
+    img, d = draw_page(img, ImageDraw.Draw(img), pal, 4, 4, 22, 28)
+    for ly in [14, 19, 24]:
+        d.line([(S(8), S(ly)), (S(18), S(ly))], fill=_c(pal['DETAIL']), width=LW_THIN)
+    cx, cy, r = S(29), S(29), S(9)
+    img = gfill_ellipse(img, [cx - r, cy - r, cx + r, cy + r], pal, 'sec')
+    d = ImageDraw.Draw(img)
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=_c(pal['OUTLINE']), width=LW_THIN)
+    d.arc([S(24), S(24), S(34), S(34)], start=200, end=340, fill=_c(pal['ACCENT']), width=LW)
+    d.polygon([(S(34), S(30)), (S(31), S(26)), (S(36), S(25))], fill=_c(pal['ACCENT']))
+    d.arc([S(24), S(24), S(34), S(34)], start=20, end=160, fill=_c(pal['ACCENT']), width=LW)
+    d.polygon([(S(24), S(28)), (S(27), S(32)), (S(22), S(33))], fill=_c(pal['ACCENT']))
+    return finalize(img, pal)
+
+
 
 ICONS = {
     'Import':             icon_import,
@@ -1014,6 +1113,12 @@ ICONS = {
     'Extract Values':     icon_extract_values,
     'Audit Rules':        icon_audit_rules,
     'Data Completeness':  icon_data_completeness,
+    'Link Types':         icon_link_types,
+    'Go To':              icon_go_to,
+    'Show IDs':           icon_show_ids,
+    'Web Devices':        icon_web_devices,
+    'Save Draft':         icon_save_draft,
+    'Reload Draft':       icon_reload_draft,
 }
 
 

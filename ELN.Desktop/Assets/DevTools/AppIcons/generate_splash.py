@@ -1,101 +1,89 @@
-"""
-Generate ELN3 splash screen image — 600x340 PNG.
-Navy gradient background, notebook+flask icon, title/subtitle, teal accent line.
-Bottom area left blank for runtime version/status labels rendered by Delphi.
-"""
+import os
+import re
+from io import BytesIO
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
-import os
 
+import generate_icon
 from generate_icon import draw_icon
 
+WIDTH, HEIGHT = 600, 340
+TOP = (22, 66, 77)
+BOTTOM = (12, 30, 43)
+ACCENT = (55, 189, 193)
+WHITE = (255, 255, 255)
+SOFT = (205, 220, 228)
+MUTED = (150, 172, 184)
+DIVIDER = (255, 255, 255, 46)
 
-def generate_splash():
-    W, H = 600, 340
-    img = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-
-    navy_top = (25, 55, 95)
-    navy_bot = (13, 34, 64)
-    white = (255, 255, 255)
-    pale_blue = (160, 200, 240)
-    teal = (60, 180, 220)
-
-    for y in range(H):
-        t = y / (H - 1)
-        r = int(navy_top[0] + t * (navy_bot[0] - navy_top[0]))
-        g = int(navy_top[1] + t * (navy_bot[1] - navy_top[1]))
-        b = int(navy_top[2] + t * (navy_bot[2] - navy_top[2]))
-        d.line([(0, y), (W - 1, y)], fill=(r, g, b))
-
-    icon_size = 120
-    icon_img = draw_icon(icon_size)
-    icon_x = (W - icon_size) // 2
-    icon_y = 24
-    img.paste(icon_img, (icon_x, icon_y), icon_img)
-
-    title_size = 32
-    subtitle_size = 16
-    try:
-        font_title = ImageFont.truetype("segoeuib.ttf", title_size)
-    except OSError:
-        try:
-            font_title = ImageFont.truetype("arialbd.ttf", title_size)
-        except OSError:
-            font_title = ImageFont.load_default()
-    try:
-        font_sub = ImageFont.truetype("segoeui.ttf", subtitle_size)
-    except OSError:
-        try:
-            font_sub = ImageFont.truetype("arial.ttf", subtitle_size)
-        except OSError:
-            font_sub = ImageFont.load_default()
-
-    title_text = "E-Lab Notebook"
-    title_bbox = d.textbbox((0, 0), title_text, font=font_title)
-    title_w = title_bbox[2] - title_bbox[0]
-    title_x = (W - title_w) // 2
-    title_y = icon_y + icon_size + 12
-    d.text((title_x, title_y), title_text, fill=white, font=font_title)
-
-    sub_text = "Electronic Laboratory Notebook"
-    sub_bbox = d.textbbox((0, 0), sub_text, font=font_sub)
-    sub_w = sub_bbox[2] - sub_bbox[0]
-    sub_x = (W - sub_w) // 2
-    sub_y = title_y + (title_bbox[3] - title_bbox[1]) + 8
-    d.text((sub_x, sub_y), sub_text, fill=pale_blue, font=font_sub)
-
-    line_y = sub_y + (sub_bbox[3] - sub_bbox[1]) + 16
-    line_margin = 100
-    d.line([(line_margin, line_y), (W - line_margin, line_y)], fill=teal, width=2)
-
-    byline_size = 12
-    try:
-        font_byline = ImageFont.truetype("segoeui.ttf", byline_size)
-    except OSError:
-        try:
-            font_byline = ImageFont.truetype("arial.ttf", byline_size)
-        except OSError:
-            font_byline = ImageFont.load_default()
-    byline_text = "by APS Technology"
-    byline_bbox = d.textbbox((0, 0), byline_text, font=font_byline)
-    byline_w = byline_bbox[2] - byline_bbox[0]
-    byline_x = (W - byline_w) // 2
-    byline_y = line_y + 8
-    d.text((byline_x, byline_y), byline_text, fill=pale_blue, font=font_byline)
-
-    # --- Bottom area left for Delphi runtime labels (version + status) ---
-
-    # --- Convert to opaque RGB (no alpha) to avoid VCL transparency artifacts ---
-    img = img.convert('RGB')
-
-    out_dir = os.path.dirname(os.path.abspath(__file__))
-    out_path = os.path.join(out_dir, 'splash.png')
-    img.save(out_path, 'PNG')
-    print(f'Splash saved to: {out_path}')
-    print(f'Size: {W}x{H}')
-    return out_path
+SPLASH_DFM = Path(__file__).resolve().parents[4] / "ELN.Community.Desktop" / "frm_CommunitySplash.dfm"
+PICTURE_HEADER = b"\x09TPngImage"
 
 
-if __name__ == '__main__':
-    generate_splash()
+def font(name, size):
+    return ImageFont.truetype(str(Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / name), size)
+
+
+def gradient():
+    image = Image.new("RGB", (WIDTH, HEIGHT))
+    draw = ImageDraw.Draw(image)
+    for y in range(HEIGHT):
+        t = y / (HEIGHT - 1)
+        draw.line([(0, y), (WIDTH - 1, y)],
+                  fill=tuple(round(a + (b - a) * t) for a, b in zip(TOP, BOTTOM)))
+    return image
+
+
+def render():
+    assert generate_icon.EDITION == "community"
+    image = gradient().convert("RGBA")
+    icon = draw_icon(216)
+    image.alpha_composite(icon, (23, 28))
+    draw = ImageDraw.Draw(image)
+    draw.text((259, 61), "ELN", fill=WHITE, font=font("segoeuib.ttf", 42))
+    draw.text((259, 115), "Community", fill=ACCENT, font=font("segoeui.ttf", 29))
+    draw.text((259, 166), "Electronic Laboratory", fill=SOFT, font=font("segoeui.ttf", 16))
+    draw.text((259, 189), "Notebook", fill=SOFT, font=font("segoeui.ttf", 16))
+    draw.text((259, 225), "APS Technology", fill=MUTED, font=font("segoeui.ttf", 12))
+    layer = Image.new("RGBA", image.size)
+    ImageDraw.Draw(layer).line([(24, 260), (575, 260)], fill=DIVIDER)
+    image.alpha_composite(layer)
+    ImageDraw.Draw(image).rectangle([24, 321, 575, 324], fill=ACCENT)
+    return image.convert("RGB")
+
+
+def png_bytes(image):
+    buffer = BytesIO()
+    image.save(buffer, "PNG", optimize=True)
+    return buffer.getvalue()
+
+
+def dfm_hex(data):
+    hexed = data.hex().upper()
+    lines = [hexed[i:i + 64] for i in range(0, len(hexed), 64)]
+    return "\r\n".join("      " + line for line in lines)
+
+
+def embed(data):
+    text = SPLASH_DFM.read_bytes().decode("ascii")
+    block = dfm_hex(PICTURE_HEADER + data) + "}"
+    updated, count = re.subn(r"(Picture\.Data = \{\r\n)[0-9A-F \r\n]*\}",
+                             lambda m: m.group(1) + block, text)
+    if count != 1:
+        raise SystemExit(f"Picture.Data block not found in {SPLASH_DFM}")
+    SPLASH_DFM.write_bytes(updated.encode("ascii"))
+
+
+def main():
+    image = render()
+    data = png_bytes(image)
+    out = Path(__file__).resolve().parent / "splash.png"
+    out.write_bytes(data)
+    embed(data)
+    print(f"Splash {WIDTH}x{HEIGHT} ({len(data)} bytes): {out}")
+    print(f"Embedded in: {SPLASH_DFM}")
+
+
+if __name__ == "__main__":
+    main()

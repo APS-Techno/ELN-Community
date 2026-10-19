@@ -375,6 +375,26 @@ begin
       'Should contain signer name');
     Assert.IsTrue(Html.Contains('Approval'),
       'Should contain signature meaning');
+    Assert.IsTrue(Html.Contains('<span class="sig-ok">'),
+      'Verified signature must render the sig-ok marker');
+    Assert.IsFalse(Html.Contains('<span class="sig-fail">'),
+      'Verified signature must not render the sig-fail marker');
+
+    Data.IntegrityState := sisMismatch;
+    Items[0] := Data;
+    Html := TReportBuilder.BuildReport(Items, TReportOptions.Default);
+    Assert.IsTrue(Html.Contains('<span class="sig-fail">'),
+      'Mismatched signature must render the sig-fail marker');
+    Assert.IsFalse(Html.Contains('<span class="sig-ok">'),
+      'Mismatched signature must not render the sig-ok marker');
+
+    Data.IntegrityState := sisUnsigned;
+    Items[0] := Data;
+    Html := TReportBuilder.BuildReport(Items, TReportOptions.Default);
+    Assert.IsFalse(Html.Contains('<span class="sig-ok">'),
+      'Unsigned state must not render the sig-ok marker');
+    Assert.IsFalse(Html.Contains('<span class="sig-fail">'),
+      'Unsigned state must not render the sig-fail marker');
   finally
     Sig.Free;
     Data.Item.Free;

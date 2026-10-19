@@ -13,6 +13,10 @@ type
     [Test] procedure NotesRenderRichTextWithoutAPlugin;
     [Test] procedure PreviewLoadDoesNotReplaceActiveViewer;
     [Test] procedure ConstructionFailurePreservesOriginalException;
+    [Test] procedure UnsupportedFileRetainsExternalOpenIdentity;
+    [TestCase('Matched reader', 'False')]
+    [TestCase('Generic reader', 'True')]
+    procedure FailedReaderDoesNotActivateItsCard(GenericReader: Boolean);
   end;
 
 procedure InitializeEmptyViewer(Viewer: TframeContentViewer);
@@ -50,6 +54,9 @@ type
     FItemId: Integer;
     FFileId: Int64;
   public
+    Extensions: string;
+    RejectLoad: Boolean;
+    LoadCount: Integer;
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     function GetFrame: TFrame;
@@ -130,6 +137,7 @@ constructor TFixturePlugin.Create(AOwner: TComponent);
 begin
   inherited;
   FFrame := TFrame.Create(nil);
+  Extensions := '.synthetic';
 end;
 
 destructor TFixturePlugin.Destroy;
@@ -146,12 +154,13 @@ function TFixturePlugin.GetParams: TPluginParams;
 begin
   Result := Default(TPluginParams);
   Result.PType := ptFile;
-  Result.Ext := '.synthetic';
+  Result.Ext := Extensions;
 end;
 function TFixturePlugin.LoadFromFile(const FileName: string): Boolean;
 begin
+  Inc(LoadCount);
   FFrame.Hint := Format('%s:%d:%d', [FileName, FItemId, FFileId]);
-  Result := True;
+  Result := not RejectLoad;
 end;
 function TFixturePlugin.LoadFromStream(Stream: TMemoryStream): Boolean;
 begin Result := False; end;
@@ -247,6 +256,78 @@ begin
       Active.Frame.Parent := nil;
     Host.Free;
     Active.Free;
+  end;
+end;
+
+procedure TSharedDesktopViewerTests.FailedReaderDoesNotActivateItsCard(
+  GenericReader: Boolean);
+var
+  Host: TForm;
+  Viewer: TframeContentViewer;
+  Reader, Fallback: TFixturePlugin;
+  PreviousCard: TComponent;
+begin
+  Host := TForm.CreateNew(nil);
+  Reader := nil;
+  Fallback := nil;
+  try
+    Viewer := TframeContentViewer.Create(Host);
+    Viewer.Parent := Host;
+    InitializeEmptyViewer(Viewer);
+    PreviousCard := Viewer.Cards.ActiveCard;
+    Reader := TFixturePlugin.Create(nil);
+    if GenericReader then
+      Reader.Extensions := '';
+    Viewer.upfPluginManagerPluginRegistered(nil, Reader);
+    if not GenericReader then
+    begin
+      Fallback := TFixturePlugin.Create(nil);
+      Fallback.Extensions := '';
+      Viewer.upfPluginManagerPluginRegistered(nil, Fallback);
+    end;
+    Viewer.DisplayFile('Previous.synthetic', 7);
+    Reader.RejectLoad := True;
+    Assert.WillRaise(
+      procedure
+      begin
+        Viewer.DisplayFile('Rejected.synthetic', 42);
+      end, EReadError);
+    Assert.IsTrue(Viewer.Cards.ActiveCard = PreviousCard,
+      'A rejected reader must not become the successful display');
+    Assert.IsFalse(Viewer.IsFileDisplayed(42),
+      'Rejected content must not own a notebook file identity');
+    Assert.IsFalse(Viewer.IsFileDisplayed(7));
+    Assert.AreEqual(2, Reader.LoadCount);
+    if Assigned(Fallback) then
+      Assert.AreEqual(0, Fallback.LoadCount,
+        'A reader failure is not an unsupported-extension fallback');
+  finally
+    if Assigned(Reader) then
+      Reader.Frame.Parent := nil;
+    if Assigned(Fallback) then
+      Fallback.Frame.Parent := nil;
+    Host.Free;
+    Fallback.Free;
+    Reader.Free;
+  end;
+end;
+
+procedure TSharedDesktopViewerTests.UnsupportedFileRetainsExternalOpenIdentity;
+var
+  Host: TForm;
+  Viewer: TframeContentViewer;
+begin
+  Host := TForm.CreateNew(nil);
+  try
+    Viewer := TframeContentViewer.Create(Host);
+    Viewer.Parent := Host;
+    InitializeEmptyViewer(Viewer);
+    Viewer.DisplayFile('Unsupported.extension', 77);
+    Assert.IsTrue(Viewer.IsFileDisplayed(77),
+      'An unsupported file must still be available to Open externally');
+    Assert.IsTrue(Viewer.btnOpen.Visible);
+  finally
+    Host.Free;
   end;
 end;
 

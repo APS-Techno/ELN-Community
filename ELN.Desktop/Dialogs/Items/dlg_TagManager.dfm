@@ -95,6 +95,10 @@ object dlgTagManager: TdlgTagManager
       item
         Caption = 'Color'
         Width = 100
+      end
+      item
+        Caption = 'Items'
+        Width = 80
       end>
     HideSelection = False
     ReadOnly = True

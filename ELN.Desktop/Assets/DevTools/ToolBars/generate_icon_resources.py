@@ -91,6 +91,12 @@ MENU_ICONS = [
     'Extract Values',
     'Audit Rules',
     'Data Completeness',
+    'Link Types',
+    'Go To',
+    'Show IDs',
+    'Web Devices',
+    'Save Draft',
+    'Reload Draft',
 ]
 
 

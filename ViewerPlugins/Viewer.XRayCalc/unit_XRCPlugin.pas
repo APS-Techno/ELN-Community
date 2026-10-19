@@ -53,7 +53,7 @@ end;
 
 function TXRCViewerPlugin.GetReaderVersion: string;
 begin
-  Result := '1';
+  Result := '2';
 end;
 
 function TXRCViewerPlugin.CreateViewerFrame: TFrame;

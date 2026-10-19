@@ -20,6 +20,17 @@ type
     miFile: TMenuItem;
     miNew: TMenuItem;
     miOpen: TMenuItem;
+    miRecent: TMenuItem;
+    miRecent1: TMenuItem;
+    miRecent2: TMenuItem;
+    miRecent3: TMenuItem;
+    miRecent4: TMenuItem;
+    miRecent5: TMenuItem;
+    miRecent6: TMenuItem;
+    miRecent7: TMenuItem;
+    miRecent8: TMenuItem;
+    miRecentSeparator: TMenuItem;
+    miClearRecent: TMenuItem;
     miCloseNotebook: TMenuItem;
     miImport: TMenuItem;
     miExport: TMenuItem;
@@ -103,6 +114,8 @@ type
     procedure FormAfterMonitorDpiChanged(Sender: TObject; OldDPI, NewDPI: Integer);
     procedure NewNotebookClick(Sender: TObject);
     procedure OpenNotebookClick(Sender: TObject);
+    procedure RecentNotebookClick(Sender: TObject);
+    procedure ClearRecentClick(Sender: TObject);
     procedure CloseNotebookClick(Sender: TObject);
     procedure ExitClick(Sender: TObject);
     procedure CommandClick(Sender: TObject);
@@ -118,6 +131,7 @@ type
     FStartupStorage: string;
     FPluginsPath: string;
     FFiles: TDictionary<Int64, TWorkingFile>;
+    FRecentNotebooks: TStringList;
     FCurrentFileId: Int64;
     FStarted: Boolean;
     FClosing: Boolean;
@@ -127,11 +141,17 @@ type
     procedure EditorClosing(Sender: TObject; var Action: TCloseAction);
     procedure SetNotebookUI(Opened: Boolean);
     procedure WireCommands;
-    procedure BindNotebook(Notebook: TLocalNotebook; const DatabasePath, StorageRoot: string;
+    procedure BindNotebook(Notebook: TLocalNotebook; const DatabasePath: string;
       Fresh: Boolean);
     procedure ReleaseNotebook;
+    procedure SwitchNotebook(const DatabasePath: string);
+    procedure LoadRecentNotebooks;
+    procedure SaveRecentNotebooks;
+    procedure AddRecentNotebook(const DatabasePath: string);
+    procedure UpdateRecentMenu;
     function OpenNotebookWithUpgrade(const DatabasePath,
       StorageRoot: string): TLocalNotebook;
+    function OpenNotebookChoosingStorage(const DatabasePath: string): TLocalNotebook;
     function PrepareFile(FileId: Int64): string;
     procedure DisplayFile(FileId: Int64);
     procedure OpenFile(FileId: Int64);
@@ -163,7 +183,7 @@ implementation
 uses
   System.IOUtils, System.UITypes, Winapi.ShellAPI, Vcl.Themes, Vcl.ActnList,
   IdHashMessageDigest, unit_DataModel, unit_Item, unit_User, unit_ValueTypeCategories,
-  unit_LocalElnFileService, unit_ElnFileEnumerator, unit_ElnLinkHandler,
+  unit_LocalElnFileService, unit_ElnFileEnumerator, unit_ElnAnalysisSettings, unit_ElnLinkHandler,
   dm_TreeImages, unit_TreeAppearance, unit_TreeLook, unit_ELNThemeHelper,
   unit_ServiceImport, unit_FileTypeIconSeeder, unit_PackageImport, unit_ConflictHandler, dlg_Conflict,
   frm_LocalProfile, frm_CommunityPreferences,
@@ -173,6 +193,9 @@ uses
   dlg_AuditReport, dlg_ExperimentTemplate, dlg_RecycleBin, dlg_TagManager,
   dlg_Search, dlg_GoToItem, dlg_UnitConverter, dlg_HelpViewer, dlg_About,
   frm_Analysis;
+
+const
+  RecentNotebookLimit = 8;
 
 function GetExeVersion: string;
 var
@@ -217,6 +240,7 @@ var
   Key, Value: string;
 begin
   FFiles := TDictionary<Int64, TWorkingFile>.Create;
+  FRecentNotebooks := TStringList.Create;
   ConfigPath := TPath.Combine(GetEnvironmentVariable('LOCALAPPDATA'),
     'ELN Community\desktop.ini');
   I := 1;
@@ -236,11 +260,12 @@ begin
     else FPluginsPath := Value;
     Inc(I);
   end;
-  if (FStartupNotebook = '') <> (FStartupStorage = '') then
-    raise EArgumentException.Create('--notebook and --storage must be supplied together');
+  if (FStartupStorage <> '') and (FStartupNotebook = '') then
+    raise EArgumentException.Create('--storage requires --notebook');
   ForceDirectories(ExtractFilePath(ConfigPath));
   TNotebookSettings.SetConfigFile(ConfigPath);
   FSettings := TNotebookSettings.Create(ConfigPath);
+  LoadRecentNotebooks;
   if FPluginsPath = '' then FPluginsPath := FSettings.PluginsDir;
   if FPluginsPath = '' then FPluginsPath := ExtractFilePath(Application.ExeName) + 'Plugins';
   ThemePluginsEnabled := FSettings.DarkCharts;
@@ -281,18 +306,20 @@ begin
   if FStarted then Exit;
   FStarted := True;
   if FStartupNotebook = '' then
-  begin
     FStartupNotebook := FSettings.LoadUIString('CommunityMain', 'LastNotebook', '');
-    FStartupStorage := FSettings.LoadUIString('CommunityMain', 'LastStorage', '');
-  end;
   if FStartupNotebook = '' then Exit;
   try
-    if not TDirectory.Exists(FStartupStorage) then
-      raise ELocalNotebookError.Create('Attachment directory is unavailable: ' + FStartupStorage);
-    Notebook := OpenNotebookWithUpgrade(FStartupNotebook, FStartupStorage);
+    if FStartupStorage = '' then
+      Notebook := OpenNotebookChoosingStorage(FStartupNotebook)
+    else
+    begin
+      if not TDirectory.Exists(FStartupStorage) then
+        raise ELocalNotebookError.Create('Attachment directory is unavailable: ' + FStartupStorage);
+      Notebook := OpenNotebookWithUpgrade(FStartupNotebook, FStartupStorage);
+    end;
     if not Assigned(Notebook) then Exit;
     try
-      BindNotebook(Notebook, FStartupNotebook, FStartupStorage, False);
+      BindNotebook(Notebook, FStartupNotebook, False);
       Notebook := nil;
     finally
       Notebook.Free;
@@ -301,7 +328,7 @@ begin
     on E: Exception do
       MessageDlg('Could not open notebook:' + sLineBreak + FStartupNotebook +
         sLineBreak + E.Message + sLineBreak +
-        'Choose File > Open Notebook to select the notebook and its attachment directory.',
+        'Choose File > Open Notebook to select a notebook.',
         mtError, [mbOK], 0);
   end;
 end;
@@ -356,6 +383,7 @@ begin
     StatusNotebook.Caption := 'No notebook open';
     StatusFile.Caption := '';
   end;
+  UpdateRecentMenu;
 end;
 
 procedure TfrmCommunityMain.WireCommands;
@@ -401,13 +429,13 @@ begin
 end;
 
 procedure TfrmCommunityMain.BindNotebook(Notebook: TLocalNotebook;
-  const DatabasePath, StorageRoot: string; Fresh: Boolean);
+  const DatabasePath: string; Fresh: Boolean);
 var
   Id: TGUID;
 begin
   FNotebook := Notebook;
   FDatabasePath := TPath.GetFullPath(DatabasePath);
-  FStorageRoot := TPath.GetFullPath(StorageRoot);
+  FStorageRoot := Notebook.StorageRoot;
   try
     Model := TDataModel.Create(Notebook.Connection, Notebook.Principal.Id,
       Notebook.AccessPolicy, Notebook.Storage);
@@ -421,6 +449,7 @@ begin
     InstallLocalElnFileService(Model.Manager, Model.User.Id, Notebook.AccessPolicy,
       Model.Storage, FStorageRoot, FWorkingRoot);
     InstallElnFileEnumerator;
+    InstallElnAnalysisSettings;
     InstallElnLinkHandler(procedure(ProjectId, FolderId, ItemId: Integer)
       begin NavigateItem(Self, ProjectId, FolderId, ItemId); end);
     frmProjects.Init;
@@ -437,7 +466,7 @@ begin
     frmProjects.RestoreLastSelection;
     if FSettings.ShowDashboard then frmContentViewer.ShowDashboard;
     FSettings.SaveUIString('CommunityMain', 'LastNotebook', FDatabasePath);
-    FSettings.SaveUIString('CommunityMain', 'LastStorage', FStorageRoot);
+    AddRecentNotebook(FDatabasePath);
   except
     // The caller still owns the notebook if binding fails.
     FNotebook := nil;
@@ -498,6 +527,7 @@ begin
   frmProjects.ResetSession;
   UninstallElnLinkHandler;
   UninstallElnFileEnumerator;
+  UninstallElnAnalysisSettings;
   UninstallLocalElnFileService;
   FCurrentFileId := 0;
   FFiles.Clear;
@@ -519,19 +549,55 @@ begin
   except
     on ELocalNotebookUpgradeRequired do
       if MessageDlg('The notebook' + sLineBreak + DatabasePath + sLineBreak +
-        'uses notebook format 2. This version opens format 3 only.' +
+        'uses an older notebook format. This version opens format 5 only.' +
         sLineBreak + sLineBreak +
         'The upgrade first copies the database beside it as a backup, then ' +
-        'adds the value source and plausible range columns. Older ELN ' +
-        'Community versions cannot open the upgraded notebook.' +
+        'adds value mappings, conversion provenance and Derived value ' +
+        'storage. Older ELN Community versions cannot open the upgraded notebook.' +
         sLineBreak + sLineBreak + 'Upgrade the notebook now?',
         mtConfirmation, [mbYes, mbNo], 0, mbNo) <> mrYes then
         Exit(nil);
   end;
   BackupPath := TLocalNotebook.Upgrade(DatabasePath);
-  MessageDlg('The notebook now uses format 3. The format 2 copy is kept at:' +
+  MessageDlg('The notebook now uses format 5. The original copy is kept at:' +
     sLineBreak + BackupPath, mtInformation, [mbOK], 0);
   Result := TLocalNotebook.Open(DatabasePath, StorageRoot);
+end;
+
+function TfrmCommunityMain.OpenNotebookChoosingStorage(
+  const DatabasePath: string): TLocalNotebook;
+var
+  Reason: string;
+begin
+  Reason := '';
+  try
+    Exit(OpenNotebookWithUpgrade(DatabasePath, ''));
+  except
+    on E: ELocalNotebookStorageUnavailable do
+      Reason := E.Message;
+    on ELocalNotebookStorageRequired do
+      Reason := '';
+  end;
+  if Reason <> '' then
+    MessageDlg(Reason + sLineBreak + 'Choose the attachment directory of' +
+      sLineBreak + DatabasePath, mtWarning, [mbOK], 0);
+  StorageDialog.Title := 'Choose the attachment directory of ' + ExtractFileName(DatabasePath);
+  StorageDialog.DefaultFolder := ExtractFileDir(TPath.GetFullPath(DatabasePath));
+  StorageDialog.FileName := '';
+  if not StorageDialog.Execute then Exit(nil);
+  Result := OpenNotebookWithUpgrade(DatabasePath, StorageDialog.FileName);
+  if not Assigned(Result) then Exit;
+  try
+    if Result.CanRememberStorageRoot and (MessageDlg(
+      'Remember this attachment directory in the notebook?' + sLineBreak +
+      Result.StorageRoot + sLineBreak + sLineBreak +
+      'The notebook then opens without asking for it, also after you move ' +
+      'the notebook folder.', mtConfirmation, [mbYes, mbNo], 0) = mrYes) then
+      Result.RememberStorageRoot;
+  except
+    Result.Free;
+    raise;
+  end;
 end;
 
 function TfrmCommunityMain.PrepareFile(FileId: Int64): string;
@@ -613,7 +679,14 @@ begin
   Result := SaveResult = srOk;
   if Result then
   begin
-    if FCurrentFileId = FileId then DisplayFile(FileId);
+    if FCurrentFileId = FileId then
+      try
+        DisplayFile(FileId);
+      except
+        on E: EReadError do
+          MessageDlg('The attachment was saved, but its viewer could not reload it.' +
+            sLineBreak + E.Message, mtWarning, [mbOK], 0);
+      end;
   end
   else if SaveResult = srError then
     MessageDlg(ErrorText + sLineBreak + 'Draft and recovery files remain at ' + FWorkingRoot,
@@ -715,10 +788,11 @@ end;
 procedure TfrmCommunityMain.NewNotebookClick(Sender: TObject);
 var
   Notebook: TLocalNotebook;
-  FirstName, LastName, Password, StorageRoot: string;
+  FirstName, LastName, Password, StorageRoot, DefaultRoot: string;
   Manifest: TImportManifest;
   Importer: TServiceImporter;
   I: Integer;
+  CreatedDefault, Created: Boolean;
 begin
   if not NewNotebookDialog.Execute then Exit;
   if System.IOUtils.TFile.Exists(NewNotebookDialog.FileName) then
@@ -729,64 +803,163 @@ begin
       mtWarning, [mbOK], 0);
     Exit;
   end;
-  StorageDialog.Title := 'Choose a separate, empty attachment directory';
-  if not StorageDialog.Execute then Exit;
-  StorageRoot := StorageDialog.FileName;
-  if Length(TDirectory.GetFileSystemEntries(StorageRoot)) <> 0 then
-    raise EArgumentException.Create('A new notebook requires an empty attachment directory. Existing files are never deleted or reused.');
-  if not TdlgLocalProfile.Execute(FirstName, LastName, Password) then Exit;
+  DefaultRoot := TPath.Combine(ExtractFileDir(NewNotebookDialog.FileName),
+    TPath.GetFileNameWithoutExtension(NewNotebookDialog.FileName) + ' files');
+  CreatedDefault := not TDirectory.Exists(DefaultRoot) and
+    not System.IOUtils.TFile.Exists(DefaultRoot) and ForceDirectories(DefaultRoot);
+  Created := False;
+  StorageRoot := '';
   try
-    // Check required shipped catalogs before creating any notebook bytes.
-    Importer := TServiceImporter.Create(nil, 0);
+    if TDirectory.Exists(DefaultRoot) and TDirectory.IsEmpty(DefaultRoot) then
+      StorageDialog.DefaultFolder := DefaultRoot
+    else
+      StorageDialog.DefaultFolder := ExtractFileDir(NewNotebookDialog.FileName);
+    StorageDialog.FileName := '';
+    StorageDialog.Title := 'Choose a separate, empty attachment directory';
+    if not StorageDialog.Execute then Exit;
+    StorageRoot := StorageDialog.FileName;
+    if Length(TDirectory.GetFileSystemEntries(StorageRoot)) <> 0 then
+      raise EArgumentException.Create('A new notebook requires an empty attachment directory. Existing files are never deleted or reused.');
+    if not TdlgLocalProfile.Execute(FirstName, LastName, Password) then Exit;
     try
-      Manifest := Importer.ScanFolder(ExtractFilePath(Application.ExeName) + 'CSV');
-      for I := Low(Manifest.Files) to High(Manifest.Files) do
-        if not Manifest.Files[I].Found then
-          raise EFileNotFoundException.Create('Missing scientific catalog: ' + Manifest.Files[I].FileName);
+      // Check required shipped catalogs before creating any notebook bytes.
+      Importer := TServiceImporter.Create(nil, 0);
+      try
+        Manifest := Importer.ScanFolder(ExtractFilePath(Application.ExeName) + 'CSV');
+        for I := Low(Manifest.Files) to High(Manifest.Files) do
+          if not Manifest.Files[I].Found then
+            raise EFileNotFoundException.Create('Missing scientific catalog: ' + Manifest.Files[I].FileName);
+      finally
+        Importer.Free;
+      end;
+      if not FinishEditorsAndDrafts then Exit;
+      Notebook := TLocalNotebook.CreateNew(NewNotebookDialog.FileName, StorageRoot,
+        FirstName, LastName, Password);
+      Created := True;
+      try
+        ReleaseNotebook;
+        BindNotebook(Notebook, NewNotebookDialog.FileName, True);
+        Notebook := nil;
+      finally
+        Notebook.Free;
+      end;
     finally
-      Importer.Free;
-    end;
-    if not FinishEditorsAndDrafts then Exit;
-    Notebook := TLocalNotebook.CreateNew(NewNotebookDialog.FileName, StorageRoot,
-      FirstName, LastName, Password);
-    try
-      ReleaseNotebook;
-      BindNotebook(Notebook, NewNotebookDialog.FileName, StorageRoot, True);
-      Notebook := nil;
-    finally
-      Notebook.Free;
+      Password := '';
     end;
   finally
-    Password := '';
+    if CreatedDefault and not (Created and
+      SameText(TPath.GetFullPath(StorageRoot), TPath.GetFullPath(DefaultRoot))) then
+      RemoveDir(DefaultRoot);
   end;
 end;
 
 procedure TfrmCommunityMain.OpenNotebookClick(Sender: TObject);
+begin
+  if OpenNotebookDialog.Execute then SwitchNotebook(OpenNotebookDialog.FileName);
+end;
+
+procedure TfrmCommunityMain.SwitchNotebook(const DatabasePath: string);
 var
   Notebook: TLocalNotebook;
-  StorageRoot: string;
 begin
-  if not OpenNotebookDialog.Execute then Exit;
-  StorageDialog.Title := 'Choose this notebook''s attachment directory';
-  if not StorageDialog.Execute then Exit;
-  StorageRoot := StorageDialog.FileName;
-  if SameText(TPath.GetFullPath(OpenNotebookDialog.FileName), FDatabasePath) then
-  begin
-    if not SameText(TPath.GetFullPath(StorageRoot), FStorageRoot) then
-      raise EArgumentException.Create('Close this notebook before changing its attachment directory');
-    Exit;
-  end;
+  if SameText(TPath.GetFullPath(DatabasePath), FDatabasePath) then Exit;
   // Validate the candidate before interrupting the active notebook.
-  Notebook := OpenNotebookWithUpgrade(OpenNotebookDialog.FileName, StorageRoot);
+  Notebook := OpenNotebookChoosingStorage(DatabasePath);
   if not Assigned(Notebook) then Exit;
   try
     if not FinishEditorsAndDrafts then Exit;
     ReleaseNotebook;
-    BindNotebook(Notebook, OpenNotebookDialog.FileName, StorageRoot, False);
+    BindNotebook(Notebook, DatabasePath, False);
     Notebook := nil;
   finally
     Notebook.Free;
   end;
+end;
+
+procedure TfrmCommunityMain.RecentNotebookClick(Sender: TObject);
+var
+  Index: Integer;
+  Path: string;
+begin
+  Index := TMenuItem(Sender).Tag;
+  Path := FRecentNotebooks[Index];
+  if not System.IOUtils.TFile.Exists(Path) then
+  begin
+    if MessageDlg('The notebook is unavailable:' + sLineBreak + Path + sLineBreak +
+      sLineBreak + 'Remove it from the recent notebooks list?',
+      mtWarning, [mbYes, mbNo], 0) = mrYes then
+    begin
+      FRecentNotebooks.Delete(Index);
+      SaveRecentNotebooks;
+      UpdateRecentMenu;
+    end;
+    Exit;
+  end;
+  SwitchNotebook(Path);
+end;
+
+procedure TfrmCommunityMain.ClearRecentClick(Sender: TObject);
+begin
+  FRecentNotebooks.Clear;
+  SaveRecentNotebooks;
+  UpdateRecentMenu;
+end;
+
+procedure TfrmCommunityMain.LoadRecentNotebooks;
+var
+  I: Integer;
+  Path: string;
+begin
+  FRecentNotebooks.Clear;
+  for I := 1 to RecentNotebookLimit do
+  begin
+    Path := FSettings.LoadUIString('CommunityMain', 'RecentNotebook' + IntToStr(I), '');
+    if (Path <> '') and (FRecentNotebooks.IndexOf(Path) < 0) then
+      FRecentNotebooks.Add(Path);
+  end;
+end;
+
+procedure TfrmCommunityMain.SaveRecentNotebooks;
+var
+  I: Integer;
+  Path: string;
+begin
+  for I := 0 to RecentNotebookLimit - 1 do
+  begin
+    if I < FRecentNotebooks.Count then Path := FRecentNotebooks[I] else Path := '';
+    FSettings.SaveUIString('CommunityMain', 'RecentNotebook' + IntToStr(I + 1), Path);
+  end;
+end;
+
+procedure TfrmCommunityMain.AddRecentNotebook(const DatabasePath: string);
+var
+  Index: Integer;
+begin
+  Index := FRecentNotebooks.IndexOf(DatabasePath);
+  if Index >= 0 then FRecentNotebooks.Delete(Index);
+  FRecentNotebooks.Insert(0, DatabasePath);
+  while FRecentNotebooks.Count > RecentNotebookLimit do
+    FRecentNotebooks.Delete(FRecentNotebooks.Count - 1);
+  SaveRecentNotebooks;
+  UpdateRecentMenu;
+end;
+
+procedure TfrmCommunityMain.UpdateRecentMenu;
+var
+  Slots: TArray<TMenuItem>;
+  I: Integer;
+begin
+  Slots := [miRecent1, miRecent2, miRecent3, miRecent4,
+    miRecent5, miRecent6, miRecent7, miRecent8];
+  for I := 0 to High(Slots) do
+  begin
+    Slots[I].Visible := I < FRecentNotebooks.Count;
+    if not Slots[I].Visible then Continue;
+    Slots[I].Caption := '&' + IntToStr(I + 1) + ' ' +
+      StringReplace(FRecentNotebooks[I], '&', '&&', [rfReplaceAll]);
+    Slots[I].Checked := SameText(FRecentNotebooks[I], FDatabasePath);
+  end;
+  miRecent.Enabled := FRecentNotebooks.Count > 0;
 end;
 
 procedure TfrmCommunityMain.CloseNotebookClick(Sender: TObject);
@@ -817,6 +990,7 @@ begin
   if Assigned(FFiles) then ReleaseNotebook;
   TConflictHandler.OnConflict := nil;
   FreeAndNil(FFiles);
+  FreeAndNil(FRecentNotebooks);
   FreeAndNil(FSettings);
 end;
 

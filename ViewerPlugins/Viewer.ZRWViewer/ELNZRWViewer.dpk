@@ -1,0 +1,47 @@
+package ELNZRWViewer;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS ON}
+{$RANGECHECKS ON}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  vcl,
+  vclimg,
+  vclwinx,
+  RaizeComponentsVcl,
+  TMSVCLPluginFrameworkPkgCoreDXE16,
+  ELNPluginCore,
+  Tee;
+
+contains
+  unit_ZRWViewerPlugin in 'unit_ZRWViewerPlugin.pas' {ELNZRWViewerPlugin: TupfVisualPlugin},
+  frame_ZRWViewer in 'frame_ZRWViewer.pas' {frameZRWViewer: TFrame},
+  unit_ZRWData in 'unit_ZRWData.pas',
+  unit_ZRWPlateau in 'unit_ZRWPlateau.pas',
+  unit_ZRWAnalysis in 'unit_ZRWAnalysis.pas';
+
+end.

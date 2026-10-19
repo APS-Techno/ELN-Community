@@ -35,6 +35,14 @@ type
       FManager: TObjectManager;
       FProjectID, FFolderID: integer;
       procedure CollectLiveSubtree(Item: TItem; AList: TList<TItem>);
+      function NewValue(ValueType: TValueType; RecType: TRecType;
+        AValue: double; UserId: Integer; Item: TItem; Tol: double;
+        const Description: string; const Source: TValueSourceInfo): TValue;
+      procedure DiscardValue(Item: TItem; Val: TValue);
+      procedure UpdateReaderValue(Val: TValue; ValueType: TValueType;
+        RecType: TRecType; AValue: double; UserId: Integer; Item: TItem;
+        Tol: double; const Description: string; const Source: TValueSourceInfo;
+        const AnalysisSnapshot: string);
 
    protected
       function GetDataSet: TAureliusDataset; override;
@@ -72,10 +80,21 @@ type
       procedure AddValue(ValueType: TValueType; RecType: TRecType;
         AValue: double; UserId: Integer; var Item: TItem;
         Tol: double; const Description: string;
-        const Source: TValueSourceInfo);
+        const Source: TValueSourceInfo); overload;
+      procedure AddValue(ValueType: TValueType; RecType: TRecType;
+        AValue: double; UserId: Integer; var Item: TItem;
+        Tol: double; const Description: string;
+        const Source: TValueSourceInfo;
+        const AnalysisSnapshot: string); overload;
+      procedure PutReaderValue(ValueType: TValueType; RecType: TRecType;
+        AValue: double; UserId: Integer; var Item: TItem;
+        Tol: double; const Description: string;
+        const Source: TValueSourceInfo; const AnalysisSnapshot: string;
+        Occurrence: Integer);
+      function ReaderValuesOf(Item: TItem; FileId: Int64): TArray<TValue>;
       procedure RemoveValue(Val: TValue; var Item: TItem; UserId: Integer);
       function RemoveFile(AFile: TFile; var Item: TItem; UserId: Integer): Boolean;
-      procedure RemoveEntry(Entry: TLabEntry; var Item: TItem; UserId: Integer);
+      function RemoveEntry(Entry: TLabEntry; var Item: TItem; UserId: Integer): Boolean;
 
       function GetItem(const ID:integer):TItem;
       function GetItemForEntry(EntryId: Integer): TItem;
@@ -105,7 +124,9 @@ type
 implementation
 
 uses
+  System.Generics.Defaults,
   unit_AuditHelper,
+  unit_AnalysisSettingsModel,
   Aurelius.Commands.Exceptions,
   unit_ConflictHandler,
   unit_SignatureModel,
@@ -260,58 +281,276 @@ begin
   inherited;
 end;
 
+function TItemModel.NewValue(ValueType: TValueType; RecType: TRecType;
+  AValue: double; UserId: Integer; Item: TItem; Tol: double;
+  const Description: string; const Source: TValueSourceInfo): TValue;
+begin
+  Result := TValue.Create;
+  Result.ValueType := FManager.Find<TValueType>(ValueType.Id);
+  Result.RecType := RecType;
+  Result.Value := AValue;
+  Result.Tol := Tol;
+  Result.Description := Description;
+  Result.CreatedDate := UTCNow;
+  Result.CreatedBy := UserId;
+  Result.Item := Item;
+  ApplySource(Result, Source);
+
+  Item.Values.Add(Result);
+  FManager.Update(Item);
+end;
+
 procedure TItemModel.AddValue(ValueType: TValueType; RecType: TRecType;
   AValue: double; UserId: Integer; var Item: TItem;
   Tol: double; const Description: string; const Source: TValueSourceInfo);
 var
-  ManagedValueType: TValueType;
   Val: TValue;
 begin
   ValidateSource(Source);
+  if Source.Kind = vskDerived then
+    raise EArgumentException.Create('Derived values are stored with their inputs through TDerivedValueModel');
   if IsItemSignedCheck(FManager, Item.Id) then
     Exit;
 
-  ManagedValueType := FManager.Find<TValueType>(ValueType.Id);
-
-  Val := TValue.Create;
-  Val.ValueType := ManagedValueType;
-  Val.RecType := RecType;
-  Val.Value := AValue;
-  Val.Tol := Tol;
-  Val.Description := Description;
-  Val.CreatedDate := UTCNow;
-  Val.CreatedBy := UserId;
-  Val.Item := Item;
-  ApplySource(Val, Source);
-
-  Item.Values.Add(Val);
-  FManager.Update(Item);
+  Val := NewValue(ValueType, RecType, AValue, UserId, Item, Tol, Description,
+    Source);
   if not TConflictHandler.SafeFlush(FManager) then
     Exit;
   RecordAudit(FManager, aetValue, Val.Id, aoCreate, UserId,
     'Added value to item "' + Item.Title + '"');
 end;
 
+procedure TItemModel.AddValue(ValueType: TValueType; RecType: TRecType;
+  AValue: double; UserId: Integer; var Item: TItem;
+  Tol: double; const Description: string; const Source: TValueSourceInfo;
+  const AnalysisSnapshot: string);
+var
+  Val: TValue;
+  Analysis: TAnalysisSettingsModel;
+  Trans: IDBTransaction;
+begin
+  ValidateSource(Source);
+  if (Source.Kind <> vskReader) or (Source.ReaderId = '') then
+    raise EArgumentException.Create('An analysis snapshot requires a Reader source');
+  TAnalysisSettingsModel.CompleteSnapshot(AnalysisSnapshot,
+    Source.ReaderId, Source.KeyName, Source.FileId, 0);
+  if IsItemSignedCheck(FManager, Item.Id) then
+    Exit;
+
+  Val := nil;
+  Analysis := TAnalysisSettingsModel.Create(FManager);
+  try
+    Trans := FManager.Connection.BeginTransaction;
+    try
+      Val := NewValue(ValueType, RecType, AValue, UserId, Item, Tol, Description,
+        Source);
+      if not TConflictHandler.SafeFlush(FManager) then
+      begin
+        Trans.Rollback;
+        Exit;
+      end;
+      Analysis.SaveSnapshot(Source.ReaderId, Val.Id,
+        TAnalysisSettingsModel.CompleteSnapshot(AnalysisSnapshot,
+          Source.ReaderId, Source.KeyName, Source.FileId, Val.Id));
+      RecordAudit(FManager, aetValue, Val.Id, aoCreate, UserId,
+        'Added value to item "' + Item.Title + '"');
+      Trans.Commit;
+    except
+      try
+        Trans.Rollback;
+      except
+      end;
+      DiscardValue(Item, Val);
+      raise;
+    end;
+  finally
+    Analysis.Free;
+  end;
+end;
+
+procedure TItemModel.DiscardValue(Item: TItem; Val: TValue);
+begin
+  if Val = nil then
+    Exit;
+  Item.Values.Remove(Val);
+  try
+    FManager.Evict(Val);
+  except
+    Val.Free;
+    Exit;
+  end;
+  FManager.AddOwnership(Val);
+end;
+
+function TItemModel.ReaderValuesOf(Item: TItem; FileId: Int64): TArray<TValue>;
+var
+  Val: TValue;
+  Found: TList<TValue>;
+begin
+  Found := TList<TValue>.Create;
+  try
+    for Val in Item.Values do
+      if (Val.EffectiveSourceKind = vskReader) and Val.SourceFileId.HasValue and
+        (Val.SourceFileId.Value = FileId) then
+        Found.Add(Val);
+    Found.Sort(TComparer<TValue>.Construct(
+      function(const A, B: TValue): Integer
+      begin
+        Result := A.Id - B.Id;
+      end));
+    Result := Found.ToArray;
+  finally
+    Found.Free;
+  end;
+end;
+
+function SameSource(const A, B: TValueSourceInfo): Boolean;
+begin
+  Result := (A.Kind = B.Kind) and (A.FileId = B.FileId) and
+    (A.ReaderId = B.ReaderId) and (A.ReaderVersion = B.ReaderVersion) and
+    (A.KeyName = B.KeyName) and (A.Note = B.Note) and
+    (A.ReaderUnits.HasValue = B.ReaderUnits.HasValue) and
+    (not A.ReaderUnits.HasValue or (A.ReaderUnits.Value = B.ReaderUnits.Value)) and
+    (A.ConversionFactor.HasValue = B.ConversionFactor.HasValue) and
+    (not A.ConversionFactor.HasValue or
+      (A.ConversionFactor.Value = B.ConversionFactor.Value));
+end;
+
+procedure TItemModel.PutReaderValue(ValueType: TValueType; RecType: TRecType;
+  AValue: double; UserId: Integer; var Item: TItem; Tol: double;
+  const Description: string; const Source: TValueSourceInfo;
+  const AnalysisSnapshot: string; Occurrence: Integer);
+var
+  Candidate, Existing: TValue;
+  Seen: Integer;
+begin
+  if Source.Kind <> vskReader then
+    raise EArgumentException.Create('PutReaderValue requires a Reader source');
+  Existing := nil;
+  Seen := 0;
+  for Candidate in ReaderValuesOf(Item, Source.FileId) do
+    if Candidate.KeyName = Source.KeyName then
+    begin
+      if Seen = Occurrence then
+      begin
+        Existing := Candidate;
+        Break;
+      end;
+      Inc(Seen);
+    end;
+  if Existing <> nil then
+    UpdateReaderValue(Existing, ValueType, RecType, AValue, UserId, Item, Tol,
+      Description, Source, AnalysisSnapshot)
+  else if AnalysisSnapshot = '' then
+    AddValue(ValueType, RecType, AValue, UserId, Item, Tol, Description, Source)
+  else
+    AddValue(ValueType, RecType, AValue, UserId, Item, Tol, Description, Source,
+      AnalysisSnapshot);
+end;
+
+procedure TItemModel.UpdateReaderValue(Val: TValue; ValueType: TValueType;
+  RecType: TRecType; AValue: double; UserId: Integer; Item: TItem; Tol: double;
+  const Description: string; const Source: TValueSourceInfo;
+  const AnalysisSnapshot: string);
+var
+  Snapshot, Stored, OldReaderId: string;
+  Applied: TValueSourceInfo;
+  Analysis: TAnalysisSettingsModel;
+  Trans: IDBTransaction;
+begin
+  ValidateSource(Source);
+  if AnalysisSnapshot = '' then
+    Snapshot := ''
+  else
+    Snapshot := TAnalysisSettingsModel.CompleteSnapshot(AnalysisSnapshot,
+      Source.ReaderId, Source.KeyName, Source.FileId, Val.Id);
+  if IsItemSignedCheck(FManager, Item.Id) then
+    Exit;
+
+  Applied := Source;
+  if Trim(Applied.ReaderVersion) = '' then
+    Applied.ReaderVersion := 'unknown';
+  OldReaderId := Val.ReaderId;
+  Analysis := TAnalysisSettingsModel.Create(FManager);
+  try
+    Analysis.LoadSnapshot(Val, Stored);
+    if Assigned(Val.ValueType) and (Val.ValueType.Id = ValueType.Id) and
+      (Val.RecType = RecType) and (Val.Value = AValue) and (Val.Tol = Tol) and
+      (Val.Description = Description) and SameSource(ReadSource(Val), Applied) and
+      (Stored = Snapshot) then
+      Exit;
+
+    Trans := FManager.Connection.BeginTransaction;
+    try
+      Val.ValueType := FManager.Find<TValueType>(ValueType.Id);
+      Val.RecType := RecType;
+      Val.Value := AValue;
+      Val.Tol := Tol;
+      Val.Description := Description;
+      ApplySource(Val, Source);
+      Val.ModifiedDate := UTCNow;
+      Val.ModifiedBy := UserId;
+      if not TConflictHandler.SafeFlush(FManager) then
+      begin
+        Trans.Rollback;
+        Exit;
+      end;
+      if OldReaderId <> Source.ReaderId then
+        Analysis.DeleteForValue(OldReaderId, Val.Id);
+      if Snapshot = '' then
+        Analysis.DeleteForValue(Source.ReaderId, Val.Id)
+      else
+        Analysis.SaveSnapshot(Source.ReaderId, Val.Id, Snapshot);
+      RecordAudit(FManager, aetValue, Val.Id, aoUpdate, UserId,
+        'Updated value of item "' + Item.Title + '" from its source file');
+      Trans.Commit;
+    except
+      try
+        Trans.Rollback;
+      except
+      end;
+      FManager.Refresh(Val);
+      raise;
+    end;
+  finally
+    Analysis.Free;
+  end;
+end;
+
 procedure TItemModel.RemoveValue(Val: TValue; var Item: TItem; UserId: Integer);
 var
   ValId: Integer;
+  ReaderId: string;
+  Analysis: TAnalysisSettingsModel;
 begin
   if IsItemSignedCheck(FManager, Item.Id) then
     Exit;
 
   ValId := Val.Id;
+  ReaderId := Val.ReaderId;
   Item.Values.Remove(Val);
   FManager.Remove(Val);
   if not TConflictHandler.SafeFlush(FManager) then
     Exit;
   RecordAudit(FManager, aetValue, ValId, aoDelete, UserId,
     'Removed value from item "' + Item.Title + '"');
+  Analysis := TAnalysisSettingsModel.Create(FManager);
+  try
+    Analysis.DeleteForValue(ReaderId, ValId);
+  finally
+    Analysis.Free;
+  end;
 end;
 
 function TItemModel.RemoveFile(AFile: TFile; var Item: TItem; UserId: Integer): Boolean;
 var
   FileId: Int64;
   FileTitle: string;
+  Extracted: TArray<TValue>;
+  ValueIds: TArray<Integer>;
+  ReaderIds: TArray<string>;
+  I: Integer;
+  Analysis: TAnalysisSettingsModel;
 begin
   Result := False;
   if IsItemSignedCheck(FManager, Item.Id) then
@@ -319,23 +558,46 @@ begin
 
   FileId := AFile.Id;
   FileTitle := AFile.Title;
+  Extracted := ReaderValuesOf(Item, FileId);
+  SetLength(ValueIds, Length(Extracted));
+  SetLength(ReaderIds, Length(Extracted));
+  for I := 0 to High(Extracted) do
+  begin
+    ValueIds[I] := Extracted[I].Id;
+    ReaderIds[I] := Extracted[I].ReaderId;
+    Item.Values.Remove(Extracted[I]);
+    FManager.Remove(Extracted[I]);
+  end;
   Item.Files.Remove(AFile);
   FManager.Remove(AFile);
   if not TConflictHandler.SafeFlush(FManager) then
     Exit;
   RecordAudit(FManager, aetFile, FileId, aoDelete, UserId,
     'Removed file "' + FileTitle + '" from item "' + Item.Title + '"');
+  for I := 0 to High(ValueIds) do
+    RecordAudit(FManager, aetValue, ValueIds[I], aoDelete, UserId,
+      'Removed value extracted from file "' + FileTitle + '" from item "' +
+      Item.Title + '"');
+  Analysis := TAnalysisSettingsModel.Create(FManager);
+  try
+    Analysis.DeleteForFile(FileId);
+    for I := 0 to High(ValueIds) do
+      Analysis.DeleteForValue(ReaderIds[I], ValueIds[I]);
+  finally
+    Analysis.Free;
+  end;
   if Assigned(Model) then
     Model.ViewerStates.DeleteForFile(FileId);
   Result := True;
 end;
 
-procedure TItemModel.RemoveEntry(Entry: TLabEntry; var Item: TItem; UserId: Integer);
+function TItemModel.RemoveEntry(Entry: TLabEntry; var Item: TItem; UserId: Integer): Boolean;
 var
   EntryId: Integer;
   EntryTitle: string;
   EntityType: TAuditEntityType;
 begin
+  Result := False;
   if IsItemSignedCheck(FManager, Item.Id) then
     Exit;
 
@@ -360,6 +622,7 @@ begin
     Exit;
   RecordAudit(FManager, EntityType, EntryId, aoDelete, UserId,
     'Removed entry "' + EntryTitle + '" from item "' + Item.Title + '"');
+  Result := True;
 end;
 
 function TItemModel.GetDataSet: TAureliusDataset;

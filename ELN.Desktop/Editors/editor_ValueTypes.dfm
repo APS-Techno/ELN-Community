@@ -418,5 +418,14 @@ inherited edValueTypes: TedValueTypes
       ExplicitTop = 10
       ExplicitWidth = 60
     end
+    object btnReaderMappings: TButton
+      Left = 100
+      Top = 10
+      Width = 140
+      Height = 25
+      Caption = 'Reader mappings...'
+      TabOrder = 2
+      OnClick = btnReaderMappingsClick
+    end
   end
 end

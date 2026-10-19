@@ -47,6 +47,8 @@ type
   private
     type
       TOverviewRow = record
+        Key, Value: string;
+        GroupId: Integer;
         Link: string;
         Hint: string;
         Color: TColor;  // value-cell font color, or clNone for default
@@ -84,6 +86,7 @@ type
     function DisplayRun(LogFile: TLogFile; Snapshot: TDepoSnapshot): Boolean;
     procedure DisplayRawText(const AText: string);
     function GetPreviewBitmap(MaxW, MaxH: Integer): TBitmap;
+    function GetOverviewPreviewBitmap(MaxW, MaxH: Integer): TBitmap;
     function SaveState: string;
     procedure RestoreState(const AState: string);
   end;
@@ -447,6 +450,9 @@ begin
   It.Caption := Key;
   It.SubItems.Add(Value);
   It.GroupID := GroupId;
+  Row.Key := Key;
+  Row.Value := Value;
+  Row.GroupId := GroupId;
   Row.Link := Link;
   Row.Hint := HintText;
   Row.Color := AColor;
@@ -828,6 +834,84 @@ begin
     Large.PixelFormat := pf32bit;
     Large.SetSize(800, 600);
     C.Draw(Large.Canvas, Rect(0, 0, 800, 600));
+    Result := CreateScaledPreview(Large, MaxW, MaxH);
+  finally
+    Large.Free;
+  end;
+end;
+
+function TframeDepositionViewer.GetOverviewPreviewBitmap(MaxW,
+  MaxH: Integer): TBitmap;
+const
+  W = 800;
+  H = 600;
+  Pad = 8;
+  KeyW = 260;
+var
+  Large: TBitmap;
+  C: TCanvas;
+  G, Y, LineH: Integer;
+  Grp: TListGroup;
+  Row: TOverviewRow;
+begin
+  Result := nil;
+  if Length(FRows) = 0 then Exit;
+
+  Large := TBitmap.Create;
+  try
+    Large.PixelFormat := pf32bit;
+    Large.SetSize(W, H);
+    C := Large.Canvas;
+    C.Brush.Color := ThemePanelColor;
+    C.FillRect(Rect(0, 0, W, H));
+    C.Brush.Style := bsClear;
+    C.Font.Name := lvOverview.Font.Name;
+    C.Font.Height := -16;
+    LineH := C.TextHeight('Wg') + 6;
+
+    Y := Pad;
+    C.Font.Style := [fsBold];
+    C.Font.Color := ThemeTextColor;
+    C.TextOut(Pad, Y, lvOverview.Columns[0].Caption);
+    C.TextOut(Pad + KeyW, Y, lvOverview.Columns[1].Caption);
+    Inc(Y, LineH);
+    C.Pen.Color := ThemeGridColor;
+    C.MoveTo(0, Y - 3);
+    C.LineTo(W, Y - 3);
+
+    for G := 0 to lvOverview.Groups.Count - 1 do
+    begin
+      if Y + 4 + 2 * LineH > H then Break;
+      Grp := lvOverview.Groups.Items[G];
+      Inc(Y, 4);
+      C.Font.Style := [fsBold];
+      C.Font.Color := clHotLight;
+      C.TextOut(Pad, Y, Grp.Header);
+      C.Pen.Color := ThemeGridColor;
+      C.MoveTo(2 * Pad + C.TextWidth(Grp.Header), Y + LineH div 2);
+      C.LineTo(W - Pad, Y + LineH div 2);
+      Inc(Y, LineH);
+
+      for Row in FRows do
+      begin
+        if Row.GroupId <> Grp.GroupID then Continue;
+        if Y + LineH > H then Break;
+        C.Font.Style := [];
+        C.Font.Color := ThemeTextColor;
+        C.TextRect(Rect(2 * Pad, Y, KeyW, Y + LineH), 2 * Pad, Y, Row.Key);
+        if (Row.Link <> '') or (Row.Tab >= 0) then
+        begin
+          C.Font.Color := clHotLight;
+          C.Font.Style := [fsUnderline];
+        end
+        else if Row.Color <> clNone then
+          C.Font.Color := Row.Color;
+        C.TextRect(Rect(Pad + KeyW, Y, W - Pad, Y + LineH), Pad + KeyW, Y,
+          Row.Value);
+        Inc(Y, LineH);
+      end;
+    end;
+
     Result := CreateScaledPreview(Large, MaxW, MaxH);
   finally
     Large.Free;

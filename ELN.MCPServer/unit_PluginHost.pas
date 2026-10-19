@@ -7,9 +7,15 @@ uses
   System.JSON,
   Winapi.Windows,
   Vcl.Forms,
+  Aurelius.Engine.ObjectManager,
   upfManager, unit_ELNPluginCore, unit_ELNPluginTypes;
 
 type
+  TReaderAnalysis = record
+    Snapshots: TArray<string>;
+    Status: string;
+  end;
+
   TPluginHost = class
   private
     FHiddenForm: TForm;
@@ -19,14 +25,22 @@ type
     procedure OnPluginRegistered(Sender, APlugin: TObject);
     procedure OnPackageLoadError(Sender: TObject; AFilename, AMsg: string);
     procedure OnAfterPackageLoaded(Sender: TObject; AFilename: string);
+    function LoadReaderPlugin(const FilePath, Ext: string;
+      out ReaderId, ReaderVersion: string): IViewerPlugin;
   public
     constructor Create(const PluginsDir: string);
     destructor Destroy; override;
     function FindPlugin(const AFileNameOrExt: string): IViewerPlugin;
     function ExtractDetailedInfo(const FilePath, Ext: string): string;
     function ExtractKeyValues(const FilePath, Ext: string): TArray<TPluginKeyValue>;
-    function ExtractReaderKeyValues(const FilePath, Ext: string;
-      out ReaderId, ReaderVersion: string): TArray<TPluginKeyValue>;
+    function ExtractReaderAnalysis(const FilePath, Ext: string;
+      FileId: Int64; Manager: TObjectManager; const SelectionOverride: string;
+      out ReaderId, ReaderVersion: string;
+      out Analysis: TReaderAnalysis): TArray<TPluginKeyValue>;
+    function ExtractReaderSnapshotReplay(const FilePath, Ext: string;
+      FileId: Int64; const Snapshot: string;
+      out ReaderId, ReaderVersion, FileHash, AnalysisStatus: string;
+      out SnapshotKeys: TArray<string>): TArray<TPluginKeyValue>;
     function ListFileColumns(const FilePath, Ext: string): TJSONObject;
     function GetFileColumns(const FilePath, Ext: string;
                             const Req: TJSONObject): TJSONObject;
@@ -35,7 +49,7 @@ type
 implementation
 
 uses
-  System.Math, unit_ViewerExtMatch;
+  System.Math, unit_ViewerExtMatch, unit_AnalysisSettingsModel;
 
 type
   TupfPluginManagerHelper = class(TupfPluginManager);
@@ -313,37 +327,129 @@ begin
     Result := '{}';
 end;
 
-function TPluginHost.ExtractKeyValues(const FilePath, Ext: string): TArray<TPluginKeyValue>;
-var
-  ReaderId, ReaderVersion: string;
-begin
-  Result := ExtractReaderKeyValues(FilePath, Ext, ReaderId, ReaderVersion);
-end;
-
-function TPluginHost.ExtractReaderKeyValues(const FilePath, Ext: string;
-  out ReaderId, ReaderVersion: string): TArray<TPluginKeyValue>;
+function TPluginHost.ExtractReaderAnalysis(const FilePath, Ext: string;
+  FileId: Int64; Manager: TObjectManager; const SelectionOverride: string;
+  out ReaderId, ReaderVersion: string;
+  out Analysis: TReaderAnalysis): TArray<TPluginKeyValue>;
 var
   Plugin: IViewerPlugin;
   Provider: IKeyValueProvider;
+  AnalysisProvider: IAnalysisKeyValueProvider;
+  Context: TAnalysisContext;
+  Settings: TAnalysisSettingsModel;
+  I: Integer;
 begin
-  Plugin := FindPlugin(FilePath);
-  if Plugin = nil then
+  Analysis := Default(TReaderAnalysis);
+  Plugin := LoadReaderPlugin(FilePath, Ext, ReaderId, ReaderVersion);
+  if Supports(Plugin, IAnalysisKeyValueProvider, AnalysisProvider) then
+  begin
+    Context := Default(TAnalysisContext);
+    Context.Kind := ackCurrent;
+    Context.FileId := FileId;
+    Settings := TAnalysisSettingsModel.Create(Manager);
+    try
+      Settings.CurrentSelection(ReaderId, FileId, FilePath, Context.FileHash,
+        Context.SharedSelection);
+      if SelectionOverride <> '' then
+        Context.SharedSelection := SelectionOverride;
+    finally
+      Settings.Free;
+    end;
+    AnalysisProvider.SetAnalysisContext(Context);
+  end
+  else if SelectionOverride <> '' then
+    raise Exception.CreateFmt('Reader %s does not accept a selection.',
+      [ReaderId]);
+  if Supports(Plugin, IKeyValueProvider, Provider) then
+    Result := Provider.GetKeyValues
+  else
+    Result := nil;
+  SetLength(Analysis.Snapshots, Length(Result));
+  if AnalysisProvider <> nil then
+  begin
+    for I := 0 to High(Result) do
+      Analysis.Snapshots[I] := AnalysisProvider.GetAnalysisSnapshot(Result[I].Name);
+    Analysis.Status := AnalysisProvider.GetAnalysisStatus;
+  end;
+end;
+
+function TPluginHost.ExtractKeyValues(const FilePath, Ext: string): TArray<TPluginKeyValue>;
+var
+  ReaderId, ReaderVersion, FileHash, AnalysisStatus: string;
+  SnapshotKeys: TArray<string>;
+begin
+  Result := ExtractReaderSnapshotReplay(FilePath, Ext, 0, '', ReaderId,
+    ReaderVersion, FileHash, AnalysisStatus, SnapshotKeys);
+end;
+
+function TPluginHost.ExtractReaderSnapshotReplay(const FilePath, Ext: string;
+  FileId: Int64; const Snapshot: string;
+  out ReaderId, ReaderVersion, FileHash, AnalysisStatus: string;
+  out SnapshotKeys: TArray<string>): TArray<TPluginKeyValue>;
+var
+  Plugin: IViewerPlugin;
+  Provider: IKeyValueProvider;
+  AnalysisProvider: IAnalysisKeyValueProvider;
+  Context: TAnalysisContext;
+  KeyValue: TPluginKeyValue;
+begin
+  AnalysisStatus := '';
+  SnapshotKeys := nil;
+  FileHash := '';
+  Plugin := LoadReaderPlugin(FilePath, Ext, ReaderId, ReaderVersion);
+  Supports(Plugin, IAnalysisKeyValueProvider, AnalysisProvider);
+  if Snapshot <> '' then
+  begin
+    FileHash := TAnalysisSettingsModel.ContentHash(FilePath);
+    if AnalysisProvider <> nil then
+    begin
+      Context := Default(TAnalysisContext);
+      Context.Kind := ackStoredSnapshot;
+      Context.FileId := FileId;
+      Context.FileHash := FileHash;
+      Context.StoredSnapshot := Snapshot;
+      AnalysisProvider.SetAnalysisContext(Context);
+    end;
+  end;
+  if Supports(Plugin, IKeyValueProvider, Provider) then
+    Result := Provider.GetKeyValues
+  else
+    Result := nil;
+  if AnalysisProvider <> nil then
+  begin
+    AnalysisStatus := AnalysisProvider.GetAnalysisStatus;
+    if Snapshot = '' then
+      for KeyValue in Result do
+        if AnalysisProvider.GetAnalysisSnapshot(KeyValue.Name) <> '' then
+          SnapshotKeys := SnapshotKeys + [KeyValue.Name];
+  end;
+end;
+
+function TPluginHost.LoadReaderPlugin(const FilePath, Ext: string;
+  out ReaderId, ReaderVersion: string): IViewerPlugin;
+var
+  Analysis: IAnalysisKeyValueProvider;
+  Reason: string;
+begin
+  Result := FindPlugin(FilePath);
+  if Result = nil then
     raise Exception.CreateFmt('No plugin found for extension: %s', [Ext]);
-  ReaderIdentityOf(Plugin, ReaderId, ReaderVersion);
+  ReaderIdentityOf(Result, ReaderId, ReaderVersion);
 
   try
-    if not Plugin.LoadFromFile(FilePath) then
-      raise Exception.Create('The viewer rejected the input file.');
+    if not Result.LoadFromFile(FilePath) then
+    begin
+      Reason := 'The viewer rejected the input file.';
+      if Supports(Result, IAnalysisKeyValueProvider, Analysis) and
+        (Analysis.GetLoadError <> '') then
+        Reason := Analysis.GetLoadError;
+      raise Exception.Create(Reason);
+    end;
   except
     on E: Exception do
       raise Exception.CreateFmt('Plugin failed to load file "%s": %s',
         [FilePath, E.Message]);
   end;
-
-  if Supports(Plugin, IKeyValueProvider, Provider) then
-    Result := Provider.GetKeyValues
-  else
-    Result := nil;
 end;
 
 function TPluginHost.ListFileColumns(const FilePath, Ext: string): TJSONObject;

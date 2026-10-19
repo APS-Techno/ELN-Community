@@ -41,9 +41,9 @@ $log = Join-Path $outputRoot 'build-installer.log'
 "ELN Community installer build: $Platform $Configuration" | Set-Content -LiteralPath $log -Encoding utf8
 foreach ($target in @('CommunityDesktop', 'ViewerPackages')) {
   & $buildHelper -Target $target -Platform $Platform -Configuration $Configuration -DependencyConfig $DependencyConfig `
-    2>&1 | Tee-Object -FilePath $log -Append
+    -RuntimeConfig $RuntimeConfig 2>&1 | Tee-Object -FilePath $log -Append
 }
-$hostPath = Join-Path $repoRoot "_OUT/CommunityDesktop/$Platform/$Configuration/ELNCommunity.exe"
+$hostPath = Join-Path $repoRoot '_OUT/CommunityDesktop/ELNCommunity.exe'
 $metadata = [Diagnostics.FileVersionInfo]::GetVersionInfo($hostPath)
 $version = $null
 if ($metadata.ProductName -ne 'ELN Community' -or $metadata.FileDescription -ne 'ELN Community Desktop' -or

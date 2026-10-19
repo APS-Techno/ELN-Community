@@ -93,7 +93,7 @@ type
     function AddProtocol(Protocol: TProtocol; var ParentItem: TItem): Boolean;
     function DeleteItem(Item: TItem): Boolean;
     procedure DeleteFile(AFile: TFile; var ParentItem: TItem);
-    procedure DeleteEntry(Entry: TLabEntry; var ParentItem: TItem);
+    function DeleteEntry(Entry: TLabEntry; var ParentItem: TItem): Boolean;
     function UpdateItem(Item: TItem; const Relocator: IFileRelocator): Boolean;
     function ReparentItem(Item: TItem; NewParentId: Integer): Boolean;
     function UpdateNote(Protocol: TProtocol; const Title, FormData: string): Boolean;
@@ -414,10 +414,11 @@ begin
   DoChanged;
 end;
 
-procedure TItemTreeVM.DeleteEntry(Entry: TLabEntry; var ParentItem: TItem);
+function TItemTreeVM.DeleteEntry(Entry: TLabEntry; var ParentItem: TItem): Boolean;
 begin
-  FItemModel.RemoveEntry(Entry, ParentItem, UserId);
-  DoChanged;
+  Result := FItemModel.RemoveEntry(Entry, ParentItem, UserId);
+  if Result then
+    DoChanged;
 end;
 
 function TItemTreeVM.UpdateItem(Item: TItem;

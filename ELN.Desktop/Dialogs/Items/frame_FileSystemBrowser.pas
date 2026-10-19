@@ -4,7 +4,7 @@ interface
 
 uses
   System.SysUtils, System.Classes, System.Generics.Collections,
-  Vcl.Controls, Vcl.Forms, Vcl.ComCtrls,
+  Vcl.Controls, Vcl.Forms, Vcl.ComCtrls, Vcl.Graphics, Vcl.ImageCollection, Vcl.VirtualImageList,
   RzCommon, RzPanel, RzButton, RzEdit, RzLabel, RzTreeVw, RzListVw, RzSplit,
   unit_FileBrowserState;
 
@@ -26,6 +26,10 @@ type
     splFolders: TRzSplitter;
     lvFiles: TRzListView;
     lblStatus: TRzLabel;
+    BrowserImages: TImageCollection;
+    BrowserIcons: TVirtualImageList;
+    procedure BrowserImagesGetBitmap(ASourceImage: TWICImage;
+      AWidth, AHeight: Integer; out ABitmap: TBitmap);
     procedure btnBackClick(Sender: TObject);
     procedure btnForwardClick(Sender: TObject);
     procedure btnUpClick(Sender: TObject);
@@ -463,11 +467,13 @@ begin
         Item.Caption := Entry.Name;
         if Entry.IsDirectory then
         begin
+          Item.ImageIndex := 0;
           Item.SubItems.Add('Folder');
           Item.SubItems.Add('');
         end
         else
         begin
+          Item.ImageIndex := 1;
           Item.SubItems.Add(ExtractFileExt(Entry.Name));
           Item.SubItems.Add(FormatFloat('#,##0', Entry.Size) + ' B');
         end;
@@ -613,6 +619,26 @@ begin
     if Assigned(FRequests) and Assigned(Data.Request) then
       FRequests.Remove(Data.Request);
     Data.Free;
+  end;
+end;
+
+procedure TframeFileSystemBrowser.BrowserImagesGetBitmap(ASourceImage: TWICImage;
+  AWidth, AHeight: Integer; out ABitmap: Vcl.Graphics.TBitmap);
+var
+  Scaled: TWICImage;
+begin
+  Scaled := ASourceImage.CreateScaledCopy(AWidth, AHeight);
+  try
+    ABitmap := Vcl.Graphics.TBitmap.Create;
+    try
+      ABitmap.Assign(Scaled);
+      ABitmap.AlphaFormat := afPremultiplied;
+    except
+      ABitmap.Free;
+      raise;
+    end;
+  finally
+    Scaled.Free;
   end;
 end;
 

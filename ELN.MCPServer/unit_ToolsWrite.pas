@@ -86,9 +86,10 @@ uses
   unit_TimeHelper,
   Winapi.Windows,
   unit_MCPDiag,
-  unit_ToolHelpers,
+  unit_ToolHelpers, unit_ToolDownloads, unit_AnalysisSettingsModel,
   unit_Hypothesis, unit_HypothesisGuard, unit_HypothesisEvidence,
-  unit_ValueSource, unit_ValueChecks;
+  unit_ValueSource, unit_ValueChecks,
+  unit_DerivedFormulas, unit_DerivedValueModel;
 
 
 function GetReqInt(const Params: TJSONObject; const Key: string): Integer;
@@ -946,7 +947,7 @@ begin
     raise Exception.CreateFmt('FileType not found: %d', [FileTypeId]);
 
   if not HasTitle then
-    Title := TPath.GetFileNameWithoutExtension(FilePath);
+    Title := AttachmentTitle(FilePath, FType.Ext);
 
   Info := AttachFileToItem(Context, ItemId, FilePath, FileTypeId, Title);
 
@@ -1166,6 +1167,7 @@ type
     Description: string;
     RecType: TRecType;
     Source: TValueSourceInfo;
+    AnalysisSnapshot: string;
     Issues: TValueIssues;
   end;
 
@@ -1195,7 +1197,8 @@ end;
 
 function ParseValueSource(const Params: TJSONObject): TValueSourceInfo;
 var
-  KindStr: string;
+  KindStr, ReaderUnits: string;
+  ConversionFactor: Double;
   HasFile, HasReader, HasNote: Boolean;
 begin
   Result := Default(TValueSourceInfo);
@@ -1206,11 +1209,18 @@ begin
   GetOptStr(Params, 'reader_version', Result.ReaderVersion);
   GetOptStr(Params, 'key_name', Result.KeyName);
   HasNote := GetOptStr(Params, 'source_note', Result.Note);
+  if GetOptStr(Params, 'reader_units', ReaderUnits) then
+    Result.ReaderUnits := ReaderUnits;
+  if GetOptNum(Params, 'conversion_factor', ConversionFactor) then
+    Result.ConversionFactor := ConversionFactor;
   if GetOptStr(Params, 'source_kind', KindStr) then
   begin
     if not TryParseSourceKind(KindStr, Result.Kind) then
       raise Exception.CreateFmt(
         'Invalid source_kind: %s (use Reader, Manual or Unknown)', [KindStr]);
+    if Result.Kind = vskDerived then
+      raise Exception.Create('Derived values are made with add_derived_value, ' +
+        'which computes the number on the server from stored input values.');
   end
   else if HasReader then
     Result.Kind := vskReader
@@ -1218,6 +1228,9 @@ begin
     Result.Kind := vskManual
   else
     Result.Kind := vskUnknown;
+  if (Result.Kind = vskReader) and
+    (not Result.ReaderUnits.HasValue or not Result.ConversionFactor.HasValue) then
+    raise Exception.Create('A Reader source requires reader_units and conversion_factor from extraction');
   try
     ValidateSource(Result);
   except
@@ -1248,6 +1261,7 @@ begin
         [RecTypeStr]);
   end;
   Result.Source := ParseValueSource(Params);
+  GetOptAnalysisSnapshot(Params, Result.AnalysisSnapshot);
 end;
 
 function IsSelfOrAncestor(const Context: TToolContext; AncestorId: Integer;
@@ -1294,6 +1308,54 @@ begin
       'descendants in the same project.', [FileId, Item.Id]);
 end;
 
+procedure CheckAnalysisSnapshot(const Context: TToolContext;
+  const Entry: TValueEntry);
+var
+  Parsed: TJSONValue;
+  Field: TJSONValue;
+  SnapshotFileId: Int64;
+  SnapshotHash, LocalPath, CurrentHash: string;
+begin
+  if Entry.AnalysisSnapshot = '' then
+    Exit;
+  if (Entry.Source.Kind <> vskReader) or (Entry.Source.FileId <= 0) then
+    raise Exception.Create('analysis_snapshot needs a Reader source with ' +
+      'source_file_id.');
+  Parsed := TJSONObject.ParseJSONValue(Entry.AnalysisSnapshot);
+  try
+    if not (Parsed is TJSONObject) then
+      raise Exception.Create('analysis_snapshot is not a JSON object.');
+    Field := TJSONObject(Parsed).GetValue('file_id');
+    if not (Field is TJSONNumber) or
+      not TryStrToInt64(Field.Value, SnapshotFileId) or
+      (SnapshotFileId <> Entry.Source.FileId) then
+      raise Exception.CreateFmt('analysis_snapshot file_id does not match ' +
+        'source_file_id %d.', [Entry.Source.FileId]);
+    Field := TJSONObject(Parsed).GetValue('file_hash');
+    if not (Field is TJSONString) or (Field is TJSONNumber) then
+      raise Exception.Create('analysis_snapshot has no file_hash.');
+    SnapshotHash := Field.Value;
+  finally
+    Parsed.Free;
+  end;
+  try
+    TAnalysisSettingsModel.CompleteSnapshot(Entry.AnalysisSnapshot,
+      Entry.Source.ReaderId, Entry.Source.KeyName, Entry.Source.FileId, 0);
+  except
+    on E: EArgumentException do
+      raise Exception.Create(E.Message);
+  end;
+  LocalPath := DownloadFileToLocal(Context, Entry.Source.FileId);
+  try
+    CurrentHash := TAnalysisSettingsModel.ContentHash(LocalPath);
+  finally
+    DeleteLocalDownload(LocalPath);
+  end;
+  if not SameText(SnapshotHash, CurrentHash) then
+    raise Exception.CreateFmt('analysis_snapshot file_hash does not match ' +
+      'the current content of file %d.', [Entry.Source.FileId]);
+end;
+
 procedure ValidateValueEntry(const Context: TToolContext;
   var Entry: TValueEntry; Factor: Double; Confirm: Boolean);
 var
@@ -1318,6 +1380,7 @@ begin
 
   if Entry.Source.FileId > 0 then
     CheckSourceFile(Context, Item, Entry.Source.FileId);
+  CheckAnalysisSnapshot(Context, Entry);
 
   Entry.Issues := CheckValue(VType, Entry.Value, Entry.Tolerance, Factor);
   if (Entry.Issues <> []) and not Confirm then
@@ -1360,6 +1423,7 @@ var
   Operation: TObjectManager;
   Transaction: IDBTransaction;
   Committed: Boolean;
+  Settings: TAnalysisSettingsModel;
   Stored: TArray<unit_Item.TValue>;
   Item, Cached: TItem;
   Val: unit_Item.TValue;
@@ -1389,6 +1453,17 @@ begin
         Stored[I] := Val;
       end;
       Operation.Flush;
+      Settings := TAnalysisSettingsModel.Create(Operation);
+      try
+        for I := 0 to High(Stored) do
+          if Entries[I].AnalysisSnapshot <> '' then
+            Settings.SaveSnapshot(Entries[I].Source.ReaderId, Stored[I].Id,
+              TAnalysisSettingsModel.CompleteSnapshot(Entries[I].AnalysisSnapshot,
+                Entries[I].Source.ReaderId, Entries[I].Source.KeyName,
+                Entries[I].Source.FileId, Stored[I].Id));
+      finally
+        Settings.Free;
+      end;
       for I := 0 to High(Stored) do
         RecordAudit(Operation, aetValue, Stored[I].Id, aoCreate,
           Context.User.Id,
@@ -1478,6 +1553,150 @@ begin
   Result.AddPair('values', Rows);
 end;
 
+const
+  DERIVED_VALUE_PARAMS: array[0..4] of string = ('item_id', 'formula_id',
+    'inputs', 'description', 'confirm_out_of_range');
+
+procedure CheckDerivedValueParams(const Params: TJSONObject);
+var
+  Pair: TJSONPair;
+  Name: string;
+  Known: Boolean;
+begin
+  if Params = nil then
+    raise Exception.Create('Missing required parameters: item_id, formula_id, inputs');
+  for Pair in Params do
+  begin
+    Known := False;
+    for Name in DERIVED_VALUE_PARAMS do
+      Known := Known or (Pair.JsonString.Value = Name);
+    if not Known then
+      raise Exception.CreateFmt('Unknown parameter %s. add_derived_value ' +
+        'computes the number on the server and takes no value, tolerance, ' +
+        'value type or source fields.', [Pair.JsonString.Value]);
+  end;
+end;
+
+function ParseDerivedInputs(const Params: TJSONObject): TArray<TDerivedInputRef>;
+var
+  Inputs, Item: TJSONValue;
+  Pair: TJSONPair;
+  Refs: TList<TDerivedInputRef>;
+  Ref: TDerivedInputRef;
+
+  procedure AddId(const Json: TJSONValue);
+  begin
+    if not (Json is TJSONNumber) or
+      not TryStrToInt(Json.Value, Ref.ValueId) or (Ref.ValueId <= 0) then
+      raise Exception.CreateFmt('inputs.%s must be a positive value id or a ' +
+        'non-empty array of them', [Ref.Role]);
+    Refs.Add(Ref);
+  end;
+
+begin
+  Inputs := Params.FindValue('inputs');
+  if not (Inputs is TJSONObject) then
+    raise Exception.Create('inputs must be an object that maps each formula ' +
+      'role to a stored value id, for example {"area":12,"normal_force":13,"cycles":14}. ' +
+      'A role that is averaged (area of wear_rate_reciprocating) also takes an ' +
+      'array of ids, for example {"area":[12,15,16],...}');
+  Refs := TList<TDerivedInputRef>.Create;
+  try
+    for Pair in TJSONObject(Inputs) do
+    begin
+      Ref.Role := Pair.JsonString.Value;
+      if Pair.JsonValue is TJSONArray then
+      begin
+        if TJSONArray(Pair.JsonValue).Count = 0 then
+          raise Exception.CreateFmt('inputs.%s must not be an empty array', [Ref.Role]);
+        for Item in TJSONArray(Pair.JsonValue) do
+          AddId(Item);
+      end
+      else
+        AddId(Pair.JsonValue);
+    end;
+    Result := Refs.ToArray;
+  finally
+    Refs.Free;
+  end;
+end;
+
+function HandleAddDerivedValue(const Params: TJSONObject;
+  const Context: TToolContext): TJSONObject;
+var
+  ItemId: Integer;
+  FormulaId, Description, ItemTitle: string;
+  Refs: TArray<TDerivedInputRef>;
+  Item, Cached: TItem;
+  Operation: TObjectManager;
+  Derived: TDerivedValueModel;
+  Computation: TDerivedComputation;
+  Issues: TValueIssues;
+  Stored: unit_Item.TValue;
+  Factor: Double;
+begin
+  CheckDerivedValueParams(Params);
+  ItemId := GetReqInt(Params, 'item_id');
+  FormulaId := GetReqStr(Params, 'formula_id');
+  Refs := ParseDerivedInputs(Params);
+  Description := '';
+  if GetOptStr(Params, 'description', Description) then
+    CheckMaxLen(Description, 'description', MAX_DESC_LEN);
+  if not TDerivedValueModel.HasStorage(Context.Manager.Connection) then
+    raise Exception.Create('This database has no storage for Derived values ' +
+      '(the DerivedValueInputs table or the DataValues formula columns are ' +
+      'missing). Upgrade the notebook or the database schema first; nothing was stored.');
+
+  RequireItemRead(Context, ItemId);
+  Item := Context.Manager.Find<TItem>(ItemId);
+  if not Assigned(Item) then
+    raise Exception.CreateFmt('Item not found: %d', [ItemId]);
+  if Item.IsDeleted then
+    raise Exception.CreateFmt('Item %d is deleted.', [ItemId]);
+  CheckProjectWriteAccess(Context, Item.ProjectID);
+  if IsItemSignedCheck(Context.Manager, ItemId) then
+    raise Exception.Create('Item is signed and cannot be modified.');
+  ItemTitle := Item.Title;
+  Factor := LoadToleranceFactor(Context.Manager);
+
+  Operation := TObjectManager.Create(Context.Manager.Connection);
+  try
+    Derived := TDerivedValueModel.Create(Operation);
+    try
+      try
+        Computation := Derived.Compute(Operation.Find<TItem>(ItemId), FormulaId, Refs);
+      except
+        on E: EDerivedValueError do
+          raise Exception.Create('Derived value refused; nothing was stored: ' + E.Message);
+      end;
+      Issues := CheckValue(Computation.ResultType, Computation.Number, 0, Factor);
+      if (Issues <> []) and not GetOptBool(Params, 'confirm_out_of_range', False) then
+        raise Exception.CreateFmt(
+          'Derived value refused: %s (issues: %s). Check the input values and ' +
+          'their units. If the inputs are correct, repeat the call with ' +
+          'confirm_out_of_range: true.',
+          [DescribeValueIssues(Issues, Computation.ResultType, Computation.Number,
+            0, Factor), IssueCodesText(Issues)]);
+      try
+        Stored := Derived.Store(Operation.Find<TItem>(ItemId), Computation,
+          Description, Context.User.Id,
+          'MCP: Added derived value to item "' + ItemTitle + '"');
+      except
+        on E: EDerivedValueError do
+          raise Exception.Create(E.Message);
+      end;
+      Result := StoredValueJSON(Stored, Issues);
+    finally
+      Derived.Free;
+    end;
+  finally
+    TConflictHandler.FreeOperationManager(Operation);
+  end;
+  Cached := Context.Manager.FindCached<TItem>(ItemId);
+  if Assigned(Cached) and not Context.Manager.HasChanges(Cached) then
+    Context.Manager.Refresh(Cached);
+end;
+
 procedure AddValueSourceProps(Props: TJSONObject);
 var
   P: TJSONObject;
@@ -1492,7 +1711,8 @@ begin
   P.AddPair('enum', Kinds);
   P.AddPair('description', 'Source kind. Default: Reader when reader_id is ' +
     'given, else Manual when source_file_id or source_note is given, else ' +
-    'Unknown. Reader needs source_file_id, reader_id and key_name; Manual ' +
+    'Unknown. Reader needs source_file_id, reader_id, key_name, reader_units ' +
+    'and conversion_factor; Manual ' +
     'takes source_file_id and/or source_note; Unknown takes no source fields.');
   Props.AddPair('source_kind', P);
 
@@ -1520,9 +1740,29 @@ begin
 
   P := TJSONObject.Create;
   P.AddPair('type', 'string');
+  P.AddPair('description', 'Original emitted reader unit, including empty for dimensionless keys');
+  Props.AddPair('reader_units', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'number');
+  P.AddPair('description', 'Applied finite nonzero reader-to-value-type factor from extraction');
+  Props.AddPair('conversion_factor', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'string');
   P.AddPair('description', 'Free-text source, for example the analysis job, ' +
     'run or script that produced the number (max 1000 characters)');
   Props.AddPair('source_note', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', TJSONArray.Create.Add('object').Add('string'));
+  P.AddPair('description', 'Optional JSON object (or a string holding it) ' +
+    'copied unchanged from the analysis_snapshot of the extracted key in ' +
+    'extract_file_key_values. It needs a Reader source; its file_id must ' +
+    'equal source_file_id and its file_hash must equal the current content ' +
+    'hash of that file, otherwise the value is refused. It is stored with ' +
+    'the value so a later drift check reuses the same interval.');
+  Props.AddPair('analysis_snapshot', P);
 end;
 
 function MakeValueEntryProps: TJSONObject;
@@ -1620,6 +1860,55 @@ begin
   Result.AddPair('properties', Props);
   Req := TJSONArray.Create;
   Req.Add('values');
+  Result.AddPair('required', Req);
+end;
+
+function MakeAddDerivedValueSchema: TJSONObject;
+var
+  Props, P: TJSONObject;
+  Req: TJSONArray;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('type', 'object');
+  Props := TJSONObject.Create;
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'integer');
+  P.AddPair('description', 'Item that receives the Derived value. Every input ' +
+    'value must be stored on this item or on an item below it in the same project.');
+  Props.AddPair('item_id', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'string');
+  P.AddPair('description', 'Formula ID. Available: ' + WEAR_RATE_FORMULA_ID +
+    ' (K = A / (2 F N), result Wear rate in mm3/(N mm); roles area = Wear area ' +
+    'in mm2 (zero allowed), normal_force = Normal force in N, cycles = ' +
+    'dimensionless Cycles; force and cycles must be positive).');
+  Props.AddPair('formula_id', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'object');
+  P.AddPair('additionalProperties', TJSONObject.Create.AddPair('type', 'integer'));
+  P.AddPair('description', 'Map from formula role to the id of a stored value, ' +
+    'for example {"area":12,"normal_force":13,"cycles":14}. Each input must ' +
+    'have the value type and unit the role requires. An input may itself be ' +
+    'a Derived value. The area role of wear_rate_reciprocating also takes an ' +
+    'array of Wear area ids (for example several wear profiles of one test); ' +
+    'their mean is used and every id is stored as an input.');
+  Props.AddPair('inputs', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'string');
+  P.AddPair('description', 'Optional description of the stored value');
+  Props.AddPair('description', P);
+
+  Props.AddPair('confirm_out_of_range', MakeConfirmProp);
+  Result.AddPair('properties', Props);
+  Result.AddPair('additionalProperties', TJSONBool.Create(False));
+  Req := TJSONArray.Create;
+  Req.Add('item_id');
+  Req.Add('formula_id');
+  Req.Add('inputs');
   Result.AddPair('required', Req);
 end;
 
@@ -2995,8 +3284,10 @@ begin
     'item. Requires write access. Item must not be signed. Store analysis ' +
     'and fit results as values with a source, not only as item text. For a ' +
     'number from a reader, call extract_file_key_values first and pass ' +
-    'source_file_id = its file_id plus its reader_id, reader_version and ' +
-    'key_name = the key value name. For a number from an analysis, pass ' +
+    'value = converted_value, value_type_id and description = mapped_description; ' +
+    'pass source_file_id = file_id plus reader_id, reader_version, key_name = name, ' +
+    'reader_units and conversion_factor, and the key''s analysis_snapshot ' +
+    'when extract_file_key_values returned one. For a number from an analysis, pass ' +
     'source_file_id (the analysed file) and/or source_note with the job, ' +
     'run or script IDs. A value written without any source field is stored ' +
     'with source kind Unknown. The source file must belong to the item, one ' +
@@ -3006,7 +3297,9 @@ begin
     '|value| / tolerance_factor, is refused with the issue codes; check ' +
     'the number and units, and repeat with confirm_out_of_range: true only ' +
     'if it is correct. The response lists confirmed issues. Use add_values ' +
-    'to store several values in one step.',
+    'to store several values in one step. A value computed from other ' +
+    'stored values by a named formula (source kind Derived, for example a ' +
+    'wear rate) is made with add_derived_value, not with add_value.',
     MakeAddValueSchema, HandleAddValue, tscProjectScoped);
 
   Registry.Register('add_values',
@@ -3014,13 +3307,30 @@ begin
     'results of one fit. Each entry takes the add_value fields (item_id, ' +
     'value, value_type_id, tolerance, description, rec_type and the source ' +
     'fields source_kind, source_file_id, reader_id, reader_version, ' +
-    'key_name, source_note) with the same rules: give a source for every ' +
+    'key_name, reader_units, conversion_factor, source_note, analysis_snapshot) with the same rules: give a source for every ' +
     'result; an entry without source fields is stored as Unknown. Every ' +
     'entry is checked before anything is written; if one entry is refused, ' +
     'the error names its index (values[i]) and nothing is stored. ' +
     'confirm_out_of_range: true applies to all entries. One audit row is ' +
     'written per value.',
     MakeAddValuesSchema, HandleAddValues, tscProjectScoped);
+
+  Registry.Register('add_derived_value',
+    'Add a Derived value: the server computes it from stored input values ' +
+    'with a named formula and stores the formula ID, its version and the ' +
+    'input value ids as the source. The client never supplies the number. ' +
+    'Arguments: item_id, formula_id, inputs (role -> value id), optional ' +
+    'description and confirm_out_of_range. Formula ' + WEAR_RATE_FORMULA_ID +
+    ' computes K = A / (2 F N) in mm3/(N mm) from the roles area (Wear area, ' +
+    'mm2, zero allowed), normal_force (Normal force, N) and cycles (Cycles, ' +
+    'dimensionless); force and cycles must be positive. Every input must be ' +
+    'a stored value of the role''s value type and unit on item_id or an item ' +
+    'below it in the same project; inputs may be Derived values themselves, ' +
+    'and dependency cycles are refused. No tolerance is stored. The result ' +
+    'goes through the value type range check like add_value. Requires write ' +
+    'access; the item must not be signed. On a database without Derived ' +
+    'storage the call is refused and nothing is stored.',
+    MakeAddDerivedValueSchema, HandleAddDerivedValue, tscProjectScoped);
 
   Registry.Register('move_item',
     'Move a root-level item (Proc, Specimen, etc.) and all its children to a different ' +

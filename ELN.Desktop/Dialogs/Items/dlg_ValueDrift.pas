@@ -33,14 +33,14 @@ uses
 function DriftSummaryText(const Scope: string; const Report: TValueDriftReport): string;
 begin
   if Report.Checked = 0 then
-    Result := Format('"%s" and its sub-items hold no values read from a file.',
-      [Scope])
+    Result := Format('"%s" and its sub-items hold no values read from a file ' +
+      'or derived from other values.', [Scope])
   else if Length(Report.Rows) = 0 then
-    Result := Format('No differences in %d reader values of "%s" and its sub-items.',
-      [Report.Checked, Scope])
+    Result := Format('No differences in %d Reader and Derived values of "%s" ' +
+      'and its sub-items.', [Report.Checked, Scope])
   else
-    Result := Format('%d of %d reader values of "%s" and its sub-items differ ' +
-      'from what the reader returns today.',
+    Result := Format('%d of %d Reader and Derived values of "%s" and its ' +
+      'sub-items differ from what the readers and formulas return today.',
       [Length(Report.Rows), Report.Checked, Scope]);
 end;
 

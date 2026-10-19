@@ -16,7 +16,7 @@ F,Flow,sccm,3
 H,Hardness,GPa,4
 E,Modulus,GPa,4
 μ,COF,,4
-WR,Wear rate,mm³/N·m,4
+WR,Wear rate,mm³/(N·mm),4
 θ,Contact Angle,°,5
 c,Concentration,mol/L,6
 pH,pH,,6
@@ -27,3 +27,14 @@ V,Volume,mL,6
 σ,Conductivity,S/m,7
 R,Resistance,Ω,7
 Rs,Sheet Resistance,Ω/sq,7
+Wear area,Wear area,mm²,4
+Wear volume,Wear volume,mm³,4
+Chi2,Chi2,,1
+Period,Period,m,0
+Normal force,Normal force,N,4
+Cycles,Cycles,,4
+Stroke,Stroke,mm,4
+Speed,Speed,mm/s,4
+Frequency,Frequency,Hz,2
+Duty cycle,Duty cycle,%,2
+Periods,Periods,,0

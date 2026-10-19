@@ -44,6 +44,24 @@ type
     function GetKeyValues: TArray<TPluginKeyValue>;
   end;
 
+  TAnalysisContextKind = (ackCurrent, ackStoredSnapshot);
+
+  TAnalysisContext = record
+    Kind: TAnalysisContextKind;
+    FileId: Int64;
+    FileHash: string;
+    SharedSelection: string;
+    StoredSnapshot: string;
+  end;
+
+  IAnalysisKeyValueProvider = interface
+  ['{5C0E7A32-48D1-4B9F-8A66-D2F13B7E9C04}']
+    procedure SetAnalysisContext(const Context: TAnalysisContext);
+    function GetAnalysisSnapshot(const KeyName: string): string;
+    function GetAnalysisStatus: string;
+    function GetLoadError: string;
+  end;
+
   // A stored value records this identity. Change the version whenever
   // GetKeyValues can return different output for the same file.
   IReaderIdentity = interface
@@ -88,6 +106,20 @@ type
     function GetItemFiles(ItemId: Integer): TArray<string>;
     function EnsureItemFilesInDir(ItemId: Integer;
       const TargetDir: string): TArray<string>;
+  end;
+
+  TAnalysisApplyResult = (aarApplied, aarConflict, aarDenied, aarSigned,
+    aarHashMismatch, aarInvalid, aarTooLarge);
+
+  // Viewer -> Host: store the shared analysis selection of one file. The host
+  // supplies access rights and hashes the stored bytes itself, so a viewer
+  // showing old bytes gets aarHashMismatch. On aarConflict, CurrentJson holds
+  // the selection now stored.
+  IElnAnalysisSettings = interface
+  ['{A3D7C0E9-5B21-4F68-9C4A-7E1D2B8F6035}']
+    function Apply(FileId: Int64; const ReaderId, ExpectedJson, NewJson: string;
+      out CurrentJson: string): TAnalysisApplyResult;
+    function CurrentUserId: Integer;
   end;
 
   TSaveResult = (srOk, srConflict, srError);
@@ -213,6 +245,9 @@ procedure RegisterViewerPlugin(APlugin: TupfVisualPlugin);
 
 const
   READER_VERSION_UNKNOWN = 'unknown';
+  ANALYSIS_STATUS_NO_PLATEAU = 'no_plateau';
+  ANALYSIS_STATUS_STALE_SELECTION = 'stale_selection';
+  ANALYSIS_STATUS_INTERVAL_UNUSABLE = 'interval_unusable';
 
 procedure ReaderIdentityOf(const Plugin: IViewerPlugin;
   out ReaderId, ReaderVersion: string);
@@ -228,6 +263,7 @@ var
   ElnFileService:         IElnFileService;
   MarkdownEditorLauncher: IMarkdownEditorLauncher;
   ElnFileEnumerator:      IElnFileEnumerator;
+  ElnAnalysisSettings:    IElnAnalysisSettings;
 
 implementation
 

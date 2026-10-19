@@ -30,6 +30,9 @@ type
   TValue = class;
   TValues = TList<TValue>;
 
+  TDerivedValueInput = class;
+  TDerivedValueInputs = TList<TDerivedValueInput>;
+
 
   [Entity]
   [Table('Items')]
@@ -336,11 +339,29 @@ type
     [Description('Free-text source, for example an analysis job or run ID')]
     FSourceNote: string;
 
+    [Column('ReaderUnits', [], 100)]
+    FReaderUnits: Nullable<string>;
+
+    [Column('ConversionFactor', [])]
+    FConversionFactor: Nullable<Double>;
+
+    [Column('FormulaId', [], 100)]
+    FFormulaId: Nullable<string>;
+
+    [Column('FormulaVersion', [])]
+    FFormulaVersion: Nullable<Integer>;
+
+    [ManyValuedAssociation([TAssociationProp.Lazy], CascadeTypeAllRemoveOrphan, 'FResultValue')]
+    FDerivedInputs: Proxy<TDerivedValueInputs>;
+
     function GetValueType: TValueType;
     procedure SetValueType(const Value: TValueType);
     function GetItem: TItem;
     procedure SetItem(const Value: TItem);
+    function GetDerivedInputs: TDerivedValueInputs;
   public
+    constructor Create;
+    destructor Destroy; override;
     property Id: Integer read FId write FId;
     property ValueType: TValueType read GetValueType write SetValueType;
     property RecType: TRecType read FRecType write FRecType;
@@ -359,7 +380,45 @@ type
     property ReaderVersion: string read FReaderVersion write FReaderVersion;
     property KeyName: string read FKeyName write FKeyName;
     property SourceNote: string read FSourceNote write FSourceNote;
+    property ReaderUnits: Nullable<string> read FReaderUnits write FReaderUnits;
+    property ConversionFactor: Nullable<Double> read FConversionFactor write FConversionFactor;
+    property FormulaId: Nullable<string> read FFormulaId write FFormulaId;
+    property FormulaVersion: Nullable<Integer> read FFormulaVersion write FFormulaVersion;
+    property DerivedInputs: TDerivedValueInputs read GetDerivedInputs;
     function EffectiveSourceKind: TValueSourceKind;
+  end;
+
+  [Entity]
+  [Table('DerivedValueInputs')]
+  [Id('FId', TIdGenerator.IdentityOrSequence)]
+  TDerivedValueInput = class
+  private
+    [Column('Id', [TColumnProp.Required, TColumnProp.NoInsert, TColumnProp.NoUpdate])]
+    FId: Integer;
+
+    [Association([TAssociationProp.Lazy, TAssociationProp.Required], [])]
+    [JoinColumn('ResultValueId', [TColumnProp.Required])]
+    FResultValue: Proxy<TValue>;
+
+    [Column('Role', [TColumnProp.Required], 50)]
+    FRole: string;
+
+    // A plain column, not an association: deleting or editing an input must
+    // neither delete nor block the Derived value; the drift check reports it.
+    [Column('InputValueId', [TColumnProp.Required])]
+    FInputValueId: Integer;
+
+    [Column('InputValue', [TColumnProp.Required])]
+    FInputValue: Double;
+
+    function GetResultValue: TValue;
+    procedure SetResultValue(const Value: TValue);
+  public
+    property Id: Integer read FId write FId;
+    property ResultValue: TValue read GetResultValue write SetResultValue;
+    property Role: string read FRole write FRole;
+    property InputValueId: Integer read FInputValueId write FInputValueId;
+    property InputValue: Double read FInputValue write FInputValue;
   end;
 
 implementation
@@ -467,6 +526,24 @@ begin
 end;
 
 
+constructor TValue.Create;
+begin
+  inherited Create;
+  FDerivedInputs.SetInitialValue(TDerivedValueInputs.Create);
+end;
+
+destructor TValue.Destroy;
+begin
+  if not ManagerShuttingDown then
+    FDerivedInputs.DestroyValue;
+  inherited;
+end;
+
+function TValue.GetDerivedInputs: TDerivedValueInputs;
+begin
+  Result := FDerivedInputs.Value;
+end;
+
 function TValue.GetValueType: TValueType;
 begin
   Result := FValueType.Value;
@@ -495,8 +572,19 @@ begin
     Result := vskUnknown;
 end;
 
+function TDerivedValueInput.GetResultValue: TValue;
+begin
+  Result := FResultValue.Value;
+end;
+
+procedure TDerivedValueInput.SetResultValue(const Value: TValue);
+begin
+  FResultValue.Value := Value;
+end;
+
 initialization
   RegisterEntity(TItem);
   RegisterEntity(TFile);
   RegisterEntity(TValue);
+  RegisterEntity(TDerivedValueInput);
 end.

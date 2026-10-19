@@ -564,6 +564,36 @@ object dmTreeImages: TdmTreeImages
         CollectionIndex = 62
         CollectionName = 'Menu\Data Completeness'
         Name = 'Data Completeness'
+      end
+      item
+        CollectionIndex = 63
+        CollectionName = 'Menu\Link Types'
+        Name = 'Link Types'
+      end
+      item
+        CollectionIndex = 64
+        CollectionName = 'Menu\Go To'
+        Name = 'Go To'
+      end
+      item
+        CollectionIndex = 65
+        CollectionName = 'Menu\Show IDs'
+        Name = 'Show IDs'
+      end
+      item
+        CollectionIndex = 66
+        CollectionName = 'Menu\Web Devices'
+        Name = 'Web Devices'
+      end
+      item
+        CollectionIndex = 67
+        CollectionName = 'Menu\Save Draft'
+        Name = 'Save Draft'
+      end
+      item
+        CollectionIndex = 68
+        CollectionName = 'Menu\Reload Draft'
+        Name = 'Reload Draft'
       end>
     ImageCollection = MenuImageCollection
     Width = 40

@@ -783,6 +783,7 @@ begin
       BoundaryStorage.AtomicReplacePath := Fixture.WorkingPath;
       RefreshResult := Fixture.Service.RefreshLocalFile(Fixture.AFile.Id, False, Path, ErrorText);
       Assert.AreEqual(Ord(srOk), Ord(RefreshResult), ErrorText);
+      Assert.AreEqual('', BoundaryStorage.AtomicReplacePath, 'The atomic replace hook must have fired');
       Assert.IsFalse(BoundaryStorage.AtomicReplaceSucceeded,
         'An external atomic save must be denied while the clean baseline is guarded');
       Assert.AreEqual('opened bytes', System.IOUtils.TFile.ReadAllText(Fixture.WorkingPath),
@@ -915,6 +916,7 @@ begin
     System.IOUtils.TFile.WriteAllBytes(Fixture.WorkingPath, TEncoding.UTF8.GetBytes('saved draft'));
     Assert.AreEqual(Ord(srOk), Ord(Fixture.Service.SaveLocalFile(
       Fixture.AFile.Id, Fixture.WorkingPath, ErrorText)), ErrorText);
+    Assert.AreEqual('', Fixture.CopyStorage.FAfterBackupReplacePath, 'The after-backup replace hook must have fired');
     Assert.IsFalse(Fixture.CopyStorage.AtomicReplaceSucceeded, 'Canonical backup must remain guarded');
     Assert.AreEqual('saved draft', TEncoding.UTF8.GetString(Fixture.Notebook.Storage.ReadBytes(Fixture.StoragePath)));
   finally
@@ -933,6 +935,7 @@ begin
     System.IOUtils.TFile.WriteAllBytes(Fixture.WorkingPath, TEncoding.UTF8.GetBytes('saved draft'));
     Assert.AreEqual(Ord(srOk), Ord(Fixture.Service.SaveLocalFile(
       Fixture.AFile.Id, Fixture.WorkingPath, ErrorText)), ErrorText);
+    Assert.AreEqual('', Fixture.CopyStorage.FAfterInstallReplacePath, 'The after-install replace hook must have fired');
     Assert.IsFalse(Fixture.CopyStorage.AtomicReplaceSucceeded, 'Installed bytes must stay guarded through metadata commit');
     Assert.AreEqual('saved draft', TEncoding.UTF8.GetString(Fixture.Notebook.Storage.ReadBytes(Fixture.StoragePath)));
   finally
@@ -1110,6 +1113,7 @@ begin
     System.IOUtils.TFile.WriteAllBytes(Fixture.WorkingPath, TEncoding.UTF8.GetBytes('saved draft'));
     Assert.AreEqual(Ord(srOk), Ord(Fixture.Service.SaveLocalFile(
       Fixture.AFile.Id, Fixture.WorkingPath, ErrorText)), ErrorText);
+    Assert.AreEqual('', Fixture.CopyStorage.FAfterBackupWritePath, 'The after-backup write hook must have fired');
     Assert.IsFalse(Fixture.CopyStorage.FDirectWriteSucceeded, 'Direct writes must be denied while comparing the backup');
     Assert.AreEqual('saved draft', TEncoding.UTF8.GetString(Fixture.Notebook.Storage.ReadBytes(Fixture.StoragePath)));
   finally

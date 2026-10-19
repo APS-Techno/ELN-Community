@@ -3,7 +3,7 @@ unit unit_ValueTypeModel;
 interface
 
 uses
-  SysUtils, Classes,
+  SysUtils, Classes, Data.DB,
   Aurelius.Bind.BaseDataset,
   Aurelius.Bind.Dataset,
   Aurelius.Drivers.Interfaces,
@@ -26,6 +26,7 @@ type
     private
       FDic: TValueTypeDictionary;
       FManager: TObjectManager;
+      procedure DataSetNewRecord(DataSet: TDataSet);
     protected
       function GetDataSet: TAureliusDataset; override;
     public
@@ -50,53 +51,103 @@ implementation
 uses
   System.JSON, System.Variants, Aurelius.Criteria.Projections,
   unit_DBSetting, unit_DBSettingsModel,
+  unit_ReaderValueMapping,
   unit_TimeHelper;
 
 const
   KEY_VT_CATEGORIES = 'ValueTypeCategories';
 
-function FormatSIValue(AValue: double; const Units: string): string;
+function SIDivisor(AValue: double; const Units: string; out Prefix: string): double;
 var
   AbsVal: double;
-  Prefix: string;
-  Scaled: double;
 begin
   AbsVal := Abs(AValue);
+  Prefix := '';
+  Result := 1;
 
   // Skip SI prefix scaling for zero, no units, values already in displayable
   // range, or compound units (containing / or ·) where prefixing is wrong
   if (AValue = 0) or (Units = '') or ((AbsVal >= 0.1) and (AbsVal < 1000))
     or (Pos('/', Units) > 0) or (Pos(#$00B7, Units) > 0) then
-  begin
-    Result := Format('%.4g', [AValue]);
-    if Units <> '' then
-      Result := Result + ' ' + Units;
     Exit;
-  end;
 
-  if      AbsVal >= 1e9  then begin Prefix := 'G';    Scaled := AValue / 1e9;  end
-  else if AbsVal >= 1e6  then begin Prefix := 'M';    Scaled := AValue / 1e6;  end
-  else if AbsVal >= 1e3  then begin Prefix := 'k';    Scaled := AValue / 1e3;  end
-  else if AbsVal >= 1    then begin Prefix := '';      Scaled := AValue;        end
-  else if AbsVal >= 1e-3 then begin Prefix := 'm';    Scaled := AValue * 1e3;  end
-  else if AbsVal >= 1e-6 then begin Prefix := #$00B5; Scaled := AValue * 1e6;  end
-  else if AbsVal >= 1e-9 then begin Prefix := 'n';    Scaled := AValue * 1e9;  end
-  else                        begin Prefix := 'p';    Scaled := AValue * 1e12; end;
+  if      AbsVal >= 1e9  then begin Prefix := 'G';    Result := 1e9;   end
+  else if AbsVal >= 1e6  then begin Prefix := 'M';    Result := 1e6;   end
+  else if AbsVal >= 1e3  then begin Prefix := 'k';    Result := 1e3;   end
+  else if AbsVal >= 1    then begin Prefix := '';     Result := 1;     end
+  else if AbsVal >= 1e-3 then begin Prefix := 'm';    Result := 1e-3;  end
+  else if AbsVal >= 1e-6 then begin Prefix := #$00B5; Result := 1e-6;  end
+  else if AbsVal >= 1e-9 then begin Prefix := 'n';    Result := 1e-9;  end
+  else                        begin Prefix := 'p';    Result := 1e-12; end;
+end;
 
-  Result := Format('%.4g %s%s', [Scaled, Prefix, Units]);
+function UnitSuffix(const Prefix, Units: string): string;
+begin
+  if Units = '' then
+    Result := ''
+  else
+    Result := ' ' + Prefix + Units;
+end;
+
+function FormatSIValue(AValue: double; const Units: string): string;
+var
+  Prefix: string;
+  Divisor: double;
+begin
+  Divisor := SIDivisor(AValue, Units, Prefix);
+  Result := Format('%.4g', [AValue / Divisor]) + UnitSuffix(Prefix, Units);
+end;
+
+function FormatSIMeanSD(Mean, SD: double; N: Integer; const Units: string): string;
+var
+  Prefix: string;
+  Divisor: double;
+begin
+  Divisor := SIDivisor(Mean, Units, Prefix);
+  Result := Format('%.4g '#$00B1' %.3g', [Mean / Divisor, SD / Divisor]) +
+    UnitSuffix(Prefix, Units) + Format(' (n=%d)', [N]);
+end;
+
+function SameValueGroup(A, B: TValue): Boolean;
+begin
+  Result := (A.ValueType = B.ValueType) and (A.RecType = B.RecType) and
+    (A.Description = B.Description);
 end;
 
 function FormatValuesInline(Values: TValues): string;
 var
+  Grouped: TArray<Boolean>;
+  I, J, N: Integer;
   Val: TValue;
+  Mean, M2, Delta: double;
 begin
   Result := '';
-  for Val in Values do
+  SetLength(Grouped, Values.Count);
+  for I := 0 to Values.Count - 1 do
   begin
+    if Grouped[I] then
+      Continue;
+    Val := Values[I];
+    N := 1;
+    Mean := Val.Value;
+    M2 := 0;
+    for J := I + 1 to Values.Count - 1 do
+      if not Grouped[J] and SameValueGroup(Val, Values[J]) then
+      begin
+        Grouped[J] := True;
+        Inc(N);
+        Delta := Values[J].Value - Mean;
+        Mean := Mean + Delta / N;
+        M2 := M2 + Delta * (Values[J].Value - Mean);
+      end;
     if Result <> '' then
       Result := Result + ';  ';
-    Result := Result + Val.ValueType.Symbol + ' = ' +
-      FormatSIValue(Val.Value, Val.ValueType.Units);
+    Result := Result + Val.ValueType.Symbol + ' = ';
+    if N = 1 then
+      Result := Result + FormatSIValue(Val.Value, Val.ValueType.Units)
+    else
+      Result := Result + FormatSIMeanSD(Mean, Sqrt(M2 / (N - 1)), N,
+        Val.ValueType.Units);
     if Val.Description <> '' then
       Result := Result + ' [' + Val.Description + ']';
   end;
@@ -124,7 +175,13 @@ begin
   FManager := Manager;
   FDataSet := CreateDataSet;
   FDataSet.Manager := FManager;
+  FDataSet.OnNewRecord := DataSetNewRecord;
   FDic := TValueTypeDictionary.Create;
+end;
+
+procedure TValueTypeModel.DataSetNewRecord(DataSet: TDataSet);
+begin
+  DataSet.FieldByName('Units').AsString := '';
 end;
 
 procedure TValueTypeModel.CreateDefaultData;
@@ -194,6 +251,7 @@ function TValueTypeModel.FindByTitleUnits(const ATitle, AUnits: string): TValueT
 var
   VTDic: TValueTypeDictionary;
   List: TList<TValueType>;
+  VT: TValueType;
 begin
   Result := nil;
   VTDic := TValueTypeDictionary.Create;
@@ -202,8 +260,9 @@ begin
       .Where(VTDic.Title.ILike(ATitle) and VTDic.Units.ILike(AUnits))
       .List;
     try
-      if List.Count > 0 then
-        Result := FManager.Find<TValueType>(List[0].Id);
+      for VT in List do
+        if SameText(VT.Title, ATitle) and SameText(VT.Units, AUnits) then
+          Exit(VT);
     finally
       List.Free;
     end;
@@ -216,8 +275,18 @@ function TValueTypeModel.CanDelete(ID: Integer): string;
 var
   ValDic: TValueDictionary;
   ValCount: Integer;
+  Mappings: TList<TReaderValueMapping>;
+  Mapping: TReaderValueMapping;
 begin
   Result := '';
+  Mappings := FManager.Find<TReaderValueMapping>.List;
+  try
+    for Mapping in Mappings do
+      if Mapping.ValueType.Id = ID then
+        Exit('Cannot delete: used by a reader mapping.');
+  finally
+    Mappings.Free;
+  end;
   ValDic := TValueDictionary.Create;
   try
     ValCount := FManager.Find<TValue>.Where(ValDic.Typeid.Id = ID).List.Count;

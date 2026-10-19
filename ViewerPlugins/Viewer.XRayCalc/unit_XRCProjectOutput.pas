@@ -32,6 +32,19 @@ begin
     Result := Result + Stack.Layers[L].Value[xpThickness];
 end;
 
+function MeanLayerValue(const Layer: TXRCLayer; Param: TXRCParam;
+  N: Integer): Double;
+var
+  P: Integer;
+begin
+  if (N <= 1) or (Layer.Profile[Param].Kind = pkNone) then
+    Exit(Layer.Value[Param]);
+  Result := 0;
+  for P := 1 to N do
+    Result := Result + XRCProfileValue(Layer, Param, P);
+  Result := Result / N;
+end;
+
 function LayerJSON(const Layer: TXRCLayer; Index: Integer): TJSONObject;
 var
   Par: TXRCParam;
@@ -255,10 +268,10 @@ end;
 function BuildXRCKeyValues(const P: TXRCProject): TArray<TPluginKeyValue>;
 var
   List: TList<TPluginKeyValue>;
-  Seen: TDictionary<string, Integer>;
-  S, L, Best, LastStack: Integer;
-  Par: TXRCParam;
-  Name, Suffix: string;
+  Seen: TDictionary<string, Boolean>;
+  S, Best: Integer;
+  Period: Double;
+  PeriodKV: TPluginKeyValue;
 
   procedure Add(const AName: string; AValue: Double; const AUnits: string;
     ARecType: TPluginRecType; AIsKey: Boolean);
@@ -274,39 +287,67 @@ var
     List.Add(KV);
   end;
 
+  procedure AddStack(Index: Integer);
+  var
+    L: Integer;
+    Par: TXRCParam;
+    Name, Suffix: string;
+    Value: Double;
+  begin
+    Seen.Clear;
+    for L := 0 to High(P.Model.Stacks[Index].Layers) do
+    begin
+      Name := P.Model.Stacks[Index].Layers[L].Material;
+      if Seen.ContainsKey(Name) then
+        Suffix := Format(' (stack %d layer %d)', [Index + 1, L + 1])
+      else if Index = Best then
+        Suffix := ''
+      else
+        Suffix := Format(' (stack %d)', [Index + 1]);
+      Seen.AddOrSetValue(Name, True);
+      for Par := Low(TXRCParam) to High(TXRCParam) do
+      begin
+        if Index = Best then
+          Value := MeanLayerValue(P.Model.Stacks[Index].Layers[L], Par,
+            P.Model.Stacks[Index].N)
+        else
+          Value := P.Model.Stacks[Index].Layers[L].Value[Par];
+        Add(Name + ' ' + ParamLabel[Par] + Suffix,
+          Value, ParamUnits[Par], prResult, False);
+        if (Index = Best) and (Par = xpThickness) then
+          Period := Period + Value;
+      end;
+    end;
+  end;
+
 begin
   Result := nil;
   if not P.Model.Valid then
     Exit;
   List := TList<TPluginKeyValue>.Create;
-  Seen := TDictionary<string, Integer>.Create;
+  Seen := TDictionary<string, Boolean>.Create;
   try
-    if Length(P.Model.Stacks) > 0 then
-    begin
-      Best := 0;
-      for S := 1 to High(P.Model.Stacks) do
-        if P.Model.Stacks[S].N > P.Model.Stacks[Best].N then
-          Best := S;
-      Add('Period', StackPeriod(P.Model.Stacks[Best]), 'A', prResult, True);
-    end;
-    if P.FitResult.Present then
-      Add('Chi2', P.FitResult.Chi2, '', prResult, True);
-
+    Best := -1;
     for S := 0 to High(P.Model.Stacks) do
-      for L := 0 to High(P.Model.Stacks[S].Layers) do
-      begin
-        Name := P.Model.Stacks[S].Layers[L].Material;
-        if not Seen.TryGetValue(Name, LastStack) then
-          Suffix := ''
-        else if LastStack = S then
-          Suffix := Format(' (stack %d layer %d)', [S + 1, L + 1])
-        else
-          Suffix := Format(' (stack %d)', [S + 1]);
-        Seen.AddOrSetValue(Name, S);
-        for Par := Low(TXRCParam) to High(TXRCParam) do
-          Add(Name + ' ' + ParamLabel[Par] + Suffix,
-            P.Model.Stacks[S].Layers[L].Value[Par], ParamUnits[Par], prResult, False);
-      end;
+      if P.Model.Stacks[S].N > 1 then
+        if (Best < 0) or (P.Model.Stacks[S].N > P.Model.Stacks[Best].N) then
+          Best := S;
+    Period := 0;
+    if Best >= 0 then
+      Add('Period', 0, 'A', prResult, True);
+    if P.FitResult.HasChi2 then
+      Add('Chi2', P.FitResult.Chi2, '', prResult, True);
+    if Best >= 0 then
+      AddStack(Best);
+    for S := 0 to High(P.Model.Stacks) do
+      if S <> Best then
+        AddStack(S);
+    if Best >= 0 then
+    begin
+      PeriodKV := List[0];
+      PeriodKV.Value := Period;
+      List[0] := PeriodKV;
+    end;
 
     Add('Substrate Roughness', P.Model.SubsSigma, 'A', prCondition, False);
     if P.Calculation.Present then

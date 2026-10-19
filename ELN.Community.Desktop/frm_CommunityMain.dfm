@@ -54,7 +54,7 @@ object frmCommunityMain: TfrmCommunityMain
       Width = 580
       Height = 90
       AutoSize = False
-      Caption = 'ELN Community. Create a new local notebook, or open a Community notebook and its attachment directory. A format-2 notebook is upgraded only after you confirm, and a backup is made first.'
+      Caption = 'ELN Community. Create a new local notebook, or open a Community notebook. A format-2 notebook is upgraded only after you confirm, and a backup is made first.'
       WordWrap = True
     end
     object btnNew: TButton
@@ -234,6 +234,65 @@ object frmCommunityMain: TfrmCommunityMain
         ImageIndex = 27
         ImageName = 'Open File'
         OnClick = OpenNotebookClick
+      end
+      object miRecent: TMenuItem
+        Caption = '&Recent Notebooks'
+        object miRecent1: TMenuItem
+          Caption = '&1'
+          Visible = False
+          OnClick = RecentNotebookClick
+        end
+        object miRecent2: TMenuItem
+          Tag = 1
+          Caption = '&2'
+          Visible = False
+          OnClick = RecentNotebookClick
+        end
+        object miRecent3: TMenuItem
+          Tag = 2
+          Caption = '&3'
+          Visible = False
+          OnClick = RecentNotebookClick
+        end
+        object miRecent4: TMenuItem
+          Tag = 3
+          Caption = '&4'
+          Visible = False
+          OnClick = RecentNotebookClick
+        end
+        object miRecent5: TMenuItem
+          Tag = 4
+          Caption = '&5'
+          Visible = False
+          OnClick = RecentNotebookClick
+        end
+        object miRecent6: TMenuItem
+          Tag = 5
+          Caption = '&6'
+          Visible = False
+          OnClick = RecentNotebookClick
+        end
+        object miRecent7: TMenuItem
+          Tag = 6
+          Caption = '&7'
+          Visible = False
+          OnClick = RecentNotebookClick
+        end
+        object miRecent8: TMenuItem
+          Tag = 7
+          Caption = '&8'
+          Visible = False
+          OnClick = RecentNotebookClick
+        end
+        object miRecentSeparator: TMenuItem
+          Caption = '-'
+        end
+        object miClearRecent: TMenuItem
+          Caption = '&Clear Recent List'
+          ImageIndex = 53
+          ImageName = 'Clear'
+          OnClick = ClearRecentClick
+        end
       end
       object miCloseNotebook: TMenuItem
         Caption = '&Close Notebook'
@@ -424,6 +483,8 @@ object frmCommunityMain: TfrmCommunityMain
       end
       object miLinkTypes: TMenuItem
         Caption = 'Link Types...'
+        ImageIndex = 63
+        ImageName = 'Link Types'
         Tag = 15
         OnClick = CommandClick
       end
@@ -460,6 +521,8 @@ object frmCommunityMain: TfrmCommunityMain
       end
       object miGoTo: TMenuItem
         Caption = 'Go to Item...'
+        ImageIndex = 64
+        ImageName = 'Go To'
         Tag = 21
         OnClick = CommandClick
       end
@@ -521,11 +584,15 @@ object frmCommunityMain: TfrmCommunityMain
       end
       object miSaveDraft: TMenuItem
         Caption = 'Save Attachment Working Draft'
+        ImageIndex = 67
+        ImageName = 'Save Draft'
         Tag = 30
         OnClick = CommandClick
       end
       object miReloadDraft: TMenuItem
         Caption = 'Reload Attachment Working Draft'
+        ImageIndex = 68
+        ImageName = 'Reload Draft'
         Tag = 31
         OnClick = CommandClick
       end

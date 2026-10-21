@@ -37,10 +37,15 @@
 <tr><td>DSC</td><td><code>.dsc</code></td></tr>
 <tr><td>DSR</td><td><code>.dsr</code></td></tr>
 <tr><td>ZRW</td><td><code>.zrw .zrv</code></td></tr>
+<tr><td>MIT</td><td><code>.mit</code> (Anton Paar UNHT nanoindentation)</td></tr>
+<tr><td>FIBPS</td><td><code>.fibps</code> (Filmetrics Profilm3D surface)</td></tr>
+<tr><td>Tribo</td><td><code>.raw</code> (plain-text tribometer data)</td></tr>
+<tr><td>VK4</td><td><code>.vk4</code> (Keyence laser confocal microscope)</td></tr>
 </tbody></table>
 <p>The Protocol viewer displays protocol forms; it is not a general file editor. Preview support depends on the loaded plugin and the file format. An extension match does not guarantee that all content can be parsed.</p>
 <p>The compound extension selects the specialist reader: <code>.depo.json</code> uses Deposition rather than the general JSON viewer. Its preview shows the <strong>Overview</strong> tab. Recipe and process-log attachments have their own file-type icons. X-Ray Calc displays project structure and reflectivity content; Recipe displays recipe content, and Process Log displays process events. Reader output depends on the content that is present in the file. Use <strong>Extract Values</strong> to inspect the available numeric results rather than assuming that every viewer provides the same keys.</p>
 <p>For ZRW friction results, see <a href="Values.html">ZRW friction coefficient</a>. That guide explains the coating plateau, Manual and Automatic intervals, <strong>Apply</strong>, <strong>Reload</strong> and stale selections. The same guide explains reader conversion, standard deviation and source checks.</p>
+<p>The MIT viewer shows the indents of a <code>.mit</code> file in the list <strong>Records:</strong> and the force-depth curves in a chart. The FIBPS and VK4 viewers show a height map. Both have the tools <strong>Profile</strong>, <strong>Distance</strong>, <strong>Roughness</strong> and <strong>Flatten</strong>. The VK4 viewer has a <strong>Channel:</strong> list. The FIBPS viewer also has <strong>Step Height</strong> and <strong>Wear Track</strong>. For the MIT results, see <a href="Values.html">MIT nanoindentation results</a>. The MIT, FIBPS and VK4 readers use our own analysis of measurement files and contain no vendor code. APS is not affiliated with or endorsed by Anton Paar, KLA/Filmetrics or Keyence. The names identify file compatibility only.</p>
 <h2>Stored bytes and working drafts</h2>
 <p class="note">Opening an attachment creates a separate local working copy. The path shown by the host is not the stored attachment. Saving in an external application changes that working copy first. Do not edit notebook storage files directly.</p>
 <ol><li>Finish saving in the external application.</li><li>Select the attachment and choose <strong>Tools &gt; Save Attachment Working Draft</strong> to copy changed working bytes back to the notebook.</li><li>To discard the working copy and load stored bytes, choose <strong>Tools &gt; Reload Attachment Working Draft</strong>. Close separate editor windows first. Confirm the discard prompt only if you do not need their edits.</li></ol>

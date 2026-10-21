@@ -455,6 +455,7 @@ type
     // Selects the file node, or its owner when file children are hidden.
     // False for an owner-only selection: tree file commands require a file node.
     function SelectFile(FileId: Int64): Boolean;
+    procedure GoToFile(FileId: Int64);
     function UploadFiles(const Files: TFileInfoArray; ParentItem: TItem;
       out Queue: TArray<TPreviewQueueItem>): Boolean;
     procedure ShowFilePopup(FileId: Int64);
@@ -2971,6 +2972,7 @@ procedure TframeItemTree.TreeDblClick(Sender: TObject);
 var
   Node: PVirtualNode;
   Data: PNodeData;
+  NavFileId: Int64;
 begin
   if FVM.IsReadOnly then Exit;
   Node := CurrentNode;
@@ -2990,14 +2992,18 @@ begin
               end;
               if FItem.Level in [TItemLevel.Proc, TItemLevel.Action] then
               begin
-                if ShowActionDialog(dmEdit, FItem, [FItem.Level]) then
+                if ShowActionDialog(dmEdit, FItem, [FItem.Level], NavFileId) then
                 begin
                   if not FVM.UpdateItem(FItem, Model.Relocator) then Exit;
                   FillTree(FLocation);
                   RestoreLastSelection;
                 end
                 else
+                begin
                   DisplayItemInfo(FItem);
+                  if NavFileId > 0 then
+                    GoToFile(NavFileId);
+                end;
               end
               else if FItem.Level = TItemLevel.Item then
               begin
@@ -3085,8 +3091,8 @@ var
   C: TColor;
   Badges: TBadgePainter;
 begin
-  // Shared look first (gap, nesting lines, hover pill). From here on CellRect
-  // is a header's band, so the badges centre on it. The hovered row's pill
+  // Shared look first (gap, nesting lines, action pill). From here on CellRect
+  // is a header's band, so the badges centre on it. The selected row's pill
   // replaces its comment/link badges.
   if Assigned(FLook) and FLook.AfterCellPaint(TargetCanvas, Node, Column, CellRect) then
     Exit;
@@ -4968,6 +4974,27 @@ begin
     FVM.SelectItem(FItem.Id, 0);
     UpdateFileButtons;
     // Keep False: a file popup on this item node could delete its owner.
+  end;
+end;
+
+procedure TframeItemTree.GoToFile(FileId: Int64);
+var
+  AFile: unit_Item.TFile;
+begin
+  AFile := Model.Manager.Find<unit_Item.TFile>(FileId);
+  if not Assigned(AFile) or not Assigned(AFile.Item) then
+  begin
+    MessageDlg('The source file no longer exists.', mtWarning, [mbOK], 0);
+    Exit;
+  end;
+  if Assigned(FOnNavigateItem) then
+    FOnNavigateItem(Self, AFile.Item.ProjectID, AFile.Item.FolderID, AFile.Item.Id)
+  else
+    FVM.SelectItem(AFile.Item.Id, 0);
+  if SelectFile(FileId) then
+  begin
+    FileSelected(FileId);
+    ImageClick(FileId);
   end;
 end;
 

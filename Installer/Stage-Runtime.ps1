@@ -108,6 +108,7 @@ function Add-Tree([string]$Source, [string]$Relative) {
 }
 Add-File (Join-Path $hostRoot 'ELNCommunity.exe') 'Program/ELNCommunity.exe' $true
 Add-File (Join-Path $hostRoot 'Icons/ELNIcons.dll') 'Program/Icons/ELNIcons.dll' $true
+Add-File (Join-Path $RepoRoot "_OUT/CommunityMCP/$Platform/$Configuration/ELNCommunityMCP.exe") 'Program/ELNCommunityMCP.exe' $true
 foreach ($directory in @('Core', 'Core.Protocol', 'Viewer.Image', 'Viewer.HTML', 'Viewer.Markdown',
     'Viewer.ColumnarData', 'Viewer.PDF', 'Viewer.Protocol', 'Editor.Markdown', 'Viewer.JSON',
     'Viewer.Note', 'Viewer.OLE', 'Viewer.File', 'Viewer.LAMMPS', 'Viewer.XRDML', 'Viewer.DM3',

@@ -36,6 +36,7 @@ type
     FStretchWidth, FStretchPPI: Integer;
     function NaturalRowHeight(out TextHeight: Integer): Integer;
     procedure WndProc(var Message: Winapi.Messages.TMessage);
+    function ShowsActions(Node: PVirtualNode): Boolean;
     function ActionHit(const P: TPoint; out Node: PVirtualNode): Integer;
     procedure UpdateHover(const P: TPoint);
     procedure SetHover(Node: PVirtualNode; Action: Integer);
@@ -77,7 +78,7 @@ type
       CellPaintMode: TVTCellPaintMode; const CellRect: TRect;
       var ContentRect: TRect);
     /// From the tree's OnAfterCellPaint, first thing. Moves CellRect.Top below
-    /// a header's gap. True when it drew the hover pill in this cell - the
+    /// a header's gap. True when it drew the action pill in this cell - the
     /// caller then skips its own right-aligned badges there.
     function AfterCellPaint(TargetCanvas: TCanvas; Node: PVirtualNode;
       Column: TColumnIndex; var CellRect: TRect): Boolean;
@@ -403,10 +404,12 @@ begin
       TargetCanvas.FillRect(Rect(X, CellRect.Top, X + W, CellRect.Bottom));
   end;
 
-  if Node = FHoverNode then
+  if ShowsActions(Node) then
   begin
-    DrawTreeActions(TargetCanvas, CellRect, PPI,
-      RowBackground(Node), FHoverAction);
+    if Node = FHoverNode then
+      DrawTreeActions(TargetCanvas, CellRect, PPI, RowBackground(Node), FHoverAction)
+    else
+      DrawTreeActions(TargetCanvas, CellRect, PPI, RowBackground(Node), -1);
     Result := True;
   end;
 end;
@@ -518,10 +521,19 @@ begin
     WM_MOUSEMOVE:
       if TWMMouse(Message).Keys and MK_LBUTTON = 0 then
         UpdateHover(Point(TWMMouse(Message).XPos, TWMMouse(Message).YPos));
-    WM_MOUSEWHEEL, WM_VSCROLL, WM_HSCROLL:
-      // The rows moved under a still mouse.
+    WM_LBUTTONUP:
+      // The click may have selected a row whose pill now sits under the mouse.
+      UpdateHover(Point(TWMMouse(Message).XPos, TWMMouse(Message).YPos));
+    WM_MOUSEWHEEL, WM_VSCROLL, WM_HSCROLL, WM_KEYDOWN:
+      // The rows or the focused row moved under a still mouse.
       UpdateHover(FTree.ScreenToClient(Mouse.CursorPos));
   end;
+end;
+
+function TTreeLook.ShowsActions(Node: PVirtualNode): Boolean;
+begin
+  Result := Assigned(Node) and (Node = FTree.FocusedNode) and
+    FTree.Selected[Node] and FIsContainer(Node) and FTree.HasChildren[Node];
 end;
 
 function TTreeLook.ActionHit(const P: TPoint; out Node: PVirtualNode): Integer;
@@ -530,8 +542,7 @@ var
 begin
   Result := -1;
   Node := FTree.GetNodeAt(P.X, P.Y);
-  if not Assigned(Node) then Exit;
-  if not (FIsContainer(Node) and FTree.HasChildren[Node]) then
+  if not ShowsActions(Node) then
   begin
     Node := nil;
     Exit;

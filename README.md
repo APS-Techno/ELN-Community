@@ -6,11 +6,10 @@ APS-owned source, scientific templates, artwork, resources and documentation are
 
 ## Install ELN Community
 
-The latest Windows release is [ELN Community 2.2.0.39](https://github.com/APS-Techno/ELN-Community/releases/tag/v2.2.0.39).
-Download `ELNCommunitySetup-2.2.0.39.exe` from that release.
+The latest Windows release is [ELN Community 2.2.1.43](https://github.com/APS-Techno/ELN-Community/releases/tag/v2.2.1.43).
+Download `ELNCommunitySetup-2.2.1.43.exe` from that release.
 The installer is unsigned. Use the release's `SHA256SUMS.txt` to check the download.
-The installer contains the Win32 Desktop application and its selected viewers.
-It does not contain the MCP executable.
+The installer contains the Win32 Desktop application, its selected viewers and the MCP server (`ELNCommunityMCP.exe`).
 
 Windows 10 or later is required. Browser-based viewers and Help also require
 the [Microsoft WebView2 Evergreen Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
@@ -130,6 +129,13 @@ Without `--notebook`, Desktop reopens the last successfully opened notebook from
 `File → Recent Notebooks` lists up to eight notebooks that opened successfully, the most recent first, from the `RecentNotebook1` to `RecentNotebook8` keys of the selected settings file. The active notebook has a check mark. Selecting another entry switches to it with the same validation as Open Notebook. A missing entry can be removed from the list; Clear Recent List removes all entries.
 
 When no notebook is open, the welcome message and New/Open buttons are centered as one block in the workspace. Resizing and display scaling preserve their relative spacing and keep the block centered.
+
+## Version 2.2.1.43
+
+The Add/Edit action dialog has drop-down lists for Item type, Action type and Equipment, and Values and Properties tabs. The Values tab shows the source of the selected value. Go to file closes the dialog and opens the source file in the viewer.
+In the Projects, Items and Hypotheses trees, the Collapse all below, Expand all below and Focus buttons show only on the selected row, not on every row under the mouse. They use thin outline glyphs in the row text colour; the button under the mouse shows a light rounded highlight.
+The installer contains the MCP server (`ELNCommunityMCP.exe`) beside Desktop.
+Help describes the tree row buttons, the action dialog, the restored project selection at startup, the MIT, FIBPS, Tribo and VK4 viewers, value types without a unit, and the MCP server in the installer.
 
 ## Version 2.2.0.39
 

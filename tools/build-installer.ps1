@@ -39,7 +39,7 @@ if ($ValidateOnly) {
 [void][IO.Directory]::CreateDirectory($outputRoot)
 $log = Join-Path $outputRoot 'build-installer.log'
 "ELN Community installer build: $Platform $Configuration" | Set-Content -LiteralPath $log -Encoding utf8
-foreach ($target in @('CommunityDesktop', 'ViewerPackages')) {
+foreach ($target in @('CommunityDesktop', 'ViewerPackages', 'CommunityMCP')) {
   & $buildHelper -Target $target -Platform $Platform -Configuration $Configuration -DependencyConfig $DependencyConfig `
     -RuntimeConfig $RuntimeConfig 2>&1 | Tee-Object -FilePath $log -Append
 }

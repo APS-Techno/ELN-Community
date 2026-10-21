@@ -17,6 +17,13 @@ type
     class function Read(V: TValue): TValueFields; static;
     function SameAs(const Other: TValueFields): Boolean;
   end;
+  TValueRow = record
+    Quantity: string;
+    Value: string;
+    Kind: string;
+    Note: string;
+  end;
+
   TActionDialogVM = class
   private
     FActionTypeModel: TActionTypeModel;
@@ -44,6 +51,7 @@ type
     FOwnItem: Boolean;
     FIsEditMode: Boolean;
     FValuesDisplay: TArray<string>;
+    FValueRows: TArray<TValueRow>;
 
     FOnChanged: TNotifyEvent;
 
@@ -52,6 +60,7 @@ type
     procedure FilterEquipments;
     procedure DoChanged;
     procedure RefreshValuesDisplay;
+    function BuildValueRow(Val: TValue): TValueRow;
     function FormatValueLine(Val: TValue): string;
   public
     constructor Create(
@@ -102,6 +111,7 @@ type
     property Properties: string read FProperties write FProperties;
     property IsEditMode: Boolean read FIsEditMode;
     property ValuesDisplay: TArray<string> read FValuesDisplay;
+    property ValueRows: TArray<TValueRow> read FValueRows;
     property Item: TItem read FItem;
 
     property OnChanged: TNotifyEvent read FOnChanged write FOnChanged;
@@ -544,19 +554,27 @@ begin
 end;
 
 
+function TActionDialogVM.BuildValueRow(Val: TValue): TValueRow;
+begin
+  Result.Quantity := Val.ValueType.Symbol;
+  Result.Value := FormatSIValue(Val.Value, Val.ValueType.Units);
+  case Val.RecType of
+    EXP_CONDITION: Result.Kind := 'Condition';
+    TEST_RESULT:   Result.Kind := 'Result';
+  else
+    Result.Kind := '';
+  end;
+  Result.Note := Val.Description;
+end;
+
 function TActionDialogVM.FormatValueLine(Val: TValue): string;
 var
-  RecStr: string;
+  Row: TValueRow;
 begin
-  case Val.RecType of
-    EXP_CONDITION: RecStr := 'Condition';
-    TEST_RESULT:   RecStr := 'Result';
-  end;
-  Result := Val.ValueType.Symbol + ' = ' +
-    FormatSIValue(Val.Value, Val.ValueType.Units) +
-    ' [' + RecStr + ']';
-  if Val.Description <> '' then
-    Result := Result + '  '#$2014' ' + Val.Description;
+  Row := BuildValueRow(Val);
+  Result := Row.Quantity + ' = ' + Row.Value + ' [' + Row.Kind + ']';
+  if Row.Note <> '' then
+    Result := Result + '  '#$2014' ' + Row.Note;
 end;
 
 procedure TActionDialogVM.RefreshValuesDisplay;
@@ -566,11 +584,17 @@ begin
   if not Assigned(FItem) then
   begin
     SetLength(FValuesDisplay, 0);
+    SetLength(FValueRows, 0);
     Exit;
   end;
   SetLength(FValuesDisplay, FItem.Values.Count);
+  SetLength(FValueRows, FItem.Values.Count);
   for I := 0 to FItem.Values.Count - 1 do
+  begin
     FValuesDisplay[I] := FormatValueLine(FItem.Values[I]);
+    FValueRows[I] := BuildValueRow(FItem.Values[I]);
+  end;
 end;
+
 
 end.

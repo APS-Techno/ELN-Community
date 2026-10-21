@@ -45,7 +45,7 @@ implementation
 uses
   System.IOUtils, System.Classes, Aurelius.Engine.ObjectManager,
   unit_Project, unit_ItemTypes, unit_Types,
-  unit_ProjectAccessPolicy, unit_Protocol, unit_ValueType, unit_ActionDialogVM, unit_FileType,
+  unit_ProjectAccessPolicy, unit_Protocol, unit_ValueType, unit_ValueTypeModel, unit_ActionDialogVM, unit_FileType,
   editor_FileTypes, dlg_Action, dlg_ItemPicker, unit_DlgConstants, Vcl.Forms, Vcl.ExtCtrls,
   Vcl.Controls, Vcl.StdCtrls, Aurelius.Drivers.Interfaces, VirtualTrees.Types, RzSplit, unit_ActionType,
   frame_ProjectsPanel, frame_ItemTree, frame_ContentViewer, unit_ELNThumbnailList,
@@ -324,6 +324,11 @@ begin
     Before := TValueFields.Read(VM.Item.Values[0]);
     VM.Item.Values[0].Value := 310;
     VM.ValueEdited(VM.Item.Values[0], Before);
+    Assert.AreEqual(1, Length(VM.ValueRows));
+    Assert.AreEqual('T', VM.ValueRows[0].Quantity);
+    Assert.AreEqual('Condition', VM.ValueRows[0].Kind);
+    Assert.AreEqual('draft', VM.ValueRows[0].Note);
+    Assert.AreEqual(FormatSIValue(310, 'K'), VM.ValueRows[0].Value);
     Assert.IsFalse(VM.IsEditMode);
     Assert.IsTrue(VM.CanSave);
     VM.ApplyTo(Target);
@@ -373,8 +378,10 @@ begin
     Dialog.vleProps.InsertRow('operator', 'Synthetic', True);
     Dialog.PropertiesChanged(Dialog.vleProps, 1, 1, 'Synthetic');
     Assert.IsTrue(Dialog.btnSave.Enabled, 'Typing a title must enable Save');
-    Dialog.lbItemType.ItemIndex := 1;
-    Dialog.lbItemTypeClick(Dialog.lbItemType);
+    Assert.AreEqual('Add new action', Dialog.Caption);
+    Assert.AreEqual('Properties (1)', Dialog.tsProperties.Caption);
+    Dialog.cbItemType.ItemIndex := 1;
+    Dialog.cbItemTypeChange(Dialog.cbItemType);
     Assert.AreEqual('Custom action', Dialog.edTitle.Text);
     Assert.AreEqual('Keep these notes', Dialog.edComment.Text);
     Assert.AreEqual('Synthetic', Dialog.vleProps.Values['operator']);

@@ -67,6 +67,7 @@ type
   function ShowValueDialog(const Mode: TDlgMode; var AValue: TValue): Boolean;
   function DescribeValueSource(const Source: TValueSourceInfo;
     const FileName: string): string;
+  function SourceFileName(FileId: Int64): string;
 
 var
   // Replaceable so tests can answer without a modal message box.

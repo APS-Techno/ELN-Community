@@ -67,6 +67,7 @@ function New-StageFixture([switch]$WithoutCompiledInput) {
     foreach ($name in @('ELNCommunity.exe', 'ELNPluginCore.bpl', 'ELNProtocolCore.bpl', 'Icons/ELNIcons.dll')) {
       Write-FixtureFile (Join-Path $repo "_OUT/CommunityDesktop/$name")
     }
+    Write-FixtureFile (Join-Path $repo '_OUT/CommunityMCP/Win32/Release/ELNCommunityMCP.exe')
   }
   foreach ($name in @('rsvars.bat', 'dcc32.exe', 'msbuild.exe', 'cmd.exe') + $StandardPackages) {
     Write-FixtureFile (Join-Path $toolBin $name)

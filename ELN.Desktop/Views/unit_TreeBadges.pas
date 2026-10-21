@@ -194,10 +194,10 @@ begin
   Result := False;
 end;
 
-function GPColor(C: TColor): TGPColor;
+function GPColor(C: TColor; Alpha: Byte = 255): TGPColor;
 begin
   C := ColorToRGB(C);
-  Result := MakeColor(255, GetRValue(C), GetGValue(C), GetBValue(C));
+  Result := MakeColor(Alpha, GetRValue(C), GetGValue(C), GetBValue(C));
 end;
 
 /// Rounded-rectangle path; D is the corner diameter. Caller frees.
@@ -212,14 +212,15 @@ begin
   Result.CloseFigure;
 end;
 
-procedure FillRoundRect(G: TGPGraphics; const R: TRect; D: Single; C: TColor);
+procedure FillRoundRect(G: TGPGraphics; const R: TRect; D: Single; C: TColor;
+  Alpha: Byte = 255);
 var
   Path: TGPGraphicsPath;
   Brush: TGPSolidBrush;
 begin
   Path := RoundRectPath(R.Left, R.Top, R.Width, R.Height, D);
   try
-    Brush := TGPSolidBrush.Create(GPColor(C));
+    Brush := TGPSolidBrush.Create(GPColor(C, Alpha));
     try
       G.FillPath(Brush, Path);
     finally
@@ -232,15 +233,16 @@ end;
 
 function TreeActionButtonRect(const ACell: TRect; APPI, AIndex: Integer): TRect;
 var
-  S, Pad, Right, Y: Integer;
+  S, Pad, Spacing, Right, Y: Integer;
 begin
   if APPI <= 0 then
     APPI := 96;
   Pad := Max(1, MulDiv(1, APPI, 96));
-  S := Min(MulDiv(26, APPI, 96), ACell.Height - 2 * Pad);
+  Spacing := MulDiv(2, APPI, 96);
+  S := Min(MulDiv(22, APPI, 96), ACell.Height - 2 * Pad);
   Y := ACell.Top + (ACell.Height - S) div 2;
-  Right := ACell.Right - MulDiv(5, APPI, 96) - Pad
-    - (TREE_ACTION_COUNT - 1 - AIndex) * S;
+  Right := ACell.Right - MulDiv(6, APPI, 96)
+    - (TREE_ACTION_COUNT - 1 - AIndex) * (S + Spacing);
   Result := Rect(Right - S, Y, Right, Y + S);
 end;
 
@@ -256,62 +258,82 @@ end;
 
 procedure DrawTreeActions(ACanvas: TCanvas; const ACell: TRect; APPI: Integer;
   ABackground: TColor; AHot: Integer);
+const
+  DARK_GLYPH = TColor($001F1F1F);
 var
-  Colors: TBadgeColors;
+  Fg: TColor;
   G: TGPGraphics;
   Pen: TGPPen;
   Brush: TGPSolidBrush;
-  Path: TGPGraphicsPath;
-  Pill, B: TRect;
-  I, Pad: Integer;
-  L, T, W, Mid, Arm: Single;
+  Area, B: TRect;
+  I: Integer;
+  U, Cx, Cy: Single;
+
+  procedure Chevron(Y, Dy: Single);
+  var
+    Pts: array[0..2] of TGPPointF;
+  begin
+    Pts[0] := MakePoint(Cx - 3.5 * U, Y);
+    Pts[1] := MakePoint(Cx, Y + Dy * 3 * U);
+    Pts[2] := MakePoint(Cx + 3.5 * U, Y);
+    G.DrawLines(Pen, PGPPointF(@Pts[0]), 3);
+  end;
+
 begin
   if APPI <= 0 then
     APPI := 96;
-  Colors := BadgeColors(BADGE_SLATE, ABackground);
-  Pad := Max(1, MulDiv(1, APPI, 96));
-  Pill := TreeActionButtonRect(ACell, APPI, 0);
-  Pill.Right := TreeActionButtonRect(ACell, APPI, TREE_ACTION_COUNT - 1).Right;
-  Pill.Inflate(Pad, Pad);
+  U := APPI / 96;
+  if ContrastRatio(clWhite, ABackground) >= ContrastRatio(DARK_GLYPH, ABackground) then
+    Fg := clWhite
+  else
+    Fg := DARK_GLYPH;
+
+  Area := TreeActionButtonRect(ACell, APPI, 0);
+  Area.Right := TreeActionButtonRect(ACell, APPI, TREE_ACTION_COUNT - 1).Right;
+  Area.Left := Area.Left - MulDiv(4, APPI, 96);
+  Area.Top := ACell.Top;
+  Area.Bottom := ACell.Bottom;
 
   G := TGPGraphics.Create(ACanvas.Handle);
   try
+    Brush := TGPSolidBrush.Create(GPColor(ABackground));
+    try
+      G.FillRectangle(Brush, Area.Left, Area.Top, Area.Width, Area.Height);
+    finally
+      Brush.Free;
+    end;
+
     G.SetSmoothingMode(SmoothingModeAntiAlias);
     G.SetPixelOffsetMode(PixelOffsetModeHalf);
-    FillRoundRect(G, Pill, Pill.Height, Colors.Fill);
-
-    Pen := TGPPen.Create(GPColor(Colors.Text), 1.8 * APPI / 96);
-    Brush := TGPSolidBrush.Create(GPColor(Colors.Text));
+    Pen := TGPPen.Create(GPColor(Fg, 235), Max(1, Round(1.25 * U)));
+    Brush := TGPSolidBrush.Create(GPColor(Fg, 235));
     try
+      Pen.SetLineJoin(LineJoinRound);
+      Pen.SetStartCap(LineCapRound);
+      Pen.SetEndCap(LineCapRound);
       for I := 0 to TREE_ACTION_COUNT - 1 do
       begin
         B := TreeActionButtonRect(ACell, APPI, I);
         if I = AHot then
-          FillRoundRect(G, B, B.Height, MixColor(Colors.Fill, Colors.Text, 0.22));
+          FillRoundRect(G, B, 8 * U, Fg, 40);
 
-        W := B.Width * 0.56;
-        L := B.Left + (B.Width - W) / 2;
-        T := B.Top + (B.Height - W) / 2;
-        Mid := W / 2;
-        Arm := W * 0.26;
+        Cx := B.Left + B.Width / 2;
+        Cy := B.Top + B.Height / 2;
         case I of
-          TREE_ACTION_COLLAPSE, TREE_ACTION_EXPAND:
+          TREE_ACTION_COLLAPSE:
             begin
-              Path := RoundRectPath(L, T, W, W, W * 0.3);
-              try
-                G.DrawPath(Pen, Path);
-              finally
-                Path.Free;
-              end;
-              G.DrawLine(Pen, L + Mid - Arm, T + Mid, L + Mid + Arm, T + Mid);
-              if I = TREE_ACTION_EXPAND then
-                G.DrawLine(Pen, L + Mid, T + Mid - Arm, L + Mid, T + Mid + Arm);
+              Chevron(Cy - 5.5 * U, 1);
+              Chevron(Cy + 5.5 * U, -1);
+            end;
+          TREE_ACTION_EXPAND:
+            begin
+              Chevron(Cy - 1.5 * U, -1);
+              Chevron(Cy + 1.5 * U, 1);
             end;
           TREE_ACTION_FOCUS:
             begin
-              G.DrawEllipse(Pen, L, T, W, W);
-              G.FillEllipse(Brush, L + Mid - Arm * 0.8, T + Mid - Arm * 0.8,
-                Arm * 1.6, Arm * 1.6);
+              G.DrawEllipse(Pen, Cx - 5 * U, Cy - 5 * U, 10 * U, 10 * U);
+              G.FillEllipse(Brush, Cx - 1.75 * U, Cy - 1.75 * U, 3.5 * U, 3.5 * U);
             end;
         end;
       end;

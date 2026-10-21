@@ -89,6 +89,8 @@ begin
     FBrowser.Navigate(FPendingFile)
   else
     FBrowser.NavigateToString(FPendingHtml);
+  if FBrowser.Focused then
+    FBrowser.SetFocus;
 end;
 
 procedure TframeHTMLViewer.LoadFile(const AFileName: string);

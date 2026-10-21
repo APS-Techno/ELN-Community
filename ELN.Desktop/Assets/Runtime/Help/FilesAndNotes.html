@@ -1,18 +1,25 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Files and notes — APS ELN Community Help</title><link rel="stylesheet" href="help.css"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Files and notes</title>
+<link rel="stylesheet" href="help.css">
+<script src="help-index.js" defer></script>
+<script src="help-search.js" defer></script>
+<script src="help.js" defer></script>
+</head>
 <body>
-<header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
 <main>
 <h1>Files and notes</h1>
 <p>Attachments belong to an item. Open a notebook, select an active project, then select the parent item. Signed items cannot have their attachment bytes changed. A read-only or archived project also blocks content changes.</p>
-<h2>Attach local files</h2>
+<h2 id="attach-local-files">Attach local files</h2>
 <ol><li>Choose <strong>Item &gt; Add File</strong>, or click <strong>Add File</strong>. Select the source files in the file browser.</li><li>For one ordinary file, check or change <strong>Attachment file type</strong> and <strong>Display name</strong> in the browser, then click <strong>Attach</strong>. There is no second dialog for that file.</li><li>For multiple files, click <strong>Review files</strong> to open <strong>Files to attach</strong>. Check each <strong>Source filename</strong>, <strong>Display name</strong> and <strong>Type</strong>. Select each row to change <strong>Selected file type</strong>.</li><li>In the multi-file review, keep <strong>Keep display names</strong>, or select <strong>Use prefix:</strong> and enter a prefix for numbered names. Click <strong>Attach</strong>.</li><li>Check the attached files in the item tree. Each source file is copied into notebook attachment storage; the source is not moved.</li></ol>
 <p>The file browser shows a folder icon for directories and a document icon for files. Double-click a folder, or select it and press <kbd>Enter</kbd>, to open it.</p>
 <p>A selected deposition file can expand to a related file pair. That expanded selection also opens the multi-file review, even if you initially selected one source.</p>
 <p>Every selected file needs a valid file type and name. Register a missing type in <a href="ReferenceData.html">Reference Data</a>. If a copy fails, the failed attachment record is removed and remaining files are skipped. Earlier files in that batch may already be attached.</p>
 <p>Attachment names omit the registered extension. For compound types such as <code>.depo.json</code> and <code>.process.log</code>, the suggested display name omits the whole suffix, not just <code>.json</code> or <code>.log</code>. Check both the name and the selected type before attaching. Adding a file copies its bytes into notebook storage; it does not move the original or copy other item attachments into the source folder.</p>
-<h2>View or open an attachment</h2>
+<h2 id="view-or-open-an-attachment">View or open an attachment</h2>
 <p>Click a thumbnail to show its working copy in the content viewer. Double-click an attachment or thumbnail to open it. Markdown uses the Markdown editor when that plugin is loaded. Other files normally open with their Windows application unless their selected plugin requests internal opening.</p>
 <table><thead><tr><th>Shipped viewer</th><th>File extensions or record type</th></tr></thead><tbody>
 <tr><td>PDF</td><td><code>.pdf</code></td></tr>
@@ -46,23 +53,23 @@
 <p>The compound extension selects the specialist reader: <code>.depo.json</code> uses Deposition rather than the general JSON viewer. Its preview shows the <strong>Overview</strong> tab. Recipe and process-log attachments have their own file-type icons. X-Ray Calc displays project structure and reflectivity content; Recipe displays recipe content, and Process Log displays process events. Reader output depends on the content that is present in the file. Use <strong>Extract Values</strong> to inspect the available numeric results rather than assuming that every viewer provides the same keys.</p>
 <p>For ZRW friction results, see <a href="Values.html">ZRW friction coefficient</a>. That guide explains the coating plateau, Manual and Automatic intervals, <strong>Apply</strong>, <strong>Reload</strong> and stale selections. The same guide explains reader conversion, standard deviation and source checks.</p>
 <p>The MIT viewer shows the indents of a <code>.mit</code> file in the list <strong>Records:</strong> and the force-depth curves in a chart. The FIBPS and VK4 viewers show a height map. Both have the tools <strong>Profile</strong>, <strong>Distance</strong>, <strong>Roughness</strong> and <strong>Flatten</strong>. The VK4 viewer has a <strong>Channel:</strong> list. The FIBPS viewer also has <strong>Step Height</strong> and <strong>Wear Track</strong>. For the MIT results, see <a href="Values.html">MIT nanoindentation results</a>. The MIT, FIBPS and VK4 readers use our own analysis of measurement files and contain no vendor code. APS is not affiliated with or endorsed by Anton Paar, KLA/Filmetrics or Keyence. The names identify file compatibility only.</p>
-<h2>Stored bytes and working drafts</h2>
+<h2 id="stored-bytes-and-working-drafts">Stored bytes and working drafts</h2>
 <p class="note">Opening an attachment creates a separate local working copy. The path shown by the host is not the stored attachment. Saving in an external application changes that working copy first. Do not edit notebook storage files directly.</p>
 <ol><li>Finish saving in the external application.</li><li>Select the attachment and choose <strong>Tools &gt; Save Attachment Working Draft</strong> to copy changed working bytes back to the notebook.</li><li>To discard the working copy and load stored bytes, choose <strong>Tools &gt; Reload Attachment Working Draft</strong>. Close separate editor windows first. Confirm the discard prompt only if you do not need their edits.</li></ol>
 <p>If the stored attachment changed after the draft was opened, the host asks: <strong>Yes</strong> overwrites the current attachment with the draft; <strong>No</strong> starts reload and discard confirmation; <strong>Cancel</strong> keeps the draft without saving. Neither overwrite choice bypasses signed-item or project write restrictions.</p>
 <p>On notebook close or exit, the host asks only about changed attachment working files, not about saving the notebook database. <strong>Cancel</strong> stops closing. <strong>No</strong> leaves the attachment draft at the path shown in that prompt. Normal shutdown has no separate working-directory notice. A failed attachment save identifies retained draft or recovery paths; keep those files if recovery is needed. Retention is not a notebook backup.</p>
-<h2>Markdown editor</h2>
+<h2 id="markdown-editor">Markdown editor</h2>
 <p>Use <strong>Edit</strong> in the Markdown viewer, or open a Markdown attachment. Edit the source and click <strong>Save</strong> or press <kbd>Ctrl</kbd>+<kbd>S</kbd>. A successful save updates the stored attachment through the notebook service. The editor writes its local file before it requests that save, so a failed or cancelled save can leave useful draft bytes.</p>
 <p>Its conflict dialog still uses server wording in Community. Here, “server” means the notebook attachment, not a remote server:</p>
 <ul><li><strong>Cancel</strong>: keep your edits without replacing stored bytes.</li><li><strong>Reload (discard my edits)</strong>: replace the draft with the current stored attachment.</li><li><strong>Save Anyway (overwrite server)</strong>: explicitly replace the current stored attachment with your draft, if write checks permit it.</li></ul>
 <p><strong>Reload</strong> also discards unsaved editor text after confirmation. Close prompts use Yes to save, No to discard unsaved editor text, and Cancel to keep the editor open. See <a href="Wiki.html">Wiki</a> for Markdown assets and navigation.</p>
-<h2>Replace, rename, move or delete</h2>
+<h2 id="replace-rename-move-or-delete">Replace, rename, move or delete</h2>
 <ul><li>Right-click a file and choose <strong>Reupload...</strong>. In <strong>Select replacement file</strong>, choose the new source. This replaces stored bytes, not just the current draft. A changed version or hash can refuse replacement; refresh before trying again.</li><li>Use <strong>Edit</strong> in the file context menu, or select the file and click <strong>Edit</strong>, to change its title and description. Rename can also move its stored bytes. A stale metadata version must be refreshed before renaming.</li><li>Choose <strong>Move to...</strong>, select a destination item from the current item list, then click <strong>Move</strong>. The destination must be writable and unsigned. This changes ownership of the attachment and can relocate its stored bytes.</li><li>Choose <strong>Delete</strong> and confirm to remove the attachment record and stored file. This is not a Recycle Bin operation.</li></ul>
 <p>When a replacement filename ends with the attachment's current compound extension, <strong>Reupload...</strong> keeps that type. For example, replacing a <code>.depo.json</code> attachment with another <code>.depo.json</code> file does not change its type to general JSON. Check the resulting type and preview after replacement.</p>
 <p>You can select several files in the item tree. <strong>Move to...</strong>, <strong>Export</strong> and <strong>Delete</strong> then work on all selected files, with one confirmation and one summary. Files of signed items are skipped. <strong>Export</strong> asks for a folder. If a file name already exists in the folder, the new file gets the suffix <code> (2)</code>, <code> (3)</code> and so on. Export never overwrites a file. <strong>Delete</strong> removes files and notes permanently. It also removes the Reader values that were extracted from the deleted files into their item. The confirmation shows how many values it removes. Manual values stay. See <a href="Values.html">Values</a>.</p>
 <p class="warning">Back up needed files before replacement or deletion. Resolve editor drafts before rename, replacement or move. Conflict handling protects draft saves; it does not promise safe simultaneous physical file moves. Do not use two processes to reorganize the same attachment storage at the same time.</p>
-<h2>Add and edit a note</h2>
+<h2 id="add-and-edit-a-note">Add and edit a note</h2>
 <ol><li>Select an item and choose <strong>Add Note</strong>. A selected file or entry can also supply its parent item.</li><li>Enter a nonempty <strong>Title:</strong> and the note text. Use <strong>B</strong>, <strong>I</strong> and <strong>U</strong> for selected-text formatting.</li><li>Click <strong>OK</strong> to save, or <strong>Cancel</strong> to leave the dialog.</li><li>Select the note to preview it. Double-click it, or use <strong>Edit</strong>, to change it. <strong>Delete</strong> removes the selected note after confirmation.</li></ol>
 <p>Notes store rich text as notebook entries, not as Markdown attachments. Signed parent content has write guards. See <a href="Items.html">Items</a>, <a href="Protocols.html">Protocols</a> and <a href="Integrity.html">Integrity</a>.</p>
-</main><footer><a href="Index.html">All help topics</a></footer>
+</main>
 </body></html>

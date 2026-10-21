@@ -1,0 +1,120 @@
+{
+  "product": "APS ELN Community Help",
+  "home": "Index.html",
+  "groups": [
+    {
+      "id": "start",
+      "title": "Start here",
+      "pages": [
+        {
+          "file": "GettingStarted.html",
+          "title": "Getting started",
+          "summary": "Create a notebook and learn the main window."
+        },
+        {
+          "file": "Notebooks.html",
+          "title": "Notebooks, identity and backup",
+          "summary": "Open, switch, close and back up database and attachments."
+        }
+      ]
+    },
+    {
+      "id": "data",
+      "title": "Working with data",
+      "pages": [
+        {
+          "file": "Projects.html",
+          "title": "Projects and folders",
+          "summary": "Organize projects, groups and folders; archive and restore."
+        },
+        {
+          "file": "Items.html",
+          "title": "Items and hierarchy",
+          "summary": "Create procedures, specimens and actions; select several records for batch operations."
+        },
+        {
+          "file": "Values.html",
+          "title": "Values, units and tolerances",
+          "summary": "Extract and convert measurements, inspect mean and SD, calculate Derived values and check their sources."
+        },
+        {
+          "file": "FilesAndNotes.html",
+          "title": "Files, notes, viewers and working drafts",
+          "summary": "Choose a viewer, attach or replace content, edit Markdown and resolve save conflicts."
+        },
+        {
+          "file": "Wiki.html",
+          "title": "Wiki",
+          "summary": "Write linked Markdown pages and manage their attachments."
+        },
+        {
+          "file": "TagsAndLinks.html",
+          "title": "Tags, comments, links and favorites",
+          "summary": "Connect and annotate scientific records."
+        },
+        {
+          "file": "Templates.html",
+          "title": "Protocol and experiment templates",
+          "summary": "Manage reusable forms and experiment structures."
+        },
+        {
+          "file": "Search.html",
+          "title": "Search and navigation",
+          "summary": "Find records, clear panel filters and go to an item."
+        }
+      ]
+    },
+    {
+      "id": "review",
+      "title": "Analysis and review",
+      "pages": [
+        {
+          "file": "Protocols.html",
+          "title": "Protocols and local review",
+          "summary": "Complete protocol forms and review their recorded states."
+        },
+        {
+          "file": "Hypotheses.html",
+          "title": "Hypotheses and conclusions",
+          "summary": "Link runs and evidence to local human review decisions."
+        },
+        {
+          "file": "Integrity.html",
+          "title": "Signatures, audit and completeness",
+          "summary": "Sign records, check history and inspect missing data."
+        },
+        {
+          "file": "AnalysisAndReports.html",
+          "title": "Analysis, reports and packages",
+          "summary": "Analyze values and export PDF or scientific packages."
+        },
+        {
+          "file": "MCP.html",
+          "title": "Local MCP integration",
+          "summary": "Configure line-based stdio tools, read tabular files and store values with their sources and write boundaries."
+        }
+      ]
+    },
+    {
+      "id": "reference",
+      "title": "Reference",
+      "pages": [
+        {
+          "file": "ReferenceData.html",
+          "title": "Reference data",
+          "summary": "Manage equipment and scientific dictionaries."
+        },
+        {
+          "file": "Shortcuts.html",
+          "title": "Keyboard shortcuts",
+          "summary": "Use the explicit bindings in the current Community build."
+        },
+        {
+          "file": "Troubleshooting.html",
+          "title": "Troubleshooting",
+          "summary": "Resolve runtime, notebook, viewer and draft problems safely."
+        }
+      ]
+    }
+  ]
+}

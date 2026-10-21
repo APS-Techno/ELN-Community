@@ -1,29 +1,36 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Tags, comments and links — APS ELN Community Help</title><link rel="stylesheet" href="help.css"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tags, comments and links</title>
+<link rel="stylesheet" href="help.css">
+<script src="help-index.js" defer></script>
+<script src="help-search.js" defer></script>
+<script src="help.js" defer></script>
+</head>
 <body>
-<header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
 <main>
 <h1>Tags, comments and links</h1>
 <p>Open a notebook and select an item. Tags classify it, comments record discussion, typed links describe relationships, and Favorites provide navigation shortcuts. These functions do not move attachment bytes or replace scientific values.</p>
-<h2>Create and assign tags</h2>
+<h2 id="create-and-assign-tags">Create and assign tags</h2>
 <ol><li>Right-click the item and choose <strong>Tags...</strong>.</li><li>Check a tag to assign it to the item. Clear its check box to remove that assignment. Changes are applied when the check box changes.</li><li>To create a tag, click <strong>Add</strong>. Enter <strong>Name:</strong>, choose <strong>Color:</strong> with <strong>Choose...</strong>, then click <strong>OK</strong>.</li><li>Select a tag and click <strong>Edit</strong> to change its name or color. Click <strong>Close</strong> when finished.</li></ol>
 <p>You can select several items and choose <strong>Tags...</strong>. The <strong>Items</strong> column shows <code>k of N</code>: k items of the N selected items have the tag. Check a tag to assign it to all selected items. Clear a check box to remove the tag from all selected items. Changes apply at once.</p>
 <p><strong>Reference Data &gt; Tags...</strong> opens the notebook-wide <strong>Tag Editor</strong> without item-assignment check boxes. Tags appear as colored item-tree badges and their names can be found with <a href="Search.html">Search</a>.</p>
 <p class="warning"><strong>Delete</strong> removes the selected tag definition and its item assignments, not just the tag on the current item. To remove a tag from one item only, clear that item's check box. Close is not an undo command for assignments or catalog edits.</p>
-<h2>Comments</h2>
+<h2 id="comments">Comments</h2>
 <ol><li>Right-click an item and choose <strong>Comments...</strong>. If comments exist, the caption includes their count.</li><li>Enter nonempty text in the comment box and click <strong>Post</strong>. The list records the date, local identity and comment text.</li><li>Select one of your comments and click <strong>Edit</strong>. Enter the corrected text and confirm it. You can edit only your own comments.</li><li>Select a comment and click <strong>Delete</strong>. Confirm only if it must be removed. Click <strong>Close</strong> to leave the discussion.</li></ol>
 <p>Comments are different from <a href="FilesAndNotes.html">rich-text notes</a>. Deleting a comment does not put it in the item Recycle Bin.</p>
-<h2>Create a typed item relationship</h2>
+<h2 id="create-a-typed-item-relationship">Create a typed item relationship</h2>
 <ol><li>Right-click the intended target item and choose <strong>Copy as Link Target</strong>.</li><li>Select the other item. Right-click it and choose <strong>Link to...</strong>.</li><li>Choose <strong>Relationship:</strong>. Read the sentence shown in the dialog to check which item is the source and which is the target. Forward and reverse wording can change the stored direction.</li><li>Add optional <strong>Notes:</strong>, then click <strong>Link</strong>. <strong>Cancel</strong> creates nothing.</li></ol>
 <p>The link type must exist in the notebook's vocabulary. An existing relationship between the items is reported rather than duplicated. <strong>Copy as Link Target</strong> supplies the in-application target; it is not an attachment copy or a record move.</p>
-<h2>Manage and follow links</h2>
+<h2 id="manage-and-follow-links">Manage and follow links</h2>
 <ol><li>Select the item and choose <strong>Item &gt; Links...</strong>, or click <strong>Manage...</strong> in its inline Links panel.</li><li>Use <strong>Add...</strong> to pick another item and choose a relationship. Use <strong>Edit...</strong> to change a selected relationship or its notes.</li><li>Use <strong>Remove</strong> to delete a relationship after confirmation. The linked items remain.</li><li>Select a relationship and click <strong>Open</strong>, or double-click it, to navigate to the other item. A normal inline link row also navigates; a more-rows entry opens the manager.</li></ol>
 <p>Relationship text is read from the current item end. An outgoing or incoming arrow helps show direction. Changing a definition in <strong>Reference Data &gt; Link Types...</strong> changes the wording used to display its relationships. See <a href="ReferenceData.html">Reference Data</a>.</p>
-<h2>Favorites</h2>
+<h2 id="favorites">Favorites</h2>
 <p>Right-click an item and choose <strong>Add to Favorites</strong>. Once bookmarked, the same command becomes <strong>Remove from Favorites</strong>. Use the left panel's <strong>Favorites</strong> branch to return to the location. Removing a favorite removes the shortcut, not the record. Project and folder favorites also use this branch.</p>
-<h2>Signatures and read-only boundaries</h2>
+<h2 id="signatures-and-read-only-boundaries">Signatures and read-only boundaries</h2>
 <p class="note">The item menu separates annotations from signed-content edits. Tags, comments, Favorites and relationship tools are not a way to unlock a signed item. The Links manager permits reading and opening targets in a read-only project, but disables Add, Edit and Remove when the project is not writable. Signed content and attachment saves keep their own guards. Do not assume that every annotation is part of a signed scientific payload; see <a href="Integrity.html">Integrity</a>.</p>
 <p>For links inside a Markdown body, use <a href="Wiki.html">Wiki navigation</a>. A Markdown reference does not create a typed relationship.</p>
-</main><footer><a href="Index.html">All help topics</a></footer>
+</main>
 </body></html>

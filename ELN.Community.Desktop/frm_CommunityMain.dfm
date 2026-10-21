@@ -444,6 +444,36 @@ object frmCommunityMain: TfrmCommunityMain
         ImageName = 'Refresh'
       end
     end
+    object miNavigate: TMenuItem
+      Caption = '&Navigate'
+      object miSearch: TMenuItem
+        Caption = 'Search...'
+        ImageIndex = 52
+        ImageName = 'Search'
+        Tag = 20
+        ShortCut = 16454
+        OnClick = CommandClick
+      end
+      object miGoTo: TMenuItem
+        Caption = 'Go to Item...'
+        ImageIndex = 64
+        ImageName = 'Go To'
+        Tag = 21
+        ShortCut = 16455
+        OnClick = CommandClick
+      end
+      object miNavigateSep: TMenuItem
+        Caption = '-'
+      end
+      object miDashboard: TMenuItem
+        Caption = 'Dashboard'
+        ImageIndex = 4
+        ImageName = 'Dashboard'
+        Tag = 22
+        ShortCut = 16452
+        OnClick = CommandClick
+      end
+    end
     object miData: TMenuItem
       Caption = '&Reference Data'
       object miFileTypes: TMenuItem
@@ -512,27 +542,6 @@ object frmCommunityMain: TfrmCommunityMain
     end
     object miTools: TMenuItem
       Caption = '&Tools'
-      object miSearch: TMenuItem
-        Caption = 'Search...'
-        ImageIndex = 52
-        ImageName = 'Search'
-        Tag = 20
-        OnClick = CommandClick
-      end
-      object miGoTo: TMenuItem
-        Caption = 'Go to Item...'
-        ImageIndex = 64
-        ImageName = 'Go To'
-        Tag = 21
-        OnClick = CommandClick
-      end
-      object miDashboard: TMenuItem
-        Caption = 'Dashboard'
-        ImageIndex = 4
-        ImageName = 'Dashboard'
-        Tag = 22
-        OnClick = CommandClick
-      end
       object miAnalysis: TMenuItem
         Caption = 'Analysis...'
         ImageIndex = 37
@@ -617,6 +626,7 @@ object frmCommunityMain: TfrmCommunityMain
         ImageIndex = 47
         ImageName = 'Keyboard'
         Tag = 91
+        ShortCut = 112
         OnClick = CommandClick
       end
       object miAbout: TMenuItem

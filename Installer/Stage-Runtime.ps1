@@ -171,6 +171,7 @@ try {
     [void][IO.Directory]::CreateDirectory((Split-Path $target -Parent))
     Copy-Item -LiteralPath $file.Source -Destination $target
   }
+  & (Join-Path (Split-Path $PSScriptRoot -Parent) 'tools/Build-HelpIndex.ps1') -HelpRoot (Join-Path $temp 'Program/Help') | Out-Null
   $empty = Join-Path $temp 'Catalogs/Empty'
   [void][IO.Directory]::CreateDirectory($empty)
   foreach ($name in $headers.Keys) {

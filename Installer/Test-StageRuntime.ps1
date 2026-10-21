@@ -158,6 +158,23 @@ Run-TestCase 'NestedAssetJunctionPreservesPreviousStage' {
   Assert-Throws { & $StageScript @arguments } 'reparse point'
   Assert ((Get-FileHash -LiteralPath $f.StageSentinel).Hash -eq $before) 'Nested junction replaced the previous stage'
 }
+Run-TestCase 'StageGeneratesHelpIndex' {
+  param($f)
+  $arguments = $f.Arguments
+  & $StageScript @arguments
+  $index = Join-Path $f.Destination 'Program/Help/help-index.js'
+  Assert (Test-Path -LiteralPath $index -PathType Leaf) 'Stage has no Help index'
+  Assert ([IO.File]::ReadAllText($index).StartsWith('window.HELP_INDEX = ')) 'Help index has the wrong format'
+}
+Run-TestCase 'BrokenHelpPreservesPreviousStage' {
+  param($f)
+  $before = (Get-FileHash -LiteralPath $f.StageSentinel).Hash
+  $page = Join-Path $f.RepoRoot 'ELN.Desktop/Assets/Runtime/Help/Values.html'
+  [IO.File]::WriteAllText($page, [IO.File]::ReadAllText($page).Replace('</main>', '<a href="Missing.html">x</a></main>'), [Text.UTF8Encoding]::new($false))
+  $arguments = $f.Arguments
+  Assert-Throws { & $StageScript @arguments } 'Broken link'
+  Assert ((Get-FileHash -LiteralPath $f.StageSentinel).Hash -eq $before) 'Broken Help replaced the previous stage'
+}
 Run-TestCase 'AssetAncestorJunctionPreservesPreviousStage' {
   param($f)
   $before = (Get-FileHash -LiteralPath $f.StageSentinel).Hash

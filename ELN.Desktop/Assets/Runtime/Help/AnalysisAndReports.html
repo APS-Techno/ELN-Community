@@ -1,23 +1,30 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Analysis and reports — APS ELN Community Help</title><link rel="stylesheet" href="help.css"></head>
-<body><header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
-<main><h1>Analysis and reports</h1>
-<h2>Plot conditions against results</h2>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analysis and reports</title>
+<link rel="stylesheet" href="help.css">
+<script src="help-index.js" defer></script>
+<script src="help-search.js" defer></script>
+<script src="help.js" defer></script>
+</head>
+<body><main><h1>Analysis and reports</h1>
+<h2 id="plot-conditions-against-results">Plot conditions against results</h2>
 <ol><li>Open a notebook and select the project and folder that contain the procedures.</li><li>Choose <strong>Tools &gt; Analysis...</strong>.</li><li>Select the condition value type under <strong>X Axis</strong> and the result value type under <strong>Y Axis</strong>.</li><li>Check the procedures to include. Use <strong>All</strong> or <strong>None</strong> to change the selection.</li><li>Click <strong>Plot</strong>. Use <strong>Copy Data (CSV)</strong> for the plotted data or <strong>Copy Chart</strong> for the chart image.</li></ol>
 <p>Each point represents one selected procedure. X is the first matching Condition recorded directly on the procedure. Y is the arithmetic mean of matching Results on direct child actions, actions below child specimens, and one further action level below those specimen actions. Other deeper arrangements are not included. A procedure without either required quantity is omitted.</p>
 <p>The plot adds a linear regression when there are enough usable points. It does not establish causation or calculate uncertainty from recorded tolerances. Check the participating records and units before you interpret the line.</p>
 <div class="note"><p>Chart labels can be small in the current chart and copied image. Check the copied CSV and source values when a label is difficult to read. A small label does not change the stored numeric value.</p></div>
-<h2>Export a PDF report</h2>
+<h2 id="export-a-pdf-report">Export a PDF report</h2>
 <ol><li>For an experiment report with descendants, select its Procedure root in the item tree. Selecting a Specimen or Action offers only that single item, not its children.</li><li>Choose <strong>File &gt; Export Report...</strong>.</li><li>Check <strong>Items to include</strong>. The checklist is limited by the selected root. Select the required Sections: Metadata, Protocols, Values, Files, Tags, Comments and Signatures.</li><li>Select <strong>A4</strong> or <strong>Letter</strong>, then set <strong>Output path</strong> with <strong>Browse...</strong>.</li><li>Click <strong>Preview</strong> and inspect the report. Click <strong>Export PDF</strong> to create the PDF.</li></ol>
 <p>The HTML viewer plugin must be available for report preview and PDF output. The Values section includes numeric values and their recorded tolerances. Inspect rounding, page breaks and small text in the PDF before you use it. A PDF is a readable report, not an editable notebook backup.</p>
-<h2>Export a scientific package</h2>
+<h2 id="export-a-scientific-package">Export a scientific package</h2>
 <ol><li>Select the project and folder. Choose <strong>File &gt; Export...</strong> for the scientific package.</li><li>Check <strong>Items to export</strong> and set <strong>Export path</strong>.</li><li>Choose <strong>Include files</strong> and <strong>Include status history</strong> as required.</li><li>Click <strong>Export</strong>. Read the completion message.</li></ol>
 <p>The package is a JSON scientific export. It records selected item trees, protocol data and referenced protocol templates. Value and tolerance fields are exported as numbers, without replacing tolerance with a display string. Deleted descendants are excluded.</p>
 <div class="warning"><p><strong>Include files</strong> includes file metadata, not the attachment bytes. A scientific package is not a full notebook backup. Keep the notebook and its attachment directory together; see <a href="Notebooks.html">notebook storage</a>.</p></div>
-<h2>Import a scientific package</h2>
+<h2 id="import-a-scientific-package">Import a scientific package</h2>
 <ol><li>Select the destination project and folder in the open notebook.</li><li>Choose <strong>File &gt; Import scientific package...</strong>.</li><li>Use <strong>Browse...</strong> to select the package. Read <strong>Package preview</strong>.</li><li>Click <strong>Import</strong>. Read the imported item and template counts, then inspect the destination records.</li></ol>
 <div class="warning"><p>The current importer restores top-level item metadata, protocol entries and protocol templates. It does not restore exported child hierarchies, value rows, tolerances, file records or attachment bytes. Do not use it for a complete scientific round trip or recovery.</p></div>
 <p>Imported protocols always start as Draft. Packaged history can be retained as history, but does not grant current approval. Imported history uses the local importing scientist and import time. Review imported protocols locally before approval.</p>
 <p>See <a href="Values.html">values</a>, <a href="Protocols.html">protocol review</a>, <a href="Integrity.html">integrity</a>, and <a href="FilesAndNotes.html">attachments</a>.</p>
-</main><footer><a href="Index.html">All help topics</a></footer></body></html>
+</main></body></html>

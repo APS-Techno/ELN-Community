@@ -253,7 +253,10 @@ if ($desktopTarget) {
   $catalogSource = Join-Path $sourceRoot 'ELN.Desktop\Assets\Runtime\CSV'
   Copy-Item -LiteralPath $catalogSource -Destination $outputRoot -Recurse -Force
   $helpSource = Join-Path $sourceRoot 'ELN.Desktop\Assets\Runtime\Help'
+  $helpTarget = Join-Path $outputRoot 'Help'
+  if (Test-Path -LiteralPath $helpTarget) { Remove-Item -LiteralPath $helpTarget -Recurse -Force }
   Copy-Item -LiteralPath $helpSource -Destination $outputRoot -Recurse -Force
+  & (Join-Path $PSScriptRoot 'Build-HelpIndex.ps1') -HelpRoot $helpTarget
   Copy-Item -LiteralPath $webView2Loader -Destination $outputRoot -Force
 }
 if ($RunTests) {

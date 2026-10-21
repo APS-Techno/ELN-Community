@@ -3,23 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Keyboard shortcuts — APS ELN Community Help</title>
+<title>Keyboard shortcuts</title>
 <link rel="stylesheet" href="help.css">
+<script src="help-index.js" defer></script>
+<script src="help-search.js" defer></script>
+<script src="help.js" defer></script>
 </head>
 <body>
-<header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
 <main>
 <h1>Keyboard shortcuts</h1>
-<p>Shortcuts depend on focus. The Community host does not provide the legacy desktop's global F1, F5, Ctrl+F or Ctrl+G command bindings. Use the menus for those functions. This page lists the explicit bindings in the current selected Community source.</p>
-<h2>Item tree</h2>
+<p>Shortcuts depend on focus. This page lists the explicit bindings in the current selected Community source. The Community host does not provide the legacy desktop's F5 binding; use <strong>Refresh</strong> in the menus.</p>
+<h2 id="main-window">Main window</h2>
+<table><thead><tr><th>Key</th><th>Action</th></tr></thead><tbody><tr><td><kbd>Ctrl</kbd> + <kbd>F</kbd></td><td><strong>Navigate → Search...</strong>: search notebook records.</td></tr><tr><td><kbd>Ctrl</kbd> + <kbd>G</kbd></td><td><strong>Navigate → Go to Item...</strong></td></tr><tr><td><kbd>Ctrl</kbd> + <kbd>D</kbd></td><td><strong>Navigate → Dashboard</strong></td></tr><tr><td><kbd>F1</kbd></td><td><strong>Help → Keyboard Shortcuts...</strong>: this page.</td></tr></tbody></table>
+<p>A key does nothing while its menu command is unavailable, for example before a notebook is open. In the Help window, <kbd>Ctrl</kbd> + <kbd>F</kbd> moves the focus to <strong>Search Help</strong> instead.</p>
+<h2 id="item-tree">Item tree</h2>
 <table><thead><tr><th>Key</th><th>Action</th><th>Required selection</th></tr></thead><tbody><tr><td><kbd>Ctrl</kbd> + <kbd>↑</kbd></td><td>Move the selected root item up in its manual order.</td><td>A top-level scientific item in the focused item tree.</td></tr><tr><td><kbd>Ctrl</kbd> + <kbd>↓</kbd></td><td>Move the selected root item down in its manual order.</td><td>A top-level scientific item in the focused item tree.</td></tr></tbody></table>
 <p>These keys do not move child items, attachments or values. Reordering requires a writable record and compatible manual sorting. See <a href="Items.html">items and hierarchy</a>.</p>
-<h2>Markdown editor</h2>
+<h2 id="markdown-editor">Markdown editor</h2>
 <table><thead><tr><th>Key</th><th>Action</th></tr></thead><tbody><tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td><td>Save through the host's file service. A conflict still needs an explicit decision.</td></tr><tr><td><kbd>Ctrl</kbd> + <kbd>B</kbd></td><td>Wrap the selected text in Markdown bold markers.</td></tr><tr><td><kbd>Ctrl</kbd> + <kbd>I</kbd></td><td>Wrap the selected text in Markdown italic markers.</td></tr><tr><td><kbd>Ctrl</kbd> + <kbd>K</kbd></td><td>Insert a Markdown link with the selection as its label; replace the URL slot.</td></tr><tr><td><kbd>Ctrl</kbd> + <kbd>V</kbd></td><td>Paste normally. If the clipboard contains an image and no text, try to upload it as an attachment and insert its Markdown reference.</td></tr></tbody></table>
 <p>The editor must have focus. Image paste needs a writable owner and host attachment support. The current handlers also accept Shift with these Ctrl combinations, but Shift does not select a separate save or formatting command. See <a href="FilesAndNotes.html">files and editor conflicts</a>.</p>
-<h2>Menu access</h2>
-<p>Use the main menu headings File, Project, Item, Reference Data, Tools and Help. Windows menu access keys are shown by the menu underlines. Use <strong>Help → Contents...</strong> for the manual and <strong>Help → Keyboard Shortcuts...</strong> for this page. Do not assume a shortcut from the Commercial manual applies to Community.</p>
+<h2 id="help-window">Help window</h2>
+<table><thead><tr><th>Key</th><th>Action</th></tr></thead><tbody><tr><td><kbd>/</kbd> or <kbd>Ctrl</kbd> + <kbd>F</kbd></td><td>Move the focus to <strong>Search Help</strong>.</td></tr><tr><td><kbd>↑</kbd>, <kbd>↓</kbd>, <kbd>Enter</kbd></td><td>Select a Help search result and open its section.</td></tr><tr><td><kbd>Esc</kbd></td><td>Clear the search box, or close <strong>Contents</strong> in a narrow window.</td></tr><tr><td><kbd>Alt</kbd> + <kbd>←</kbd>, <kbd>Alt</kbd> + <kbd>→</kbd></td><td>Go back or forward between Help pages.</td></tr></tbody></table>
+<p>These keys work only in the Help window. <strong>Search Help</strong> searches this manual, not notebook records.</p>
+<h2 id="menu-access">Menu access</h2>
+<p>Use the main menu headings File, Project, Item, Navigate, Reference Data, Tools and Help. Windows menu access keys are shown by the menu underlines. Use <strong>Help → Contents...</strong> for the manual and <strong>Help → Keyboard Shortcuts...</strong> for this page. Do not assume a shortcut from the Commercial manual applies to Community.</p>
 </main>
-<footer><a href="Index.html">All help topics</a></footer>
+
 </body>
 </html>

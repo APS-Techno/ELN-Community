@@ -1,29 +1,36 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Projects — APS ELN Community Help</title><link rel="stylesheet" href="help.css"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projects</title>
+<link rel="stylesheet" href="help.css">
+<script src="help-index.js" defer></script>
+<script src="help-search.js" defer></script>
+<script src="help.js" defer></script>
+</head>
 <body>
-<header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
 <main>
 <h1>Projects</h1>
 <p>Open a notebook first. The left panel contains projects, project groups, folders and Favorites. Select a project or folder to show its items in the middle panel. Groups organize projects; they do not contain scientific records directly. When you open a notebook, the panel selects again the project or folder that was selected last.</p>
-<h2>Create and edit a project</h2>
+<h2 id="create-and-edit-a-project">Create and edit a project</h2>
 <ol><li>Choose <strong>Project &gt; New Project</strong>.</li><li>Enter the title and <strong>Description</strong>. Click <strong>Save</strong>, or <strong>Cancel</strong> to leave without creating the project.</li><li>Select the project. Choose <strong>Project &gt; Edit</strong>, or double-click it, to change its title or description.</li></ol>
 <p>Project edits also show the <strong>Archived</strong> check box. Save the dialog to apply the change. A project title is not a reason to rename its storage files manually.</p>
-<h2>Groups and folders</h2>
+<h2 id="groups-and-folders">Groups and folders</h2>
 <ul><li>Choose <strong>Project &gt; New Group</strong>. Enter <strong>Group name:</strong>. A blank name creates nothing.</li><li>Right-click a group to create a <strong>New Project...</strong> inside that group. To rename the group, use <strong>Rename...</strong> in its context menu.</li><li>Drag a project onto a group to place it in that group. The project keeps its items.</li><li>Select a project and choose <strong>New Folder</strong> to create a top-level folder. Select a folder first to create a subfolder. Enter the title and description, then click <strong>Save</strong>.</li><li>Select a folder and use <strong>Edit</strong>, or double-click it, to change its title and description.</li><li><strong>Move Folder Up</strong> moves a nested folder one level toward the project. A folder already at the top level cannot move up.</li><li>Use the context-menu <strong>Sort</strong> commands to change sibling order: <strong>Move Up</strong>, <strong>Move Down</strong>, <strong>By Name</strong> or <strong>By Date Created</strong>.</li></ul>
 <p class="note">A project folder is different from a folder item in the item tree. See <a href="Items.html">Items</a> for the record hierarchy.</p>
-<h2>Use the row buttons in the project panel</h2>
+<h2 id="use-the-row-buttons-in-the-project-panel">Use the row buttons in the project panel</h2>
 <p>Select a row that has child rows, for example a group, a project or a folder. Three buttons show at the right side of that row. They show only on the selected row. A favorite item row does not show them. Point to a button to read its tooltip.</p>
 <ul><li><strong>Collapse all below</strong>: collapses every level under the row.</li><li><strong>Expand all below</strong>: expands every level under the row.</li><li><strong>Focus</strong> (tooltip: <strong>Focus: collapse everything else</strong>): collapses all other branches, keeps the path to the row open, selects the row and scrolls it into view.</li></ul>
 <p>The <a href="Items.html">item tree</a> and the <a href="Hypotheses.html">hypothesis list</a> have the same buttons.</p>
-<h2>Archive and reopen</h2>
+<h2 id="archive-and-reopen">Archive and reopen</h2>
 <ol><li>Select a project and choose <strong>Archive</strong>. This changes its archive state; it does not delete its records or attachment bytes.</li><li>Use <strong>Show Archived</strong> in the project panel to include archived projects in the tree.</li><li>Select the archived project and use <strong>Archive</strong> again to return it to active use. You can also clear <strong>Archived</strong> in the project edit dialog and click <strong>Save</strong>.</li></ol>
 <p>Archived projects remain readable, but scientific content changes are blocked. Restore the project to active use before editing its items or attachments. A signature can still block an edit after the project is active.</p>
-<h2>Delete containers and restore records</h2>
+<h2 id="delete-containers-and-restore-records">Delete containers and restore records</h2>
 <p class="warning">Project deletion is permanent. Only an empty project can be deleted. Empty folders can also be deleted. Contents in the Recycle Bin still count: remove or restore them before deleting their project or folder. Do not empty the bin only to make a container easier to delete.</p>
 <p><strong>Delete Group</strong> does not delete its projects. The confirmation states that its projects move back to the top level. Groups and project folders do not use item restore.</p>
 <ol><li>To remove an item tree, select the item in the middle panel and click <strong>Delete</strong>. Confirm <strong>Move item … to the recycle bin?</strong> The item and its descendants leave the active tree.</li><li>Open <strong>Tools &gt; Recycle Bin...</strong>. Select the deleted record and click <strong>Restore</strong>. Close the dialog to refresh the project view.</li><li>To remove a binned record permanently, select it and click <strong>Delete</strong>. <strong>Empty Bin</strong> requests permanent deletion of all binned records.</li></ol>
 <p class="warning">Permanent deletion cannot be undone. A hypothesis in review or accepted can protect a cited record from deletion. Read any refusal or kept-item message: Empty Bin can retain protected item trees while deleting unrelated ones. Signed content also has deletion guards. Attachment-only deletion is not an item recycle operation.</p>
 <p>Use <strong>Refresh</strong> if a tree is stale, and clear panel filters if expected records are hidden. See <a href="Search.html">Search and navigation</a>, <a href="FilesAndNotes.html">Files and notes</a>, <a href="Integrity.html">Integrity</a> and <a href="Wiki.html">Wiki</a>.</p>
-</main><footer><a href="Index.html">All help topics</a></footer>
+</main>
 </body></html>

@@ -6,8 +6,8 @@ object dlgHelpViewer: TdlgHelpViewer
   Margins.Right = 6
   Margins.Bottom = 6
   Caption = 'Help'
-  ClientHeight = 800
-  ClientWidth = 900
+  ClientHeight = 1240
+  ClientWidth = 2000
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -20,8 +20,8 @@ object dlgHelpViewer: TdlgHelpViewer
   object pnlContent: TRzPanel
     Left = 0
     Top = 0
-    Width = 900
-    Height = 740
+    Width = 2000
+    Height = 1180
     Margins.Left = 6
     Margins.Top = 6
     Margins.Right = 6
@@ -32,8 +32,8 @@ object dlgHelpViewer: TdlgHelpViewer
   end
   object pnlBottom: TRzPanel
     Left = 0
-    Top = 740
-    Width = 900
+    Top = 1180
+    Width = 2000
     Height = 60
     Margins.Left = 6
     Margins.Top = 6
@@ -43,7 +43,7 @@ object dlgHelpViewer: TdlgHelpViewer
     BorderOuter = fsNone
     TabOrder = 1
     object btnClose: TRzButton
-      Left = 770
+      Left = 1870
       Top = 8
       Width = 120
       Height = 44

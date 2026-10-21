@@ -1,26 +1,33 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Wiki — APS ELN Community Help</title><link rel="stylesheet" href="help.css"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wiki</title>
+<link rel="stylesheet" href="help.css">
+<script src="help-index.js" defer></script>
+<script src="help-search.js" defer></script>
+<script src="help.js" defer></script>
+</head>
 <body>
-<header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
 <main>
 <h1>Wiki</h1>
 <p>A Wiki page is an item with a Markdown attachment for its body. It is not a separate website. Its body and assets stay in the notebook attachment directory. Open an active notebook before creating or editing pages.</p>
-<h2>Create a Wiki structure</h2>
+<h2 id="create-a-wiki-structure">Create a Wiki structure</h2>
 <ol><li>Select the project or project folder where the Wiki must go.</li><li>Choose <strong>Project &gt; New Wiki</strong>. Confirm <strong>Add a Wiki to …?</strong> The command applies the <strong>Wiki</strong> experiment template in that location and creates the root Markdown body.</li><li>If no project or folder is selected, the command asks for a new topic-wiki title and description, creates a project, then applies the Wiki template.</li><li>Expand the new structure and select its Wiki page to read the body.</li></ol>
 <p>The template must exist in this notebook, and the Markdown file type must be registered. If the template is missing, an existing-location request is refused. A new topic project can remain empty if seeding is unavailable or fails. Read the message before repeating the command.</p>
 <p class="note">A second Wiki template cannot be applied where a Wiki folder already exists. Use the existing structure, or deliberately rename or remove that folder before reapplying. Do not delete useful records only to repeat the template.</p>
-<h2>Create another page</h2>
+<h2 id="create-another-page">Create another page</h2>
 <p>Use <strong>New Item</strong> in the required item location and select the <strong>Wiki</strong> item type. A new Wiki item receives a Markdown body with its title as the first heading. Keep a registered <code>.md</code> file type in the notebook. See <a href="Items.html">Items</a> and <a href="Templates.html">Templates</a> for item and template creation.</p>
-<h2>Read and edit the body</h2>
+<h2 id="read-and-edit-the-body">Read and edit the body</h2>
 <ol><li>Single-click the Wiki item. The host opens its first Markdown attachment in the Markdown viewer.</li><li>Click <strong>Edit</strong> in that viewer to open the Markdown editor. The button is visible only when the editor plugin is loaded.</li><li>Edit the Markdown source. Use headings, lists, emphasis and ordinary Markdown links as needed.</li><li>Click <strong>Save</strong>, or press <kbd>Ctrl</kbd>+<kbd>S</kbd>, to save through the notebook attachment service.</li></ol>
 <p>Wiki attachments are not listed as file children in the item tree, and the thumbnail strip is hidden for a selected Wiki page. The item-tree <strong>Edit</strong> command edits item metadata; the Markdown viewer's <strong>Edit</strong> button edits the body.</p>
 <p class="warning">The editor uses a working copy. A signature or a read-only or archived project can refuse saving even if the editor opens. Resolve these restrictions before editing. <strong>Reload</strong> discards edits; <strong>Save Anyway (overwrite server)</strong> replaces the current stored body only if write checks permit it. The dialog's server wording refers to the local notebook attachment. See <a href="FilesAndNotes.html">Files and notes</a> for all conflict and draft choices.</p>
-<h2>Add images and other assets</h2>
+<h2 id="add-images-and-other-assets">Add images and other assets</h2>
 <ol><li>Open the page body in the Markdown editor.</li><li>Drag a local file into the editor. An image creates an image reference; another file creates a link. The file is uploaded as an attachment of the same item.</li><li>For a clipboard image, press <kbd>Ctrl</kbd>+<kbd>V</kbd>. If the clipboard also contains text, the editor prefers text paste.</li><li>Check the inserted reference, then save the page body.</li></ol>
 <p>Asset upload happens when you drop or paste, before you save the changed body. Cancelling the body edit does not undo that upload. Keep assets with their page and use the inserted relative name. The viewer resolves references against the item's attachments and makes local working copies as needed. A path to a file elsewhere on your computer is not an uploaded notebook asset.</p>
-<h2>Navigate between records</h2>
-<ul><li>Use <code>[[item:N]]</code>, with N replaced by an existing item ID, to create an internal item link.</li><li>Use <code>[[specimen:CODE]]</code>, with CODE replaced by the specimen title, to create a specimen link.</li><li>Click the rendered link to navigate through the host to the target project, folder and item.</li><li>You can also use <strong>Tools &gt; Go to Item...</strong> with an item ID or an internal ELN URL.</li></ul>
+<h2 id="navigate-between-records">Navigate between records</h2>
+<ul><li>Use <code>[[item:N]]</code>, with N replaced by an existing item ID, to create an internal item link.</li><li>Use <code>[[specimen:CODE]]</code>, with CODE replaced by the specimen title, to create a specimen link.</li><li>Click the rendered link to navigate through the host to the target project, folder and item.</li><li>You can also use <strong>Navigate &gt; Go to Item...</strong> with an item ID or an internal ELN URL.</li></ul>
 <p>A link does not copy or move the target record. Missing, deleted or inaccessible targets cannot be opened. Use <a href="Search.html">Search</a> to locate the correct record. For typed relationships, use <a href="TagsAndLinks.html">Tags and links</a>; a Markdown link is not a typed item relationship.</p>
-</main><footer><a href="Index.html">All help topics</a></footer>
+</main>
 </body></html>

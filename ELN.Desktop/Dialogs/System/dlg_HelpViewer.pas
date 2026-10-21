@@ -4,7 +4,7 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Classes,
-  Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls,
+  Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.Edge,
   RzPanel, RzButton,
   unit_ELNPluginCore;
 
@@ -17,6 +17,7 @@ type
   private
     FHtmlViewer: IViewerPlugin;
     FSavedParent: TWinControl;
+    class function FindEdgeBrowser(AParent: TWinControl): TEdgeBrowser; static;
   public
     class procedure ShowHelp(const AFileName: string; HtmlViewer: IViewerPlugin;
       const ACaption: string = 'Help');
@@ -26,6 +27,24 @@ implementation
 
 {$R *.dfm}
 
+class function TdlgHelpViewer.FindEdgeBrowser(AParent: TWinControl): TEdgeBrowser;
+var
+  I: Integer;
+  Child: TControl;
+begin
+  Result := nil;
+  for I := 0 to AParent.ControlCount - 1 do
+  begin
+    Child := AParent.Controls[I];
+    if Child is TEdgeBrowser then
+      Exit(TEdgeBrowser(Child));
+    if Child is TWinControl then
+    begin
+      Result := FindEdgeBrowser(TWinControl(Child));
+      if Assigned(Result) then Exit;
+    end;
+  end;
+end;
 
 class procedure TdlgHelpViewer.ShowHelp(const AFileName: string;
   HtmlViewer: IViewerPlugin; const ACaption: string);
@@ -51,6 +70,7 @@ begin
       Dialog.FHtmlViewer.Frame.Parent := Dialog.pnlContent;
       Dialog.FHtmlViewer.Frame.Align := alClient;
       Dialog.FHtmlViewer.LoadFromFile(AFileName);
+      Dialog.ActiveControl := FindEdgeBrowser(Dialog.pnlContent);
     end;
 
     Dialog.ShowModal;

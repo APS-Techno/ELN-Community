@@ -71,10 +71,12 @@ type
     miTemplates: TMenuItem;
     miExperimentTemplates: TMenuItem;
     miTags: TMenuItem;
-    miTools: TMenuItem;
+    miNavigate: TMenuItem;
     miSearch: TMenuItem;
     miGoTo: TMenuItem;
+    miNavigateSep: TMenuItem;
     miDashboard: TMenuItem;
+    miTools: TMenuItem;
     miAnalysis: TMenuItem;
     miUnits: TMenuItem;
     miReview: TMenuItem;

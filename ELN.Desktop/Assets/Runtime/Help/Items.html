@@ -1,36 +1,43 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Items — APS ELN Community Help</title><link rel="stylesheet" href="help.css"></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Items</title>
+<link rel="stylesheet" href="help.css">
+<script src="help-index.js" defer></script>
+<script src="help-search.js" defer></script>
+<script src="help.js" defer></script>
+</head>
 <body>
-<header><a href="Index.html">APS ELN Community Help</a><nav aria-label="Help navigation"><a href="GettingStarted.html">Getting started</a><a href="Shortcuts.html">Shortcuts</a><a href="Troubleshooting.html">Troubleshooting</a></nav></header>
 <main><h1>Items</h1>
 <p>Items hold the scientific record in a project and folder. Open a notebook and select an active project before you create an item. An archived project does not permit scientific changes.</p>
-<h2>Understand the hierarchy</h2>
+<h2 id="understand-the-hierarchy">Understand the hierarchy</h2>
 <table><thead><tr><th>Record</th><th>Use</th></tr></thead><tbody><tr><td>Procedure</td><td>The top-level experimental procedure. The internal level is Proc. Experiment templates also use this level for an experiment root.</td></tr><tr><td>Specimen</td><td>A specimen within a procedure, with its own title, description and properties.</td></tr><tr><td>Action</td><td>A preparation, measurement or analysis step. It can be below a procedure, specimen or another action.</td></tr></tbody></table>
 <p>A protocol, note or file is attached to an item. It is not a new procedure or action. Scientific conditions and results belong to procedure and action records.</p>
-<h2>Create a procedure, specimen or action</h2>
+<h2 id="create-a-procedure-specimen-or-action">Create a procedure, specimen or action</h2>
 <ol><li>Select the destination project and folder in the project tree.</li><li>Choose <strong>Item &gt; New Procedure</strong> to create a top-level procedure. For a specimen, select its procedure and choose <strong>Item &gt; New Specimen</strong>. For an action, select the intended parent and choose <strong>Item &gt; New Action</strong>.</li><li>Enter a <strong>Title</strong> and <strong>Description</strong>. Select the item type. For a procedure or action, select the applicable <strong>Action type</strong> and <strong>Equipment</strong>. Each of these three fields is a drop-down list.</li><li>For a procedure or action, use the tabs in the lower part of the dialog. On the <strong>Values</strong> tab, click <strong>Add</strong> to record a condition or a result. On the <strong>Properties</strong> tab, click <strong>Add</strong> to insert a row and enter the property name and its value. To delete a property, select its row and click <strong>Remove</strong>. A tab name shows its number of rows, for example <strong>Values (2)</strong>.</li><li>Click <strong>Save</strong>. <strong>Save</strong> stays disabled while the <strong>Title</strong> is blank. Check the parent and title in the item tree.</li></ol>
 <p>The <strong>+</strong> button next to <strong>Action type</strong> has the tooltip <strong>Add a new action type</strong>. It opens <strong>Add Action Type</strong>. Enter a nonblank <strong>Title</strong> and select a <strong>Kind</strong>. Select an item type first to enable this button. The <strong>+</strong> button next to <strong>Equipment</strong> has the tooltip <strong>Add new equipment</strong>. It opens <strong>Add Equipment</strong>. Enter <strong>Model</strong>, <strong>Manufacturer</strong> and <strong>Location</strong>; all three fields are required. Select an action type with an equipment type first to enable this button. In either quick dialog, <strong>OK</strong> stays disabled until the required fields are filled. These commands create reference definitions; see <a href="ReferenceData.html">Reference data</a>.</p>
 <p>The <strong>Values</strong> tab lists each value with the columns <strong>Quantity</strong>, <strong>Value</strong>, <strong>Kind</strong> and <strong>Note</strong>. Use <strong>Edit</strong> and <strong>Delete</strong> on the tab for the selected value. When you select a value, a line below the list shows where its number came from. For a Reader value, the line shows the reader, its version, the key name and the file name. Point to the line to read the full source text. If the source names a file, <strong>Go to file</strong> is enabled. Click <strong>Go to file</strong> and then <strong>Yes</strong> to close the dialog and show that file in the content viewer. The dialog does not save its changes when you do this. If the file no longer exists, a message tells you so. <strong>Go to file</strong> works when you open the dialog with <strong>Item &gt; Edit</strong> or by a double-click on the item. See <a href="Values.html">Value sources</a>.</p>
 <div class="warning"><p>The current new-specimen path does not retain properties entered before its first Save. Create and save the specimen first, then select it and use <strong>Item &gt; Edit</strong> to enter and save its properties.</p></div>
 <p>The <strong>New</strong> toolbar menu offers creation choices for the current selection. Selecting an attached file or protocol uses its parent item. Check the resulting tree location after creation.</p>
-<h2>Edit and reuse records</h2>
+<h2 id="edit-and-reuse-records">Edit and reuse records</h2>
 <p>Select an item and choose <strong>Item &gt; Edit</strong>. Change the required fields and click <strong>Save</strong>. Use <strong>Item &gt; Duplicate</strong> for a copy; select the destination and the option to link to the original when appropriate. Use <a href="Templates.html">experiment templates</a> when you need a repeatable hierarchy.</p>
 <p>The item context menu has <strong>Move to...</strong>. Dragging onto or between ordinary procedure, specimen or action rows can make the dragged record a child of the target; it is not a safe way to reorder siblings. Check the hierarchy after any drag. For top-level manual order, use <strong>Move Up</strong> or <strong>Move Down</strong>, or <kbd>Ctrl</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> with the root item selected. These order commands do not reorder child records, files or values.</p>
-<h2>Add the scientific record</h2>
+<h2 id="add-the-scientific-record">Add the scientific record</h2>
 <ul><li><a href="Values.html">Values</a>: use <strong>Item &gt; Add Value</strong> on a procedure or action.</li><li><a href="Protocols.html">Protocols</a>: use <strong>Item &gt; Add Protocol</strong>.</li><li><a href="FilesAndNotes.html">Files and notes</a>: use <strong>Item &gt; Add File</strong> or <strong>Item &gt; Add Note</strong>.</li><li><a href="TagsAndLinks.html">Tags and links</a>: connect related records without moving them.</li><li><a href="Hypotheses.html">Hypotheses</a>: connect runs and evidence to a proposal.</li></ul>
-<h2>Use the row buttons in the item tree</h2>
+<h2 id="use-the-row-buttons-in-the-item-tree">Use the row buttons in the item tree</h2>
 <p>Select a procedure, specimen or action row that has child rows. Three buttons show at the right side of that row. They show only on the selected row. They do not show on a file, protocol or note row, or on a row with no child rows. Point to a button to read its tooltip.</p>
 <table><thead><tr><th>Button</th><th>Result</th></tr></thead><tbody><tr><td><strong>Collapse all below</strong></td><td>Collapses every level under the row.</td></tr><tr><td><strong>Expand all below</strong></td><td>Expands every level under the row.</td></tr><tr><td><strong>Focus</strong> (tooltip: <strong>Focus: collapse everything else</strong>)</td><td>Collapses all other branches. The path to the row stays open. The row is selected and scrolls into view.</td></tr></tbody></table>
 <p>When several records are selected, the buttons show only on the focused row. The <a href="Projects.html">project panel</a> and the <a href="Hypotheses.html">hypothesis list</a> have the same buttons.</p>
-<h2>Select several records</h2>
+<h2 id="select-several-records">Select several records</h2>
 <p>Select several records in the item tree. Press <kbd>Ctrl</kbd>+click to add or remove one record. Press <kbd>Shift</kbd>+click to select a range. Press <kbd>Shift</kbd>+<kbd>↑</kbd> or <kbd>Shift</kbd>+<kbd>↓</kbd> to extend the selection. The detail panel shows the focused record only.</p>
 <p>Right-click a record in the selection to keep the selection. Right-click a record outside the selection to select only that record. When several records are selected, the menu shows only the commands that apply to all of them: <strong>Delete</strong>, <strong>Extract values</strong>, <strong>Move to...</strong>, <strong>Tags...</strong> and <strong>Export</strong> for files. Commands that need one record are disabled: <strong>New</strong>, <strong>Edit</strong>, <strong>Duplicate</strong>, <strong>Add File</strong>, <strong>Add Note</strong>, <strong>Add Protocol</strong>, <strong>Add Value</strong>, <strong>Links...</strong> and <strong>New Folder</strong>.</p>
 <p>A batch command shows one confirmation. If some records cannot be processed, the confirmation lists them and the reason for each. After the run, one summary lists the records that were skipped or that failed. Signed items and records in projects you cannot change are skipped.</p>
 <p>Items go to the Recycle Bin. Files and notes are deleted permanently.</p>
 <p>You can drag several root items to a project or folder in the Projects panel. You cannot drag child items or files in this way.</p>
-<h2>Delete safely</h2>
+<h2 id="delete-safely">Delete safely</h2>
 <p>Select the correct record before you use <strong>Item &gt; Delete</strong>. Read the confirmation. Signed records are locked, and hypothesis references can prevent unsafe deletion. Use <strong>Tools &gt; Recycle Bin...</strong> to inspect deleted items rather than treating deletion as a backup method.</p>
 <p>See <a href="Integrity.html">signatures and integrity</a>, <a href="Projects.html">projects and recycle safety</a>, and <a href="AnalysisAndReports.html">analysis and reports</a>.</p>
-</main><footer><a href="Index.html">All help topics</a></footer>
+</main>
 </body></html>

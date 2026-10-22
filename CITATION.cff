@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use APS ELN in your research, please cite the preprint below."
+title: "APS ELN Community"
+type: software
+authors:
+  - name: "APS Technology"
+repository-code: "https://github.com/APS-Techno/ELN-Community"
+url: "https://aps-techno.com/products/eln3/"
+license: Apache-2.0
+preferred-citation:
+  type: article
+  title: "Value-level data provenance in an electronic laboratory notebook used by humans and language-model agents: An experience report"
+  authors:
+    - family-names: Penkov
+      given-names: "Oleksiy V."
+    - family-names: Shen
+      given-names: Boyang
+  journal: "arXiv"
+  year: 2026
+  month: 10
+  notes: "arXiv:2610.27859 [physics.app-ph], preprint"
+  url: "https://arxiv.org/abs/2610.27859"

@@ -19,6 +19,26 @@ Demo/reference data and the desktop shortcut are off by default.
 Installer task changes affect future notebooks only, not existing notebooks.
 Back up each notebook database and its attachment directory together.
 
+## Citation
+
+If APS ELN supports your research, please cite the preprint:
+
+Penkov, O. V. and Shen, B. (2026). *Value-level data provenance in an electronic laboratory notebook used by humans and language-model agents: An experience report.* [arXiv:2610.27859](https://arxiv.org/abs/2610.27859) [physics.app-ph].
+
+```bibtex
+@misc{penkov2026valuelevel,
+  title         = {Value-level data provenance in an electronic laboratory notebook used by humans and language-model agents: An experience report},
+  author        = {Penkov, Oleksiy V. and Shen, Boyang},
+  year          = {2026},
+  eprint        = {2610.27859},
+  archivePrefix = {arXiv},
+  primaryClass  = {physics.app-ph},
+  url           = {https://arxiv.org/abs/2610.27859}
+}
+```
+
+`CITATION.cff` carries the same reference for GitHub's **Cite this repository** button.
+
 ## Source layout
 
 - `ELN.Domain`, neutral `ELN.Model` and `ELN.DB`: shared scientific records and implementation.

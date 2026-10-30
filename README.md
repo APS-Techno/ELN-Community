@@ -174,7 +174,7 @@ When no notebook is open, the welcome message and New/Open buttons are centered 
 
 ## Version 2.3.0.55
 
-Search by meaning: the Search dialog finds items and attached files by meaning as well as by words, in many languages. Help → Semantic Search Setup downloads the models, ONNX Runtime and PDFium once (about 666 MB). The index reads the text of PDF, Office (Word, Excel, PowerPoint), HTML, JSON, XML, CSV, RTF, Markdown and text attachments. Results are grouped by item, can be filtered by project, item type and creation date (the MCP tool also by value), and can be reranked. The Search window floats, keeps a query history with autocomplete and shows the full match text in a bottom panel. The MCP tool `search_semantic` gives the same search to an assistant.
+Search by meaning: the Search dialog finds items and attached files by meaning as well as by words, in many languages. Tools → Semantic Search Setup downloads the models, ONNX Runtime and PDFium once (about 666 MB). The index reads the text of PDF, Office (Word, Excel, PowerPoint), HTML, JSON, XML, CSV, RTF, Markdown and text attachments. Results are grouped by item, can be filtered by project, item type and creation date (the MCP tool also by value), and can be reranked. The Search window floats, keeps a query history with autocomplete and shows the full match text in a bottom panel. The MCP tool `search_semantic` gives the same search to an assistant.
 Desktop, MCP and the installer are Win64 only.
 New MCP tools: `download_file`, `update_value`, `remove_value` and `remove_values`; `update_item` can change the level of an item.
 The ZRW reader opens Tribo Tester packages (`force.raw`, `resistance.tsv`, `test.json`), and the ZRW viewer can smooth the logger channel curve with a moving median.

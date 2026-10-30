@@ -11,6 +11,8 @@ uses
   test_ItemDurability in 'test_ItemDurability.pas',
   test_ScientificIntegrity in 'test_ScientificIntegrity.pas',
   test_XRCProject in 'test_XRCProject.pas',
+  test_FIBPSStepRegions in 'test_FIBPSStepRegions.pas',
+  unit_FIBPSData in '..\ViewerPlugins\Viewer.FIBPS\unit_FIBPSData.pas',
   unit_ELNPluginTypes in '..\ViewerPlugins\Core\unit_ELNPluginTypes.pas',
   unit_XRCProject in '..\ViewerPlugins\Viewer.XRayCalc\unit_XRCProject.pas',
   unit_XRCProjectOutput in '..\ViewerPlugins\Viewer.XRayCalc\unit_XRCProjectOutput.pas',

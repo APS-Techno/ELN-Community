@@ -34,4 +34,17 @@ The local build and runtime checks do not certify redistribution rights for
 the selected binary versions. Check the applicable runtime grants before
 signing or publishing an installer.
 
+## Optional downloaded components
+
+Semantic search and file text extraction use four components that are not in the source tree or the installer. The application downloads them on request into `%LOCALAPPDATA%\APS-ELN\search-artifacts`. It uses a file only after its size and SHA-256 match `ELN.Search/search-artifacts.json`. PDFium and the reranker model are optional parts. The Linux64 search programs (tests and harness; no installed host) use the same models and the Linux archives of ONNX Runtime and PDFium from `ELN.Search/search-artifacts-linux.json`, in `$XDG_DATA_HOME/APS-ELN/search-artifacts` or `~/.local/share/APS-ELN/search-artifacts`, with the same size and SHA-256 check.
+
+| Material | Source | License | Status |
+|---|---|---|---|
+| ONNX Runtime 1.31.1 (Windows x64) | `onnxruntime-win-x64-1.31.1.zip` from the Microsoft ONNX Runtime GitHub release | MIT | The archive `LICENSE` and `ThirdPartyNotices.txt` are downloaded beside `onnxruntime.dll`. |
+| PDFium (Windows x64 build `chromium/8125`) | `pdfium-win-x64.tgz` from the `bblanchon/pdfium-binaries` GitHub release | BSD-3-Clause for PDFium; the bundled libraries are under Apache-2.0, BSD-style, MIT, Zlib and other licenses listed in the archive | `pdfium.dll`, the archive `LICENSE` (MIT, build scripts) and every file in `licenses\` are downloaded beside the DLL. |
+| ONNX Runtime 1.31.1 (Linux x64) | `onnxruntime-linux-x64-1.31.1.tgz` from the same Microsoft ONNX Runtime GitHub release | MIT | The archive `LICENSE` and `ThirdPartyNotices.txt` are downloaded beside `libonnxruntime.so.1.31.1`. |
+| PDFium (Linux x64 build `chromium/8125`) | `pdfium-linux-x64.tgz` from the same `bblanchon/pdfium-binaries` GitHub release | As for the Windows build; the archive has its own `LICENSE` and the same 18 file names in `licenses/` | `libpdfium.so`, the archive `LICENSE` and every file in `licenses/` are downloaded beside the `lib/` folder. |
+| intfloat/multilingual-e5-small, revision `614241f622f53c4eeff9890bdc4f31cfecc418b3` | Hugging Face, ONNX files of that revision | MIT | Model and tokenizer files are downloaded; none are committed or bundled. |
+| cross-encoder/mmarco-mMiniLMv2-L12-H384-v1, revision `1427fd652930e4ba29e8149678df786c240d8825` | Hugging Face, file `onnx/model_quint8_avx2.onnx` and `config.json` of that revision | Apache-2.0 (model card). The model was trained on mMARCO (dataset license Apache-2.0), a machine translation of MS MARCO. The MS MARCO terms say the data is for non-commercial research purposes only: https://microsoft.github.io/msmarco/ | Optional. The files are downloaded; none are committed or bundled. |
+
 Legacy private Help, personal user catalogs, private update-feed payloads, deployment history and laboratory/demo records are not selected into this Community tree. Community Help is complete: 19 offline English HTML pages and help.css replace the private manual. This is a source distribution, not a standalone binary package. Official binary distribution still requires applicable publisher permissions and runtime packaging proof.

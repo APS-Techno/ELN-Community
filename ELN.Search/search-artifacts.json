@@ -1,0 +1,90 @@
+{
+  "ManifestVersion": 3,
+  "Models": [
+    {
+      "Role": "embedder",
+      "Name": "intfloat/multilingual-e5-small",
+      "License": "MIT",
+      "Revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+      "BaseUrl": "https://huggingface.co/intfloat/multilingual-e5-small/resolve/614241f622f53c4eeff9890bdc4f31cfecc418b3/onnx",
+      "Folder": "multilingual-e5-small",
+      "MaxTokens": 512,
+      "Dimension": 384,
+      "Files": [
+        { "Name": "model.onnx", "Size": 470268510, "Sha256": "CA456C06B3A9505DDFD9131408916DD79290368331E7D76BB621F1CBA6BC8665" },
+        { "Name": "tokenizer.json", "Size": 17082730, "Sha256": "0B44A9D7B51C3C62626640CDA0E2C2F70FDACDC25BBBD68038369D14EBDF4C39" },
+        { "Name": "sentencepiece.bpe.model", "Size": 5069051, "Sha256": "CFC8146ABE2A0488E9E2A0C56DE7952F7C11AB059ECA145A0A727AFCE0DB2865" },
+        { "Name": "config.json", "Size": 653, "Sha256": "BBB7C1333FC4B3E27FBC9CD5D2070AABCC1D4DFB99917C3633E772F97545A6B6" },
+        { "Name": "tokenizer_config.json", "Size": 443, "Sha256": "A1D6BC8734A6F635DC158508BEF000F8E2E5A759C7D92F984B2C86E5FF53425B" },
+        { "Name": "special_tokens_map.json", "Size": 167, "Sha256": "D05497F1DA52C5E09554C0CD874037A083E1DC1B9CFD48034D1C717F1AFC07A7" }
+      ]
+    },
+    {
+      "Role": "reranker",
+      "Optional": true,
+      "Name": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+      "License": "Apache-2.0",
+      "DataTerms": "Trained on mMARCO (dataset licence Apache-2.0), a machine translation of MS MARCO. The MS MARCO terms say the data is for non-commercial research purposes only: https://microsoft.github.io/msmarco/",
+      "Revision": "1427fd652930e4ba29e8149678df786c240d8825",
+      "BaseUrl": "https://huggingface.co/cross-encoder/mmarco-mMiniLMv2-L12-H384-v1/resolve/1427fd652930e4ba29e8149678df786c240d8825",
+      "Folder": "mmarco-mMiniLMv2-L12-H384-v1",
+      "Files": [
+        { "Name": "onnx/model_quint8_avx2.onnx", "Size": 118620016, "Sha256": "6C2513767FB63D008A4377BEF7A7A3555433D9436342BB53E35A3A72FFC52D4B" },
+        { "Name": "config.json", "Size": 891, "Sha256": "CC2CFE51AA3FD759D21D21ACF5DFD6994AA67A3C9210636D22E143699D336C77" }
+      ]
+    }
+  ],
+  "Archives": [
+    {
+      "Name": "onnxruntime-win-x64-1.31.1.zip",
+      "Kind": "zip",
+      "Version": "1.31.1",
+      "GitCommit": "41d4d61f14b9c1dd0b2ccda1e9b85dd415fd0496",
+      "ApiVersion": 31,
+      "License": "MIT",
+      "Folder": "onnxruntime",
+      "Url": "https://github.com/microsoft/onnxruntime/releases/download/v1.31.1/onnxruntime-win-x64-1.31.1.zip",
+      "Size": 82929944,
+      "Sha256": "5869E26BB25314375F2D5EF1877E3EA06B1543D6C710E6E4A1EC2F7177AB4B2C",
+      "Files": [
+        { "Name": "onnxruntime-win-x64-1.31.1\\lib\\onnxruntime.dll", "Size": 17253728, "Sha256": "CB2FA518B18356617F6F9F460C012501DA2819EC7E5C1D80BD8F5DE20492DB0C" },
+        { "Name": "onnxruntime-win-x64-1.31.1\\lib\\onnxruntime_providers_shared.dll", "Size": 21816, "Sha256": "8CEA20BE64259950CDA8643AF0ED42C2A424400FC3BB9BB29F9A35CEE6B3419F" },
+        { "Name": "onnxruntime-win-x64-1.31.1\\LICENSE", "Size": 1094, "Sha256": "C250D6278F0B47A6439FB7592B08B58A55EB9F535AA49A1DB63211C3F982B674" },
+        { "Name": "onnxruntime-win-x64-1.31.1\\ThirdPartyNotices.txt", "Size": 344457, "Sha256": "C53A76501EF60DB6F865F20599F220761201AC4057683ACEFDAB37D861B86622" }
+      ]
+    },
+    {
+      "Name": "pdfium-win-x64.tgz",
+      "Kind": "tar.gz",
+      "Optional": true,
+      "Version": "chromium/8125",
+      "License": "BSD-3-Clause and Apache-2.0 (see LICENSE and licenses in the archive)",
+      "Folder": "pdfium",
+      "Url": "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/8125/pdfium-win-x64.tgz",
+      "Size": 3904987,
+      "Sha256": "9A964261760CFF52570AABF038AB346D3A5034DD8B30D0D5FE8861235D356B8B",
+      "Files": [
+        { "Name": "bin\\pdfium.dll", "Size": 7586816, "Sha256": "4B0DEC92555D69437BEF0DF37BE630181AB3E83A6823CA264EDE355A4F2EF994" },
+        { "Name": "LICENSE", "Size": 1184, "Sha256": "8854F4388F1CA13B3AD9BAA42E95F5546B4C0B17109C159256D3ECA7BE39B09B" },
+        { "Name": "licenses\\abseil.txt", "Size": 11564, "Sha256": "F54FFF0B905DF5B3464527C652A30E903B172D6DCAB4D89B5E6F105D5E4A4603" },
+        { "Name": "licenses\\agg23.txt", "Size": 725, "Sha256": "C110D3EA2AD77467CE0DCFF7D3337E6C8BE8049A5103F4B9BD5FD911A77972E5" },
+        { "Name": "licenses\\dragonbox-Apache2-LLVM.txt", "Size": 12480, "Sha256": "4964A7AAF2801A42D2342D2F5BBCCD2126BE7A5D8D46150E1338A43EA70DA5DE" },
+        { "Name": "licenses\\dragonbox-Boost.txt", "Size": 1361, "Sha256": "BEB8E42E9D6B4284E03304D05A81A0755200A965FC8D0A5E0AEA1E84CF805D6E" },
+        { "Name": "licenses\\fast_float.txt", "Size": 1106, "Sha256": "BF1B57355FECA8FCE77EE95F48002F8D4789FB71B30EC7599C06CDA4901FBB2B" },
+        { "Name": "licenses\\freetype.txt", "Size": 6741, "Sha256": "F4B133E25DF1F86AD3FFEA453AA0E613F0474F34778DBBB3E437E7B2724937D8" },
+        { "Name": "licenses\\harfbuzz.txt", "Size": 2013, "Sha256": "BD836C0DDCA8EA0BAB54A03CD32B6FF7256CBB3840FCA2EDC1249A4ED92C5B02" },
+        { "Name": "licenses\\highway.txt", "Size": 11357, "Sha256": "C71D239DF91726FC519C6EB72D318EC65820627232B2F796219E87DCF35D0AB4" },
+        { "Name": "licenses\\icu.txt", "Size": 28286, "Sha256": "93679F4389D53B6835D89843F251844FB9BC455B35BAB036D3C8E7ABE497A47A" },
+        { "Name": "licenses\\lcms.txt", "Size": 1353, "Sha256": "7312B68C5B25E9BF2B828706FB4E29588F22705112F411FD42E1F7D84C3D139A" },
+        { "Name": "licenses\\libjpeg_turbo.ijg", "Size": 13059, "Sha256": "DB16A04128171879C60708D171B88D97345A2DD20F9BFC173680A4497C73F704" },
+        { "Name": "licenses\\libjpeg_turbo.md", "Size": 5755, "Sha256": "BE2B2B5AB168BCE87BC3E31F2A5C5ADBA4B7F6E9E51D618E958D1D46972EBD95" },
+        { "Name": "licenses\\libopenjpeg.txt", "Size": 1794, "Sha256": "C5AB0890A737C2DFA7BA675036554F6D17741D98629B0C2A145354D00617E6B2" },
+        { "Name": "licenses\\libpng.txt", "Size": 5479, "Sha256": "452390433BA0F88AA3E2B122C647741B72A0C117CD6ED7A329B49785AECB5511" },
+        { "Name": "licenses\\llvm-libc.txt", "Size": 15418, "Sha256": "3B6226C32E168C83B891D8D6F0D3C29C2116DC3EF93DC93C307B54F279ECF383" },
+        { "Name": "licenses\\pdfium.txt", "Size": 12818, "Sha256": "961EACD9633FFF6D051DB7208B755E9210E30EFAC7ADEC3E6A6D52798F0CCF0E" },
+        { "Name": "licenses\\simdutf.txt", "Size": 1077, "Sha256": "C172A0BA936FF31230FEBB5DAD869E25CB7C1A07480C7A381BE8CF011BB52719" },
+        { "Name": "licenses\\zlib.txt", "Size": 1332, "Sha256": "33FD641C9F3B0E0BE64BC78FEA9E94807674CDD70C48477599226CB8956565FE" }
+      ]
+    }
+  ]
+}

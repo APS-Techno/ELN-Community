@@ -1060,6 +1060,23 @@ def icon_reload_draft(pal):
     return finalize(img, pal)
 
 
+def icon_semantic_search(pal):
+    """Magnifying glass with a linked node graph inside the lens."""
+    img = make_canvas()
+    img = gfill_ellipse(img, [S(5), S(5), S(29), S(29)], pal, 'body')
+    d = ImageDraw.Draw(img)
+    d.ellipse([S(5), S(5), S(29), S(29)], outline=_c(pal['OUTLINE']), width=LW)
+    d.line([(S(26), S(26)), (S(36), S(36))], fill=_c(pal['OUTLINE']), width=S(3))
+    a, b, c = (S(12), S(20)), (S(20), S(11)), (S(23), S(21))
+    d.line([a, b], fill=_c(pal['DETAIL']), width=LW_THIN)
+    d.line([b, c], fill=_c(pal['DETAIL']), width=LW_THIN)
+    d.line([a, c], fill=_c(pal['DETAIL']), width=LW_THIN)
+    for (x, y), r in ((a, S(2.6)), (b, S(2.6)), (c, S(3.2))):
+        d.ellipse([x - r, y - r, x + r, y + r], fill=_c(pal['ACCENT']),
+                  outline=_c(pal['OUTLINE']), width=1)
+    return finalize(img, pal)
+
+
 
 ICONS = {
     'Import':             icon_import,
@@ -1119,6 +1136,7 @@ ICONS = {
     'Web Devices':        icon_web_devices,
     'Save Draft':         icon_save_draft,
     'Reload Draft':       icon_reload_draft,
+    'Semantic Search':    icon_semantic_search,
 }
 
 

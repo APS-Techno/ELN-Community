@@ -30,7 +30,7 @@ package ELNNoteViewer;
 requires
   rtl,
   vcl,
-  TMSVCLPluginFrameworkPkgCoreDXE16,
+  TMSVCLPluginFrameworkPkgCore,
   vclimg,
   vclwinx,
   RaizeComponentsVcl,

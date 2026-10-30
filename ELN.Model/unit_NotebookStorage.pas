@@ -59,6 +59,12 @@ type
       out Names: TArray<string>): Boolean;
   end;
 
+  INotebookStorageStamp = interface
+    ['{4E8B2F61-7C35-4D9A-A1B0-6F3D52C9E847}']
+    function TryGetFileStamp(const RelativePath: string;
+      out Size, LastWrite: Int64): Boolean;
+  end;
+
 implementation
 
 end.

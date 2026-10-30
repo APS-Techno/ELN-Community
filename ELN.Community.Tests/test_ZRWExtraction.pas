@@ -247,7 +247,7 @@ begin
     Assert.AreEqual<Double>(0.05, Snapshot.GetValue<Double>('window'));
     Assert.AreEqual<Double>(0.5, Snapshot.GetValue<Double>('truncation'));
     Assert.AreEqual<Double>(0.1, Snapshot.GetValue<Double>('local_window'));
-    Assert.AreEqual(18, Snapshot.Count, 'Automatic snapshot key list');
+    Assert.AreEqual<NativeInt>(18, Snapshot.Count, 'Automatic snapshot key list');
     Assert.AreEqual('COF', Snapshot.GetValue<string>('key_name'));
     Assert.AreEqual<Int64>(17, Snapshot.GetValue<Int64>('file_id'));
     Assert.AreEqual(FHash, Snapshot.GetValue<string>('file_hash'));
@@ -279,7 +279,7 @@ begin
     Assert.AreEqual('manual', Snapshot.GetValue<string>('mode'));
     Assert.AreEqual(1, Snapshot.GetValue<Integer>('schema_version'));
     Assert.IsNull(Snapshot.FindValue('band'));
-    Assert.AreEqual(14, Snapshot.Count, 'Manual snapshot key list');
+    Assert.AreEqual<NativeInt>(14, Snapshot.Count, 'Manual snapshot key list');
     Assert.AreEqual<Double>(20, Snapshot.GetValue<Double>('start'));
     Assert.AreEqual<Double>(60, Snapshot.GetValue<Double>('end'));
     Assert.IsFalse(Snapshot.GetValue<Boolean>('through_end'));

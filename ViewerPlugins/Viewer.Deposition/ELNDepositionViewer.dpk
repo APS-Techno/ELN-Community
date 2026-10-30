@@ -30,7 +30,7 @@ package ELNDepositionViewer;
 requires
   rtl,
   vcl,
-  TMSVCLPluginFrameworkPkgCoreDXE16,
+  TMSVCLPluginFrameworkPkgCore,
   ELNPluginCore,
   vclimg,
   vclwinx,

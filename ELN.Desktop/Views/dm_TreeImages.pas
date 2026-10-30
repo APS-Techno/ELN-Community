@@ -45,6 +45,7 @@ type
     procedure ScaleForDPI(APPI: Integer);
     procedure LoadGlyph(ABitmap: TBitmap; const AResName: string; ASize: Integer);
     class function DetectIconTheme: TIconTheme; static;
+    function FileIconName(const AFileName: string): string;
     property CurrentTheme: TIconTheme read FCurrentTheme;
   end;
 
@@ -58,7 +59,7 @@ implementation
 {$R *.dfm}
 
 uses
-  unit_TreeAppearance;
+  System.StrUtils, unit_TreeAppearance;
 
 const
   CItemToolbarOrder: array[0..12] of string = (
@@ -83,7 +84,7 @@ const
     'Project', 'Folder'
   );
 
-  CMenuOrder: array[0..68] of string = (
+  CMenuOrder: array[0..69] of string = (
     'Export', 'Import', 'Logout', 'Exit', 'Dashboard', 'Copy',
     'Add File', 'Add Folder', 'Edit', 'Delete Document',
     'Arrow Up', 'Down Right', 'Refresh', 'Duplicate',
@@ -100,7 +101,7 @@ const
     'Regen Previews', 'Favorite', 'New Item', 'DB Maintenance',
     'Extract Values', 'Audit Rules', 'Data Completeness',
     'Link Types', 'Go To', 'Show IDs', 'Web Devices',
-    'Save Draft', 'Reload Draft'
+    'Save Draft', 'Reload Draft', 'Semantic Search'
   );
 
   CFileTypeOrder: array[0..31] of string = (
@@ -111,6 +112,48 @@ const
     'XRFX', 'VK4', 'MD', 'DEPO', 'RCPX'
   );
 
+  CExtToIcon: array[0..38] of record Ext, Icon: string end = (
+    (Ext: '.pdf';   Icon: 'PDF'),
+    (Ext: '.xlsx';  Icon: 'XLSX'),
+    (Ext: '.csv';   Icon: 'CSV'),
+    (Ext: '.dat';   Icon: 'DAT'),
+    (Ext: '.ascii'; Icon: 'ASCII'),
+    (Ext: '.log';   Icon: 'LOG'),
+    (Ext: '.process.log'; Icon: 'LOG'),
+    (Ext: '.tiff';  Icon: 'TIFF'),
+    (Ext: '.tif';   Icon: 'TIFF'),
+    (Ext: '.opju';  Icon: 'OPJU'),
+    (Ext: '.xrcx';  Icon: 'XRCX'),
+    (Ext: '.xrdml'; Icon: 'XRDML'),
+    (Ext: '.rp4';   Icon: 'RP4'),
+    (Ext: '.dsc';   Icon: 'DSC'),
+    (Ext: '.rcpx';  Icon: 'RCPX'),
+    (Ext: '.fibps'; Icon: 'FIBPS'),
+    (Ext: '.zrw';   Icon: 'ZRW'),
+    (Ext: '.zrv';   Icon: 'ZRW'),
+    (Ext: '.mit';   Icon: 'MIT'),
+    (Ext: '.lmpin'; Icon: 'LMPIN'),
+    (Ext: '.dump';  Icon: 'DUMP'),
+    (Ext: '.data';  Icon: 'DUMP'),
+    (Ext: '.lammps';Icon: 'DUMP'),
+    (Ext: '.docx';  Icon: 'DOCX'),
+    (Ext: '.pptx';  Icon: 'PPTX'),
+    (Ext: '.png';   Icon: 'PNG'),
+    (Ext: '.bmp';   Icon: 'BMP'),
+    (Ext: '.jpg';   Icon: 'JPG'),
+    (Ext: '.jpeg';  Icon: 'JPG'),
+    (Ext: '.txt';   Icon: 'TXT'),
+    (Ext: '.dm3';   Icon: 'DM3'),
+    (Ext: '.dsr';   Icon: 'DSR'),
+    (Ext: '.html';  Icon: 'HTML'),
+    (Ext: '.htm';   Icon: 'HTML'),
+    (Ext: '.xrfx';  Icon: 'XRFX'),
+    (Ext: '.vk4';   Icon: 'VK4'),
+    (Ext: '.md';    Icon: 'MD'),
+    (Ext: '.tsv';   Icon: 'DEPO'),
+    (Ext: '.json';  Icon: 'DEPO')
+  );
+
 
 const
   CIconResFile = 'Icons\ELNIcons.dll';
@@ -118,6 +161,22 @@ const
 function SanitizeName(const AName: string): string;
 begin
   Result := UpperCase(StringReplace(AName, ' ', '_', [rfReplaceAll]));
+end;
+
+function TdmTreeImages.FileIconName(const AFileName: string): string;
+var
+  Name: string;
+  I, Best: Integer;
+begin
+  Result := 'Generic';
+  Name := ExtractFileName(AFileName);
+  Best := 0;
+  for I := Low(CExtToIcon) to High(CExtToIcon) do
+    if (Length(CExtToIcon[I].Ext) > Best) and EndsText(CExtToIcon[I].Ext, Name) then
+    begin
+      Best := Length(CExtToIcon[I].Ext);
+      Result := CExtToIcon[I].Icon;
+    end;
 end;
 
 

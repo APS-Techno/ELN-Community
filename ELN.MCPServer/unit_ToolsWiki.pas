@@ -447,6 +447,31 @@ begin
   end;
 end;
 
+function FindWikiMarkdown(const Context: TToolContext; Item: TItem): TFile;
+var
+  F, FirstCandidate: TFile;
+  Project: TProject;
+begin
+  Project := Context.Manager.Find<TProject>(Item.ProjectID);
+  FirstCandidate := nil;
+  for F in Item.Files do
+    if Assigned(F.FileType) and SameText(F.FileType.Ext, '.md') then
+    begin
+      if Context.Storage.Exists(AttachmentRelativePath(Project.FileFolder,
+        Item.FolderName, F.FullName)) then
+        Exit(F);
+      if FirstCandidate = nil then
+        FirstCandidate := F;
+    end;
+  if Assigned(FirstCandidate) then
+    raise Exception.CreateFmt('Item %d has .md file %d, but its bytes are ' +
+      'missing from storage. Run check_storage or repair_files.',
+      [Item.Id, FirstCandidate.Id]);
+  raise Exception.CreateFmt(
+    'Item %d has no .md file — not a wiki page. Use list_files(%d) to ' +
+    'inspect attachments.', [Item.Id, Item.Id]);
+end;
+
 function HandleWikiUpdatePage(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
@@ -457,7 +482,6 @@ var
   Item: TItem;
   Project: TProject;
   MdFile: TFile;
-  F: TFile;
   TempPath, RemotePath, Hash: string;
 begin
   ItemId := GetReqInt(Params, 'item_id');
@@ -488,17 +512,7 @@ begin
 
   if HasBody then
   begin
-    MdFile := nil;
-    for F in Item.Files do
-      if Assigned(F.FileType) and SameText(F.FileType.Ext, '.md') then
-      begin
-        MdFile := F;
-        Break;
-      end;
-    if not Assigned(MdFile) then
-      raise Exception.Create(
-        'Item has no .md file — this does not look like a wiki page created by ' +
-        'wiki_create_page. Aborting to avoid creating a second markdown file.');
+    MdFile := FindWikiMarkdown(Context, Item);
 
     // Name the temp file from safe data only. MdFile.Title comes from the DB
     // (settable via upload_file/rename), so a title containing '\..\' could
@@ -571,17 +585,7 @@ begin
     raise Exception.CreateFmt('Project %d not found for item %d.',
       [Item.ProjectID, ItemId]);
 
-  MdFile := nil;
-  for F in Item.Files do
-    if Assigned(F.FileType) and SameText(F.FileType.Ext, '.md') then
-    begin
-      MdFile := F;
-      Break;
-    end;
-  if not Assigned(MdFile) then
-    raise Exception.CreateFmt(
-      'Item %d has no .md file — not a wiki page. Use list_files(%d) to ' +
-      'inspect attachments.', [ItemId, ItemId]);
+  MdFile := FindWikiMarkdown(Context, Item);
 
   RemotePath := Format('Projects/%s/%s/%s', [
     CleanFileName(Project.FileFolder),

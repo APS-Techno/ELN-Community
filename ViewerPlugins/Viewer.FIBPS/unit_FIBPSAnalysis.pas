@@ -8,7 +8,7 @@ uses
 const
   FIBPSReaderId = 'aps.fibps';
   FIBPSReaderVersion = '3';
-  FIBPSAlgorithmVersion = '1';
+  FIBPSAlgorithmVersion = '2';
   FIBPSSchemaVersion = 1;
   FIBPSKeyStep = 'Step Height';
   FIBPSKeyStepStd = 'Step Height STD';

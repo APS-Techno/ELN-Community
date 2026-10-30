@@ -11,7 +11,9 @@ uses
   Aurelius.Engine.ObjectManager,
   unit_LocalNotebook, unit_LocalNotebookStorage,
   unit_MCPTools, unit_MCPTransport, unit_ToolCatalog, unit_PluginHost,
-  unit_User;
+  unit_User, unit_SearchArtifacts, unit_SemanticSearchService,
+  unit_SearchDocumentProvider, unit_CrossEncoder, unit_LocalSemanticSearch,
+  unit_SemanticSearchFilter;
 
 function OptionalPath(const Name: string): string;
 var
@@ -93,6 +95,8 @@ var
   Context: TToolContext;
   PrincipalId: Integer;
   UploadValidator: TLocalNotebookStorage;
+  Semantic: TSemanticSearchService;
+  Reranker: TCrossEncoderFactory;
 begin
   CheckOptions;
   NotebookPath := RequiredPath('notebook');
@@ -122,7 +126,18 @@ begin
     // The notebook keeps its own principal alive. Clearing the tool manager
     // must never invalidate Notebook.Principal or the desktop composition.
     Manager := TObjectManager.Create(Notebook.Connection);
+    Semantic := nil;
     try
+      if SearchArtifactsReady then
+      begin
+        Reranker := nil;
+        if CrossEncoderInstalled(SearchArtifactRoot) then
+          Reranker := CrossEncoderFactory(SearchArtifactRoot);
+        Semantic := TSemanticSearchService.Create(
+          ChangeFileExt(Notebook.DatabasePath, '') + '.search.sqlite',
+          E5EmbedderFactory(SearchArtifactRoot), Reranker,
+          TNotebookDocumentProvider.Create(Manager), SearchPdfiumLibraryPath);
+      end;
       Plugins := TPluginHost.Create(PluginsPath);
       try
         Context := Default(TToolContext);
@@ -131,6 +146,10 @@ begin
         Context.Storage := Notebook.Storage;
         Context.AccessPolicy := Notebook.AccessPolicy;
         Context.PluginHost := Plugins;
+        Context.SemanticIndex := Semantic;
+        if Semantic <> nil then
+          Context.SemanticSearch := TLocalSemanticSearch.Create(Semantic,
+            SemanticFilterResolver(Manager), ValueLimitDescriber(Manager));
         Context.UploadRoot := UploadPath;
         Context.User := Manager.Find<TUser>(PrincipalId);
         Registry := TToolRegistry.Create(Context);
@@ -150,11 +169,13 @@ begin
             end);
         finally
           Registry.Free;
+          Context.SemanticSearch := nil;
         end;
       finally
         Plugins.Free;
       end;
     finally
+      Semantic.Free;
       Manager.Free;
     end;
   finally

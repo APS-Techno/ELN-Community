@@ -11,7 +11,7 @@ type
   // Windows filesystem backend. Every notebook path is relative to FRoot;
   // junctions/symlinks and ambiguous Windows path aliases are refused.
   TLocalNotebookStorage = class(TInterfacedObject, INotebookStorage, IFileRelocator,
-    INotebookStorageInspection, INotebookStorageUpdates)
+    INotebookStorageInspection, INotebookStorageStamp, INotebookStorageUpdates)
   private
     FRoot: string;
     procedure RejectReparsePoints(const FullPath: string);
@@ -32,6 +32,8 @@ type
       out StatusCode: Integer; out ContentLength: Int64): Boolean;
     function ListCollection(const RelativePath: string;
       out Names: TArray<string>): Boolean;
+    function TryGetFileStamp(const RelativePath: string;
+      out Size, LastWrite: Int64): Boolean;
     function BeginFileUpdate(const RelativePath: string): INotebookFileUpdate;
   end;
 
@@ -643,6 +645,22 @@ begin
     raise EInOutError.Create('Notebook attachment path is a directory');
   ContentLength := (Int64(Data.nFileSizeHigh) shl 32) or Data.nFileSizeLow;
   StatusCode := 200;
+end;
+
+function TLocalNotebookStorage.TryGetFileStamp(const RelativePath: string;
+  out Size, LastWrite: Int64): Boolean;
+var
+  Data: TWin32FileAttributeData;
+begin
+  Size := 0;
+  LastWrite := 0;
+  Result := GetFileAttributesEx(PChar(ResolvePath(RelativePath)), GetFileExInfoStandard, @Data) and
+    ((Data.dwFileAttributes and FILE_ATTRIBUTE_DIRECTORY) = 0);
+  if Result then
+  begin
+    Size := (Int64(Data.nFileSizeHigh) shl 32) or Data.nFileSizeLow;
+    LastWrite := (Int64(Data.ftLastWriteTime.dwHighDateTime) shl 32) or Data.ftLastWriteTime.dwLowDateTime;
+  end;
 end;
 
 function TLocalNotebookStorage.ListCollection(const RelativePath: string;

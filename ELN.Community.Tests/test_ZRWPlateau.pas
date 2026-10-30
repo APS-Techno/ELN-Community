@@ -111,7 +111,7 @@ begin
   ExpectFound(Curve, 10, 1000, True);
   DetectPlateau(Curve, I);
   St := IntervalStats(Curve, I);
-  Assert.AreEqual(991, St.Count);
+  Assert.AreEqual<NativeInt>(991, St.Count);
   Assert.AreEqual(0.1, St.Mean, 1e-12);
   Assert.AreEqual(0.0, St.PopulationStd, 1e-12);
 end;
@@ -163,7 +163,7 @@ begin
   DetectPlateau(Curve, I);
   St := IntervalStats(Curve, I);
   P := 40 / 1001;
-  Assert.AreEqual(1001, St.Count);
+  Assert.AreEqual<NativeInt>(1001, St.Count);
   Assert.AreEqual(104.1 / 1001, St.Mean, 1e-12);
   Assert.AreEqual(0.1 * Sqrt(P * (1 - P)), St.PopulationStd, 1e-12);
 end;
@@ -443,7 +443,7 @@ begin
     Assert.AreEqual<Double>(0.05, Obj.GetValue<Double>('window'));
     Assert.AreEqual<Double>(0.5, Obj.GetValue<Double>('truncation'));
     Assert.AreEqual<Double>(0.1, Obj.GetValue<Double>('local_window'));
-    Assert.AreEqual(19, Obj.Count, 'Selection key list');
+    Assert.AreEqual<NativeInt>(19, Obj.Count, 'Selection key list');
   finally
     Obj.Free;
   end;

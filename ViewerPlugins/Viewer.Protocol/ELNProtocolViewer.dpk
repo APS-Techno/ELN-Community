@@ -32,7 +32,7 @@ requires
   vcl,
   vclwinx,
   RaizeComponentsVcl,
-  TMSVCLPluginFrameworkPkgCoreDXE16,
+  TMSVCLPluginFrameworkPkgCore,
   ELNPluginCore,
   ELNProtocolCore;
 

@@ -1058,6 +1058,8 @@ begin
       FUserSortMode := TUserSortMode(Mode)
     else
       FUserSortMode := usmManual;
+    FShowArchived := Settings.LoadUIValue('ProjectTree', 'ShowArchived', 0) <> 0;
+    btnShowArchived.Down := FShowArchived;
   finally
     Settings.Free;
   end;
@@ -1716,6 +1718,12 @@ procedure TframeProjectTree.btnShowArchivedClick(Sender: TObject);
 begin
   FShowArchived := not FShowArchived;
   btnShowArchived.Down := FShowArchived;
+  var Settings := TNotebookSettings.Create;
+  try
+    Settings.SaveUIValue('ProjectTree', 'ShowArchived', Ord(FShowArchived));
+  finally
+    Settings.Free;
+  end;
   FillTree;
   RestoreLastSelection;
 end;

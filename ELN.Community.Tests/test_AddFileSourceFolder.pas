@@ -193,7 +193,7 @@ begin
       Items.OnPrepareFile := PrepareWorkingCopy;
 
       Assert.IsTrue(Items.UploadFiles(Files, FItem, Queue));
-      Assert.AreEqual(2, Length(Queue));
+      Assert.AreEqual<NativeInt>(2, Length(Queue));
       for Entry in Queue do
         Previews.ProcessItem(Entry);
 
@@ -204,7 +204,7 @@ begin
         string.Join(', ', Found));
       for I := 0 to High(Original) do
         Assert.AreEqual(Original[I], Found[I]);
-      Assert.AreEqual(0, Length(TDirectory.GetDirectories(FSource)));
+      Assert.AreEqual<NativeInt>(0, Length(TDirectory.GetDirectories(FSource)));
       for Entry in Queue do
         Assert.IsFalse(SameText(ExcludeTrailingPathDelimiter(
           ExtractFilePath(Entry.FilePath)), FSource),

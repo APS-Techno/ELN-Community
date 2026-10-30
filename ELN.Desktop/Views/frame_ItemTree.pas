@@ -2035,60 +2035,17 @@ begin
 end;
 
 procedure TframeItemTree.LoadFileIcons;
-const
-  CExtToIcon: array[0..38] of record Ext, Icon: string end = (
-    (Ext: '.pdf';   Icon: 'PDF'),
-    (Ext: '.xlsx';  Icon: 'XLSX'),
-    (Ext: '.csv';   Icon: 'CSV'),
-    (Ext: '.dat';   Icon: 'DAT'),
-    (Ext: '.ascii'; Icon: 'ASCII'),
-    (Ext: '.log';   Icon: 'LOG'),
-    (Ext: '.process.log'; Icon: 'LOG'),
-    (Ext: '.tiff';  Icon: 'TIFF'),
-    (Ext: '.tif';   Icon: 'TIFF'),
-    (Ext: '.opju';  Icon: 'OPJU'),
-    (Ext: '.xrcx';  Icon: 'XRCX'),
-    (Ext: '.xrdml'; Icon: 'XRDML'),
-    (Ext: '.rp4';   Icon: 'RP4'),
-    (Ext: '.dsc';   Icon: 'DSC'),
-    (Ext: '.rcpx';  Icon: 'RCPX'),
-    (Ext: '.fibps'; Icon: 'FIBPS'),
-    (Ext: '.zrw';   Icon: 'ZRW'),
-    (Ext: '.zrv';   Icon: 'ZRW'),
-    (Ext: '.mit';   Icon: 'MIT'),
-    (Ext: '.lmpin'; Icon: 'LMPIN'),
-    (Ext: '.dump';  Icon: 'DUMP'),
-    (Ext: '.data';  Icon: 'DUMP'),   
-    (Ext: '.lammps';Icon: 'DUMP'),   
-    (Ext: '.docx';  Icon: 'DOCX'),
-    (Ext: '.pptx';  Icon: 'PPTX'),
-    (Ext: '.png';   Icon: 'PNG'),
-    (Ext: '.bmp';   Icon: 'BMP'),
-    (Ext: '.jpg';   Icon: 'JPG'),
-    (Ext: '.jpeg';  Icon: 'JPG'),
-    (Ext: '.txt';   Icon: 'TXT'),
-    (Ext: '.dm3';   Icon: 'DM3'),
-    (Ext: '.dsr';   Icon: 'DSR'),
-    (Ext: '.html';  Icon: 'HTML'),
-    (Ext: '.htm';   Icon: 'HTML'),
-    (Ext: '.xrfx';  Icon: 'XRFX'),
-    (Ext: '.vk4';   Icon: 'VK4'),
-    (Ext: '.md';    Icon: 'MD'),
-    (Ext: '.tsv';   Icon: 'DEPO'),
-    (Ext: '.json';  Icon: 'DEPO')
-  );
 var
   FileTypes: TFileTypes;
   FileType: TFileType;
-  Ext, IconName: string;
-  I, IconIdx, GenericIdx: Integer;
+  Ext: string;
+  IconIdx: Integer;
   VIL: TVirtualImageList;
 begin
   FreeAndNil(FFileTypeIconIndex);
   FFileTypeIconIndex := TDictionary<Integer, Integer>.Create;
 
   VIL := dmTreeImages.vilFileTypeImages;
-  GenericIdx := VIL.GetIndexByName('Generic');
 
   FileTypes := Model.FileTypes.GetFileTypes;
   for FileType in FileTypes do
@@ -2097,19 +2054,7 @@ begin
     if (Ext <> '') and (Ext[1] <> '.') then
       Ext := '.' + Ext;
 
-    IconName := '';
-    for I := Low(CExtToIcon) to High(CExtToIcon) do
-      if SameText(Ext, CExtToIcon[I].Ext) then
-      begin
-        IconName := CExtToIcon[I].Icon;
-        Break;
-      end;
-
-    if IconName <> '' then
-      IconIdx := VIL.GetIndexByName(IconName)
-    else
-      IconIdx := GenericIdx;
-
+    IconIdx := VIL.GetIndexByName(dmTreeImages.FileIconName('file' + Ext));
     if IconIdx >= 0 then
       FFileTypeIconIndex.Add(FileType.Id, IconIdx);
   end;

@@ -121,7 +121,7 @@ var
 begin
   A := LoadZRWFile(WriteArchive('a.zrw', Body(['0'#9'0.10', '1'#9'0.20', '2'#9'0.30'])));
   B := LoadZRWFile(WriteArchive('a.zrv', Body(['0'#9'0.10', '1'#9'0.20', '2'#9'0.30'])));
-  Assert.AreEqual(3, Length(A.Samples));
+  Assert.AreEqual<NativeInt>(3, Length(A.Samples));
   Assert.AreEqual(Length(A.Samples), Length(B.Samples));
   for I := 0 to High(A.Samples) do
   begin
@@ -148,7 +148,7 @@ var
   C: TZRWCurve;
 begin
   C := ParseZRWData(Bytes(Body(['0.5'#9'0.125', '1.5'#9'-0.25'])));
-  Assert.AreEqual(2, Length(C.Samples));
+  Assert.AreEqual<NativeInt>(2, Length(C.Samples));
   Assert.AreEqual(0.5, C.Samples[0].Cycle, 0.0);
   Assert.AreEqual(0.125, C.Samples[0].COF, 0.0);
   Assert.AreEqual(1.5, C.Samples[1].Cycle, 0.0);
@@ -193,7 +193,7 @@ begin
   C := ParseZRWData(Bytes('Cycles'#9'COF'#13#10' '#9' '#13#10#13#10 +
     'Stroke:'#9'5'#9'Speed:'#9'5'#13#10'Cycles:'#9'50000'#9'Pause:'#9'50'#13#10 +
     'Sampling rate:'#9#13#10'50.8900'#9'0.1190'#13#10'4.988E0004'#9'0.1353'#13#10));
-  Assert.AreEqual(2, Length(C.Samples));
+  Assert.AreEqual<NativeInt>(2, Length(C.Samples));
   Assert.AreEqual(49880.0, C.Samples[1].Cycle, 0.0);
   Assert.AreEqual('', C.Header.SamplingRate);
   Assert.AreEqual('50000', C.Header.Cycles);
@@ -219,7 +219,7 @@ var
   C: TZRWCurve;
 begin
   C := ParseZRWData(Bytes(Body(['1'#9'0.1', '1'#9'0.2', '1'#9'0.3', '2'#9'0.4'])));
-  Assert.AreEqual(4, Length(C.Samples));
+  Assert.AreEqual<NativeInt>(4, Length(C.Samples));
   Assert.AreEqual(0.2, C.Samples[1].COF, 0.0);
   Assert.AreEqual(0.3, C.Samples[2].COF, 0.0);
 end;
@@ -269,7 +269,7 @@ var
 begin
   C := ParseZRWData(Bytes(NewHeaderText + '1.0000'#9'0.8475'#13#10 +
     '2.0000'#9'0.7000'#13#10));
-  Assert.AreEqual(2, Length(C.Samples));
+  Assert.AreEqual<NativeInt>(2, Length(C.Samples));
   Assert.AreEqual(0.8475, C.Samples[0].COF, 0.0);
 end;
 

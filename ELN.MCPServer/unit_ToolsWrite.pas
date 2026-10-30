@@ -4,7 +4,10 @@ interface
 
 uses
   System.JSON,
-  unit_MCPTools;
+  unit_MCPTools, unit_ValueSource;
+
+const
+  MAX_VALUE_BATCH = 200;
 
 procedure RegisterWriteTools(Registry: TToolRegistry);
 
@@ -17,11 +20,19 @@ function GetOptInt(const Params: TJSONObject; const Key: string;
   out Value: Integer): Boolean;
 function GetOptInt64(const Params: TJSONObject; const Key: string;
   out Value: Int64): Boolean;
+function GetOptNum(const Params: TJSONObject; const Key: string;
+  out Value: Double): Boolean;
+function GetOptBool(const Params: TJSONObject; const Key: string;
+  ADefault: Boolean): Boolean;
 procedure CheckUploadPathAllowed(const Context: TToolContext;
   const FilePath: string);
+procedure CheckDownloadPathAllowed(const Context: TToolContext;
+  const DestPath: string);
 procedure CheckProjectWriteAccess(const Context: TToolContext; ProjectId: Integer);
 procedure RequireWriteUser(const Context: TToolContext);
 function ComputeFileMD5(const FilePath: string): string;
+procedure CheckAnalysisSnapshot(const Context: TToolContext;
+  const Source: TValueSourceInfo; const Snapshot: string);
 
 function HandleCreateProject(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -88,7 +99,7 @@ uses
   unit_MCPDiag,
   unit_ToolHelpers, unit_ToolDownloads, unit_AnalysisSettingsModel,
   unit_Hypothesis, unit_HypothesisGuard, unit_HypothesisEvidence,
-  unit_ValueSource, unit_ValueChecks,
+  unit_ValueChecks,
   unit_DerivedFormulas, unit_DerivedValueModel;
 
 
@@ -175,31 +186,26 @@ begin
 end;
 
 
-procedure CheckUploadPathAllowed(const Context: TToolContext;
-  const FilePath: string);
+procedure CheckPathUnderRoot(const Root, Path, ParamName, RootName: string);
 var
   NormRoot, NormFile, Current, Parent, Component: string;
   Attributes, ErrorCode: DWORD;
 begin
-  if Context.UploadRoot = '' then
-    raise Exception.Create(
-      'upload_file is disabled on this server. Configure an allowed upload ' +
-      'directory before using this tool.');
-
-  NormRoot := IncludeTrailingPathDelimiter(
-    TPath.GetFullPath(Context.UploadRoot));
-  NormFile := TPath.GetFullPath(FilePath);
+  NormRoot := IncludeTrailingPathDelimiter(TPath.GetFullPath(Root));
+  NormFile := TPath.GetFullPath(Path);
 
   if not StartsText(NormRoot, NormFile) then
-    raise Exception.Create(
-      'file_path is outside the allowed upload root.');
+    raise Exception.CreateFmt('%s is outside the allowed %s.',
+      [ParamName, RootName]);
   // Refuse Windows aliases and alternate data streams before opening bytes.
   if (Pos(':', Copy(NormFile, 3, MaxInt)) > 0) or
-    StartsText('\\?\', FilePath) or StartsText('\\.\', FilePath) then
-    raise Exception.Create('file_path uses an unsupported Windows path alias.');
+    StartsText('\\?\', Path) or StartsText('\\.\', Path) then
+    raise Exception.CreateFmt('%s uses an unsupported Windows path alias.',
+      [ParamName]);
   for Component in Copy(NormFile, 4, MaxInt).Replace('/', '\').Split(['\']) do
     if (Component <> '') and CharInSet(Component[Length(Component)], [' ', '.']) then
-      raise Exception.Create('file_path uses an ambiguous Windows path component.');
+      raise Exception.CreateFmt('%s uses an ambiguous Windows path component.',
+        [ParamName]);
   // Prefix checks alone do not confine junctions or symbolic links.
   Current := NormFile;
   while Current <> '' do
@@ -208,7 +214,8 @@ begin
     if Attributes <> INVALID_FILE_ATTRIBUTES then
     begin
       if (Attributes and FILE_ATTRIBUTE_REPARSE_POINT) <> 0 then
-        raise Exception.Create('file_path cannot traverse a reparse point.');
+        raise Exception.CreateFmt('%s cannot traverse a reparse point.',
+          [ParamName]);
     end
     else
     begin
@@ -221,6 +228,26 @@ begin
       Break;
     Current := Parent;
   end;
+end;
+
+procedure CheckUploadPathAllowed(const Context: TToolContext;
+  const FilePath: string);
+begin
+  if Context.UploadRoot = '' then
+    raise Exception.Create(
+      'upload_file is disabled on this server. Configure an allowed upload ' +
+      'directory before using this tool.');
+  CheckPathUnderRoot(Context.UploadRoot, FilePath, 'file_path', 'upload root');
+end;
+
+procedure CheckDownloadPathAllowed(const Context: TToolContext;
+  const DestPath: string);
+begin
+  if Context.UploadRoot = '' then
+    raise Exception.Create(
+      'download_file is disabled on this server. Configure an allowed upload ' +
+      'directory before using this tool.');
+  CheckPathUnderRoot(Context.UploadRoot, DestPath, 'dest_path', 'upload root');
 end;
 
 
@@ -520,6 +547,11 @@ begin
     if IsItemSignedCheck(Context.Manager, ParentId) then
       raise Exception.Create('Parent item is signed and cannot be modified.');
   end;
+  if HasParent and (ParentId < 0) then
+    raise Exception.Create('parent_id must be 0 or a positive item id.');
+  if (ILevel = TItemLevel.Proc) and HasParent and (ParentId > 0) then
+    raise Exception.Create('A Proc cannot have a parent. Use level Action or ' +
+      'Item, or create the Proc at the folder root.');
 
   Item := TItem.Create;
   Item.Title := Title;
@@ -641,21 +673,25 @@ end;
 function HandleUpdateItem(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
-  ItemId: Integer;
-  NewTitle, NewDescription, NewProperties: string;
-  HasTitle, HasDesc, HasProps, Changed: Boolean;
+  ItemId, HypId: Integer;
+  HypStatus: THypothesisStatus;
+  NewTitle, NewDescription, NewProperties, LevelStr: string;
+  HasTitle, HasDesc, HasProps, HasLevel, Changed, LevelChanged: Boolean;
+  NewLevel, OldLevel: TItemLevel;
   Item: TItem;
   Items: TItemModel;
   Relocator: IFileRelocator;
+  AuditTexts: TArray<string>;
 begin
   ItemId := GetReqInt(Params, 'item_id');
   HasTitle := GetOptStr(Params, 'title', NewTitle);
   HasDesc := GetOptStr(Params, 'description', NewDescription);
   HasProps := GetOptStr(Params, 'properties', NewProperties);
+  HasLevel := GetOptStr(Params, 'level', LevelStr);
 
-  if (not HasTitle) and (not HasDesc) and (not HasProps) then
+  if (not HasTitle) and (not HasDesc) and (not HasProps) and (not HasLevel) then
     raise Exception.Create(
-      'At least one of title, description, or properties is required.');
+      'At least one of title, description, properties, or level is required.');
 
   if HasTitle then
     CheckMaxLen(NewTitle, 'title', MAX_TITLE_LEN);
@@ -669,6 +705,7 @@ begin
   Item := Context.Manager.Find<TItem>(ItemId);
   if not Assigned(Item) then
     raise Exception.CreateFmt('Item not found: %d', [ItemId]);
+  Context.Manager.Refresh(Item);
   if Item.IsDeleted then
     raise Exception.CreateFmt('Item %d is deleted.', [ItemId]);
 
@@ -676,6 +713,31 @@ begin
 
   if IsItemSignedCheck(Context.Manager, ItemId) then
     raise Exception.Create('Item is signed and cannot be modified.');
+
+  OldLevel := Item.Level;
+  LevelChanged := False;
+  if HasLevel then
+  begin
+    if not StrToItemLevel(LevelStr, NewLevel) then
+      raise Exception.CreateFmt('Invalid level: %s', [LevelStr]);
+    LevelChanged := NewLevel <> OldLevel;
+    if LevelChanged then
+    begin
+      if NewLevel = TItemLevel.Folder then
+        raise Exception.Create('Level Folder cannot be set with update_item.');
+      if OldLevel = TItemLevel.Folder then
+        raise Exception.CreateFmt(
+          'Item %d is a Folder-level item; its level cannot be changed.', [ItemId]);
+      if (NewLevel = TItemLevel.Proc) and (Item.Parent <> 0) then
+        raise Exception.CreateFmt(
+          'A Proc cannot have a parent; item %d is under item %d.',
+          [ItemId, Item.Parent]);
+      if IsItemCitedByLockedHypothesis(Context.Manager, ItemId, HypId, HypStatus) then
+        raise Exception.CreateFmt(
+          'Item %d is a run of, or is cited by, hypothesis %d (%s); its level cannot be changed.',
+          [ItemId, HypId, HypothesisStatusNames[HypStatus]]);
+    end;
+  end;
 
   Changed := False;
   if HasTitle and (Item.Title <> NewTitle) then
@@ -694,7 +756,7 @@ begin
     Item.Properties := NewProperties;
   end;
 
-  if not Changed then
+  if (not Changed) and (not LevelChanged) then
   begin
     // No-op: preserve ModifiedDate and do not write an audit row.
     Result := TJSONObject.Create;
@@ -703,6 +765,7 @@ begin
     Result.AddPair('title', Item.Title);
     Result.AddPair('description', Item.Description);
     Result.AddPair('properties', Item.Properties);
+    Result.AddPair('level', ItemLevelToStr(Item.Level));
     if Item.ModifiedDate.HasValue then
       Result.AddPair('modified_date',
         TJSONString.Create(DateToISO8601(Item.ModifiedDate.Value, False)))
@@ -712,12 +775,22 @@ begin
     Exit;
   end;
 
+  AuditTexts := nil;
+  if Changed then
+    AuditTexts := AuditTexts + ['Updated item "' + Item.Title + '"'];
+  if LevelChanged then
+  begin
+    Item.Level := NewLevel;
+    AuditTexts := AuditTexts + [Format('MCP: Updated item level "%s": %s -> %s',
+      [Item.Title, ItemLevelToStr(OldLevel), ItemLevelToStr(NewLevel)])];
+  end;
+
   Relocator := nil;
   if Context.Storage <> nil then
     Relocator := TNotebookFileRelocator.Create(Context.Storage);
   Items := TItemModel.Create(Context.Manager);
   try
-    if not Items.UpdateItemDurable(Item, Context.User.Id, Relocator) then
+    if not Items.UpdateItemDurable(Item, Context.User.Id, Relocator, AuditTexts) then
       raise Exception.Create('Item update refused: signed or changed by another user.');
   finally
     Items.Free;
@@ -729,6 +802,7 @@ begin
   Result.AddPair('title', Item.Title);
   Result.AddPair('description', Item.Description);
   Result.AddPair('properties', Item.Properties);
+  Result.AddPair('level', ItemLevelToStr(Item.Level));
   Result.AddPair('modified_date',
     DateToISO8601(Item.ModifiedDate.Value, False));
   Result.AddPair('changed', TJSONBool.Create(True));
@@ -764,6 +838,12 @@ begin
   P.AddPair('description', 'New free-text properties/metadata (overwrites ' +
     'existing). Use empty string to clear.');
   Props.AddPair('properties', P);
+
+  P := TJSONObject.Create;
+  P.AddPair('type', 'string');
+  P.AddPair('description',
+    'New hierarchy level: Proc, Item, Action. Folder is refused.');
+  Props.AddPair('level', P);
 
   Result.AddPair('properties', Props);
   Req := TJSONArray.Create;
@@ -1155,7 +1235,6 @@ end;
 
 
 const
-  MAX_VALUE_BATCH = 200;
   MAX_ITEM_DEPTH = 1000;
 
 type
@@ -1170,30 +1249,6 @@ type
     AnalysisSnapshot: string;
     Issues: TValueIssues;
   end;
-
-function IssueCodesText(Issues: TValueIssues): string;
-var
-  Issue: TValueIssue;
-begin
-  Result := '';
-  for Issue := Low(TValueIssue) to High(TValueIssue) do
-    if Issue in Issues then
-    begin
-      if Result <> '' then
-        Result := Result + ', ';
-      Result := Result + IssueCode(Issue);
-    end;
-end;
-
-function IssueCodesJSON(Issues: TValueIssues): TJSONArray;
-var
-  Issue: TValueIssue;
-begin
-  Result := TJSONArray.Create;
-  for Issue := Low(TValueIssue) to High(TValueIssue) do
-    if Issue in Issues then
-      Result.Add(IssueCode(Issue));
-end;
 
 function ParseValueSource(const Params: TJSONObject): TValueSourceInfo;
 var
@@ -1253,13 +1308,7 @@ begin
     CheckMaxLen(Result.Description, 'description', MAX_DESC_LEN);
   Result.RecType := TEST_RESULT;
   if GetOptStr(Params, 'rec_type', RecTypeStr) then
-  begin
-    if SameText(RecTypeStr, 'EXP_CONDITION') then
-      Result.RecType := EXP_CONDITION
-    else if not SameText(RecTypeStr, 'TEST_RESULT') then
-      raise Exception.CreateFmt('Invalid rec_type: %s (use EXP_CONDITION or TEST_RESULT)',
-        [RecTypeStr]);
-  end;
+    Result.RecType := ParseRecType(RecTypeStr);
   Result.Source := ParseValueSource(Params);
   GetOptAnalysisSnapshot(Params, Result.AnalysisSnapshot);
 end;
@@ -1309,28 +1358,28 @@ begin
 end;
 
 procedure CheckAnalysisSnapshot(const Context: TToolContext;
-  const Entry: TValueEntry);
+  const Source: TValueSourceInfo; const Snapshot: string);
 var
   Parsed: TJSONValue;
   Field: TJSONValue;
   SnapshotFileId: Int64;
   SnapshotHash, LocalPath, CurrentHash: string;
 begin
-  if Entry.AnalysisSnapshot = '' then
+  if Snapshot = '' then
     Exit;
-  if (Entry.Source.Kind <> vskReader) or (Entry.Source.FileId <= 0) then
+  if (Source.Kind <> vskReader) or (Source.FileId <= 0) then
     raise Exception.Create('analysis_snapshot needs a Reader source with ' +
       'source_file_id.');
-  Parsed := TJSONObject.ParseJSONValue(Entry.AnalysisSnapshot);
+  Parsed := TJSONObject.ParseJSONValue(Snapshot);
   try
     if not (Parsed is TJSONObject) then
       raise Exception.Create('analysis_snapshot is not a JSON object.');
     Field := TJSONObject(Parsed).GetValue('file_id');
     if not (Field is TJSONNumber) or
       not TryStrToInt64(Field.Value, SnapshotFileId) or
-      (SnapshotFileId <> Entry.Source.FileId) then
+      (SnapshotFileId <> Source.FileId) then
       raise Exception.CreateFmt('analysis_snapshot file_id does not match ' +
-        'source_file_id %d.', [Entry.Source.FileId]);
+        'source_file_id %d.', [Source.FileId]);
     Field := TJSONObject(Parsed).GetValue('file_hash');
     if not (Field is TJSONString) or (Field is TJSONNumber) then
       raise Exception.Create('analysis_snapshot has no file_hash.');
@@ -1339,13 +1388,13 @@ begin
     Parsed.Free;
   end;
   try
-    TAnalysisSettingsModel.CompleteSnapshot(Entry.AnalysisSnapshot,
-      Entry.Source.ReaderId, Entry.Source.KeyName, Entry.Source.FileId, 0);
+    TAnalysisSettingsModel.CompleteSnapshot(Snapshot,
+      Source.ReaderId, Source.KeyName, Source.FileId, 0);
   except
     on E: EArgumentException do
       raise Exception.Create(E.Message);
   end;
-  LocalPath := DownloadFileToLocal(Context, Entry.Source.FileId);
+  LocalPath := DownloadFileToLocal(Context, Source.FileId);
   try
     CurrentHash := TAnalysisSettingsModel.ContentHash(LocalPath);
   finally
@@ -1353,7 +1402,7 @@ begin
   end;
   if not SameText(SnapshotHash, CurrentHash) then
     raise Exception.CreateFmt('analysis_snapshot file_hash does not match ' +
-      'the current content of file %d.', [Entry.Source.FileId]);
+      'the current content of file %d.', [Source.FileId]);
 end;
 
 procedure ValidateValueEntry(const Context: TToolContext;
@@ -1380,7 +1429,7 @@ begin
 
   if Entry.Source.FileId > 0 then
     CheckSourceFile(Context, Item, Entry.Source.FileId);
-  CheckAnalysisSnapshot(Context, Entry);
+  CheckAnalysisSnapshot(Context, Entry.Source, Entry.AnalysisSnapshot);
 
   Entry.Issues := CheckValue(VType, Entry.Value, Entry.Tolerance, Factor);
   if (Entry.Issues <> []) and not Confirm then
@@ -1390,29 +1439,6 @@ begin
       'as given, repeat the call with confirm_out_of_range: true.',
       [DescribeValueIssues(Entry.Issues, VType, Entry.Value, Entry.Tolerance,
         Factor), IssueCodesText(Entry.Issues), VType.Id, VType.Units]);
-end;
-
-function StoredValueJSON(Val: unit_Item.TValue;
-  Issues: TValueIssues): TJSONObject;
-begin
-  Result := TJSONObject.Create;
-  try
-    Result.AddPair('id', TJSONNumber.Create(Val.Id));
-    Result.AddPair('item_id', TJSONNumber.Create(Val.Item.Id));
-    Result.AddPair('value', SmartNum(Val.Value));
-    Result.AddPair('tolerance', SmartNum(Val.Tol));
-    if Assigned(Val.ValueType) then
-    begin
-      Result.AddPair('value_type', Val.ValueType.Title);
-      Result.AddPair('units', Val.ValueType.Units);
-    end;
-    Result.AddPair('source', ValueSourceJSON(Val));
-    if Issues <> [] then
-      Result.AddPair('confirmed_issues', IssueCodesJSON(Issues));
-  except
-    Result.Free;
-    raise;
-  end;
 end;
 
 // Entries must have passed ValidateValueEntry. All rows and their audit
@@ -3122,6 +3148,10 @@ begin
   if Item.IsDeleted then
     raise Exception.CreateFmt('Item %d is deleted.', [ItemId]);
   OldParentId := Item.Parent;
+  if (NewParentId <> 0) and (Item.Level = TItemLevel.Proc) then
+    raise Exception.CreateFmt(
+      'Item %d is a Proc; a Proc cannot have a parent. Change its level first.',
+      [ItemId]);
 
   ParentTitle := '(root)';
   if NewParentId <> 0 then
@@ -3254,16 +3284,20 @@ begin
   Registry.Register('create_item',
     'Create an item (experiment, specimen, action) in a project/folder. ' +
     'Requires write access. Types: Synthesis, Treatment, Measurement, Testing, ' +
-    'Characterization, Computing, Specimen, Model, Other. Levels: Proc, Item, Action, Folder.' +
+    'Characterization, Computing, Specimen, Model, Other. Levels: Proc, Item, Action, Folder. ' +
+    'A Proc is always a root item; use Action or Item for children.' +
     ' The response includes a `url` field — an eln://item/N (or ' +
     'eln://specimen/<title>) link that opens the item in the desktop ' +
     'ELN client when clicked in a markdown-rendering chat client.',
     MakeCreateItemSchema, HandleCreateItem, tscProjectScoped);
 
   Registry.Register('update_item',
-    'Update editable fields of an item (title, description, properties). ' +
+    'Update editable fields of an item (title, description, properties, level). ' +
     'At least one field must be provided. Requires write access. Item must ' +
-    'not be signed. Use move_item for parent/folder/project changes.' +
+    'not be signed. Level may be Proc, Item or Action; Folder is refused, a ' +
+    'Proc cannot have a parent, and the level of an item that is a run of or ' +
+    'is cited by a hypothesis in review or accepted cannot change. Use ' +
+    'reparent_item for parent changes and move_item for folder/project changes.' +
     ' The response includes a `url` field — an eln://item/N (or ' +
     'eln://specimen/<title>) link that opens the item in the desktop ' +
     'ELN client when clicked in a markdown-rendering chat client.',
@@ -3396,7 +3430,8 @@ begin
     'Move an item (with its subtree) under another item in the same project ' +
     'and folder, or to the folder''s root with new_parent_id 0. Any level ' +
     'can be a parent except Folder, so chains nest to any depth (Action ' +
-    'under Action included). No files move. Requires write access; refused ' +
+    'under Action included). A Proc stays at the root: moving a Proc under ' +
+    'a parent is refused. No files move. Requires write access; refused ' +
     'when the item, its current parent or the new parent is signed. Use ' +
     'move_item for moves between projects or folders.' +
     ' The response includes a `url` field - an eln://item/N (or ' +

@@ -36,6 +36,12 @@ object frmCommunityMain: TfrmCommunityMain
       Width = 650
       Caption = 'No notebook open'
     end
+    object StatusVersion: TRzStatusPane
+      AlignWithMargins = True
+      Align = alRight
+      Width = 90
+      Caption = ''
+    end
     object StatusFile: TRzStatusPane
       AlignWithMargins = True
       Align = alClient
@@ -604,6 +610,12 @@ object frmCommunityMain: TfrmCommunityMain
         ImageName = 'Reload Draft'
         Tag = 31
         OnClick = CommandClick
+      end
+      object miSemanticSearch: TMenuItem
+        Caption = 'Semantic Search Setup...'
+        ImageIndex = 69
+        ImageName = 'Semantic Search'
+        OnClick = SemanticSearchClick
       end
       object miPreferences: TMenuItem
         Caption = 'Preferences...'

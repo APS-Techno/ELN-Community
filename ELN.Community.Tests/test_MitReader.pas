@@ -18,7 +18,10 @@ type
     H, E, S: Single;
   end;
 
-function MitBytes(const Specs: array of TMitSpec; Version: Byte = 20): TBytes;
+function MitBytes(const Specs: array of TMitSpec; Version: Byte = 20;
+  Contact: Integer = -1; const RecordClass: AnsiString = 'TSimpleIndentation';
+  Compliance: Single = 0): TBytes;
+function MitFixtureForce(Row, Contact: Integer): Single;
 function EvidenceSpecs: TArray<TMitSpec>;
 function ComputedSpecs: TArray<TMitSpec>;
 function EstimatedSpec: TMitSpec;
@@ -50,7 +53,7 @@ type
   public
     [Setup] procedure Setup;
     [TearDown] procedure TearDown;
-    [Test] procedure ReaderIdentityIsVersionTwo;
+    [Test] procedure ReaderIdentityIsVersionThree;
     [Test] procedure InstrumentFieldsGiveHardnessAndModulusOfTheRecords;
     [Test] procedure MaxForceIsThePeakForceOfTheRecordNotTheReferenceDouble;
     [Test] procedure EvidenceShapedRecordsGiveModulusNear127AndNotTheFallbackValue;
@@ -68,6 +71,11 @@ type
     [Test] procedure SharedSelectionOfAnotherFileHashIsStale;
     [Test] procedure ReloadingTheFileResetsTheContext;
     [Test] procedure OldFormatFileGivesNoValues;
+    [Test] procedure CurveStartsAtTheStoredContactRowWithoutTheTrailerRow;
+    [Test] procedure RecordWithoutAContactIndexHasNoCurve;
+    [Test] procedure StandardAndSimpleRecordsAreReadInFileOrder;
+    [Test] procedure SinusRecordUsesTheDataBlockAfterItsCycleTable;
+    [Test] procedure StoredFrameComplianceIsSubtractedFromDepth;
   end;
 
   [TestFixture]
@@ -129,15 +137,27 @@ begin
   Result := UpperCase(Hash.HashAsString);
 end;
 
-function MitBytes(const Specs: array of TMitSpec; Version: Byte): TBytes;
+function MitFixtureForce(Row, Contact: Integer): Single;
+begin
+  if Row <= Contact then
+    Result := 1E-5
+  else if Row <= 400 then
+    Result := 1E-5 + (Row - Contact) * 2E-6
+  else
+    Result := 1E-5 + (400 - Contact) * 2E-6 - (Row - 400) * 3E-6;
+end;
+
+function MitBytes(const Specs: array of TMitSpec; Version: Byte;
+  Contact: Integer; const RecordClass: AnsiString; Compliance: Single): TBytes;
 var
   Stream: TMemoryStream;
-  Header, Post: TBytes;
+  Header, Post, Padding: TBytes;
   Row: TMitDataRow;
   Spec: TMitSpec;
   I: Integer;
   N: Cardinal;
   S: Single;
+  B: Byte;
 
   procedure U32(V: Cardinal);
   begin
@@ -166,9 +186,20 @@ begin
     Stream.WriteBuffer(Header[0], Length(Header));
     for Spec in Specs do
     begin
-      LenString('TSimpleIndentation');
+      LenString(RecordClass);
       U32(0);
       LenString('synthetic');
+      if RecordClass = 'TSinusIndentation' then
+      begin
+        U32(501);
+        U32(0);
+        Row := Default(TMitDataRow);
+        Row[0] := 0.5;
+        Row[COL_TIME] := 0.5;
+        Stream.WriteBuffer(Row, SizeOf(Row));
+        SetLength(Padding, 3000);
+        Stream.WriteBuffer(Padding[0], Length(Padding));
+      end;
       LenString('TIndentorBerkovich');
       LenString('Diamond');
       LenString('s');
@@ -195,10 +226,13 @@ begin
       for I := 0 to 500 do
       begin
         Row[COL_TIME] := (I + 1) * 0.033;
-        if I < 250 then
-          Row[COL_PHASE] := 0
-        else
-          Row[COL_PHASE] := 1;
+        if Contact >= 0 then
+        begin
+          Row[COL_DISPLACEMENT] := 2E-6 + I * 1E-9;
+          Row[COL_FORCE] := MitFixtureForce(I, Contact);
+          if I = 500 then
+            Move(Contact, Row[COL_TIME], SizeOf(Contact));
+        end;
         Stream.WriteBuffer(Row, SizeOf(Row));
       end;
       SetLength(Post, 0);
@@ -218,6 +252,18 @@ begin
         PostSingle(400, Spec.M);
       end;
       Stream.WriteBuffer(Post[0], Length(Post));
+      if Compliance > 0 then
+      begin
+        LenString('9.0.19');
+        B := 0;
+        Stream.WriteBuffer(B, 1);
+        B := 1;
+        Stream.WriteBuffer(B, 1);
+        Stream.WriteBuffer(Compliance, 4);
+        U32(5);
+        U32(0);
+        U32(0);
+      end;
     end;
     SetLength(Result, Stream.Size);
     if Stream.Size > 0 then
@@ -380,13 +426,13 @@ begin
   Result := Sqrt(Result / (Length(Picks) - 1));
 end;
 
-procedure TMitReaderTests.ReaderIdentityIsVersionTwo;
+procedure TMitReaderTests.ReaderIdentityIsVersionThree;
 var
   Identity: IReaderIdentity;
 begin
   Assert.IsTrue(Supports(FPlugin, IReaderIdentity, Identity));
   Assert.AreEqual('aps.mit', Identity.GetReaderId);
-  Assert.AreEqual('2', Identity.GetReaderVersion);
+  Assert.AreEqual('3', Identity.GetReaderVersion);
 end;
 
 procedure TMitReaderTests.InstrumentFieldsGiveHardnessAndModulusOfTheRecords;
@@ -551,7 +597,7 @@ begin
   try
     Assert.AreEqual(1, Snapshot.GetValue<Integer>('schema_version'));
     Assert.AreEqual('aps.mit', Snapshot.GetValue<string>('reader_id'));
-    Assert.AreEqual('2', Snapshot.GetValue<string>('reader_version'));
+    Assert.AreEqual('3', Snapshot.GetValue<string>('reader_version'));
     Assert.AreEqual('1', Snapshot.GetValue<string>('algorithm_version'));
     Assert.AreEqual('Hardness', Snapshot.GetValue<string>('key_name'));
     Assert.AreEqual<Int64>(21, Snapshot.GetValue<Int64>('file_id'));
@@ -589,7 +635,7 @@ begin
   try
     Assert.AreEqual('indents', Snapshot.GetValue<string>('mode'));
     Checked := Snapshot.GetValue<TJSONArray>('checked');
-    Assert.AreEqual(3, Checked.Count);
+    Assert.AreEqual<NativeInt>(3, Checked.Count);
     Assert.AreEqual(1, (Checked.Items[0] as TJSONNumber).AsInt);
     Assert.AreEqual(3, (Checked.Items[1] as TJSONNumber).AsInt);
     Assert.AreEqual(5, (Checked.Items[2] as TJSONNumber).AsInt);
@@ -757,6 +803,137 @@ begin
   Assert.IsFalse(Find(Keys, 'Modulus', Unused));
 end;
 
+procedure TMitReaderTests.CurveStartsAtTheStoredContactRowWithoutTheTrailerRow;
+const
+  Contact = 120;
+var
+  Mit: TMitFile;
+  Rec: TMitRecord;
+  K: Integer;
+  Z0, F0: Single;
+begin
+  TFile.WriteAllBytes(FPath, MitBytes(EvidenceSpecs, 20, Contact));
+  Mit := TMitFile.Create;
+  try
+    Mit.ParseFromFile(FPath);
+    Rec := Mit.GetRecord(0);
+    Assert.AreEqual(Contact, Rec.ContactRow);
+    Assert.AreEqual<NativeInt>(500 - Contact, Length(Rec.Curve), 'Rows from contact up to the trailer');
+    Assert.AreEqual(400 - Contact, Rec.PeakIndex);
+    Z0 := 2E-6 + Contact * 1E-9;
+    F0 := MitFixtureForce(Contact, Contact);
+    for K := 0 to High(Rec.Curve) do
+    begin
+      Assert.AreEqual((Double(Single(2E-6 + (Contact + K) * 1E-9)) - Z0) * 1e9,
+        Rec.Curve[K].DepthNm, 1e-6);
+      Assert.AreEqual((Double(MitFixtureForce(Contact + K, Contact)) - F0) * 1e3,
+        Rec.Curve[K].ForceMN, 1e-9);
+    end;
+    Assert.AreEqual(0.0, Rec.Curve[0].DepthNm, 0.0);
+    Assert.AreEqual(0.0, Rec.Curve[0].ForceMN, 0.0);
+  finally
+    Mit.Free;
+  end;
+end;
+
+procedure TMitReaderTests.RecordWithoutAContactIndexHasNoCurve;
+var
+  Mit: TMitFile;
+begin
+  TFile.WriteAllBytes(FPath, MitBytes(EvidenceSpecs));
+  Mit := TMitFile.Create;
+  try
+    Mit.ParseFromFile(FPath);
+    Assert.AreEqual(-1, Mit.GetRecord(0).ContactRow);
+    Assert.IsFalse(Mit.GetRecord(0).HasCurve);
+    Assert.AreEqual(9, Mit.RecordCount);
+  finally
+    Mit.Free;
+  end;
+end;
+
+procedure TMitReaderTests.SinusRecordUsesTheDataBlockAfterItsCycleTable;
+const
+  Contact = 120;
+var
+  Mit: TMitFile;
+  I: Integer;
+begin
+  TFile.WriteAllBytes(FPath, MitBytes(EvidenceSpecs, 20, Contact, 'TSinusIndentation'));
+  Mit := TMitFile.Create;
+  try
+    Mit.ParseFromFile(FPath);
+    Assert.AreEqual(9, Mit.RecordCount);
+    for I := 0 to 8 do
+    begin
+      Assert.AreEqual(Contact, Mit.GetRecord(I).ContactRow, Format('Indent %d', [I + 1]));
+      Assert.AreEqual(EvH[I], Mit.Indent(I).H_GPa, 1e-4, Format('Indent %d', [I + 1]));
+    end;
+  finally
+    Mit.Free;
+  end;
+end;
+
+procedure TMitReaderTests.StandardAndSimpleRecordsAreReadInFileOrder;
+var
+  Specs, Standard: TArray<TMitSpec>;
+  Bytes, Tail: TBytes;
+  Mit: TMitFile;
+  I: Integer;
+begin
+  Specs := EvidenceSpecs;
+  Standard := Copy(Specs, 3, 3);
+  Bytes := MitBytes(Copy(Specs, 0, 3), 20);
+  Tail := MitBytes(Standard, 20, -1, 'TStandardIndentation');
+  Bytes := Bytes + Copy(Tail, 93, Length(Tail) - 93);
+  Tail := MitBytes(Copy(Specs, 6, 3), 20);
+  Bytes := Bytes + Copy(Tail, 93, Length(Tail) - 93);
+  TFile.WriteAllBytes(FPath, Bytes);
+  Mit := TMitFile.Create;
+  try
+    Mit.ParseFromFile(FPath);
+    Assert.AreEqual(9, Mit.RecordCount);
+    for I := 0 to 8 do
+      Assert.AreEqual(EvH[I], Mit.Indent(I).H_GPa, 1e-4, Format('Indent %d', [I + 1]));
+  finally
+    Mit.Free;
+  end;
+end;
+
+procedure TMitReaderTests.StoredFrameComplianceIsSubtractedFromDepth;
+const
+  Contact = 120;
+  Compliance: Single = 1E-7;
+var
+  Mit: TMitFile;
+  Rec: TMitRecord;
+  K: Integer;
+  Z0, F0: Single;
+  DF: Double;
+begin
+  TFile.WriteAllBytes(FPath, MitBytes(EvidenceSpecs, 20, Contact,
+    'TSimpleIndentation', Compliance));
+  Mit := TMitFile.Create;
+  try
+    Mit.ParseFromFile(FPath);
+    Rec := Mit.GetRecord(0);
+    Assert.AreEqual(Double(Compliance), Rec.FrameCompliance, 0.0);
+    Z0 := 2E-6 + Contact * 1E-9;
+    F0 := MitFixtureForce(Contact, Contact);
+    for K := 0 to High(Rec.Curve) do
+    begin
+      DF := Double(MitFixtureForce(Contact + K, Contact)) - F0;
+      Assert.AreEqual((Double(Single(2E-6 + (Contact + K) * 1E-9)) - Z0 -
+        Compliance * DF) * 1e9, Rec.Curve[K].DepthNm, 1e-6);
+    end;
+    Assert.IsTrue(Rec.Curve[Rec.PeakIndex].DepthNm <
+      (Double(Single(2E-6 + 400 * 1E-9)) - Z0) * 1e9 - 0.01,
+      'The peak depth is reduced by the frame deflection');
+  finally
+    Mit.Free;
+  end;
+end;
+
 procedure TMitViewerTicksTests.Setup;
 begin
   FDir := TPath.Combine(TPath.GetTempPath, 'ELN_MitTicks_' + TGUID.NewGuid.ToString);
@@ -829,7 +1006,7 @@ begin
     Assert.AreEqual(1, Sent.GetValue<Integer>('revision'));
     Assert.AreEqual(7, Sent.GetValue<Integer>('applied_by'));
     Checked := Sent.GetValue<TJSONArray>('checked');
-    Assert.AreEqual(7, Checked.Count);
+    Assert.AreEqual<NativeInt>(7, Checked.Count);
     Assert.AreEqual(1, (Checked.Items[0] as TJSONNumber).AsInt);
     Assert.AreEqual(3, (Checked.Items[1] as TJSONNumber).AsInt);
   finally
@@ -868,7 +1045,7 @@ begin
   FFrame.SetAnalysisContext(Context(''));
   FFrame.btnSelectNoneClick(nil);
   Assert.AreEqual(0, FDouble.Calls);
-  Assert.AreEqual(0, Length(FFrame.GetKeyValues));
+  Assert.AreEqual<NativeInt>(0, Length(FFrame.GetKeyValues));
 end;
 
 procedure TMitViewerTicksTests.SharedSelectionTicksTheViewer;

@@ -5,8 +5,8 @@ interface
 
 uses
   System.JSON,
-  Aurelius.Types.Nullable,
-  unit_Item;
+  Aurelius.Types.Nullable, Aurelius.Engine.ObjectManager,
+  unit_Item, unit_ItemTypes, unit_ValueChecks, unit_MCPTools;
 
 const
   // Aurelius defaults these columns to VARCHAR(255). Strict MySQL rejects
@@ -23,16 +23,28 @@ function GetOptAnalysisSnapshot(const Params: TJSONObject;
   out Json: string): Boolean;
 function AnalysisSnapshotValue(const Json: string): TJSONValue;
 
+function ParseRecType(const S: string): TRecType;
+function RecTypeName(RecType: TRecType): string;
+function IssueCodesText(Issues: TValueIssues): string;
+function IssueCodesJSON(Issues: TValueIssues): TJSONArray;
+function StoredValueJSON(Val: TValue; Issues: TValueIssues): TJSONObject;
+
 // Raises if AValue is longer than AMax. The exception is deliberately the base
 // Exception class and nothing derived from it: unit_MCPDiag.ClientErrorMessage
 // forwards the message verbatim only on an exact class match, so a descendant
 // would reach the client as the useless generic "Tool execution failed".
 procedure CheckMaxLen(const AValue, AFieldName: string; AMax: Integer);
 
+function ItemInRecycleBin(Manager: TObjectManager; Item: TItem): Boolean;
+
+procedure RefreshCachedItem(const Context: TToolContext; ItemId: Integer);
+procedure ForgetCachedRow(const Context: TToolContext; Cached: TObject);
+
 implementation
 
 uses
-  System.SysUtils, System.NetEncoding, unit_ItemTypes, unit_ValueSource,
+  System.SysUtils, System.NetEncoding, System.Generics.Collections,
+  unit_ValueSource,
   unit_JSONCompact;
 
 function MakeElnItemUrl(Item: TItem): string;
@@ -106,6 +118,48 @@ begin
       [AFieldName, Length(AValue), AMax]);
 end;
 
+function ItemInRecycleBin(Manager: TObjectManager; Item: TItem): Boolean;
+var
+  Current: TItem;
+  Seen: TList<Integer>;
+begin
+  Result := False;
+  Seen := TList<Integer>.Create;
+  try
+    Current := Item;
+    while Assigned(Current) do
+    begin
+      if Current.IsDeleted then
+        Exit(True);
+      if (Current.Parent <= 0) or (Seen.IndexOf(Current.Parent) >= 0) then
+        Exit;
+      Seen.Add(Current.Id);
+      Current := Manager.Find<TItem>(Current.Parent);
+    end;
+  finally
+    Seen.Free;
+  end;
+end;
+
+procedure RefreshCachedItem(const Context: TToolContext; ItemId: Integer);
+var
+  Cached: TItem;
+begin
+  Cached := Context.Manager.FindCached<TItem>(ItemId);
+  if Assigned(Cached) and not Context.Manager.HasChanges(Cached) then
+    Context.Manager.Refresh(Cached);
+end;
+
+procedure ForgetCachedRow(const Context: TToolContext; Cached: TObject);
+begin
+  if Cached = nil then
+    Exit;
+  // A removed row must not come back from the session cache; Find would
+  // return the stale object. The manager keeps ownership and frees it.
+  Context.Manager.Evict(Cached);
+  Context.Manager.AddOwnership(Cached);
+end;
+
 function GetOptAnalysisSnapshot(const Params: TJSONObject;
   out Json: string): Boolean;
 var
@@ -134,6 +188,71 @@ begin
   begin
     Result.Free;
     Result := TJSONString.Create(Json);
+  end;
+end;
+
+function ParseRecType(const S: string): TRecType;
+begin
+  if SameText(S, 'EXP_CONDITION') then
+    Result := EXP_CONDITION
+  else if SameText(S, 'TEST_RESULT') then
+    Result := TEST_RESULT
+  else
+    raise Exception.CreateFmt(
+      'Invalid rec_type: %s (use EXP_CONDITION or TEST_RESULT)', [S]);
+end;
+
+function RecTypeName(RecType: TRecType): string;
+begin
+  if RecType = EXP_CONDITION then
+    Result := 'EXP_CONDITION'
+  else
+    Result := 'TEST_RESULT';
+end;
+
+function IssueCodesText(Issues: TValueIssues): string;
+var
+  Issue: TValueIssue;
+begin
+  Result := '';
+  for Issue := Low(TValueIssue) to High(TValueIssue) do
+    if Issue in Issues then
+    begin
+      if Result <> '' then
+        Result := Result + ', ';
+      Result := Result + IssueCode(Issue);
+    end;
+end;
+
+function IssueCodesJSON(Issues: TValueIssues): TJSONArray;
+var
+  Issue: TValueIssue;
+begin
+  Result := TJSONArray.Create;
+  for Issue := Low(TValueIssue) to High(TValueIssue) do
+    if Issue in Issues then
+      Result.Add(IssueCode(Issue));
+end;
+
+function StoredValueJSON(Val: TValue; Issues: TValueIssues): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  try
+    Result.AddPair('id', TJSONNumber.Create(Val.Id));
+    Result.AddPair('item_id', TJSONNumber.Create(Val.Item.Id));
+    Result.AddPair('value', SmartNum(Val.Value));
+    Result.AddPair('tolerance', SmartNum(Val.Tol));
+    if Assigned(Val.ValueType) then
+    begin
+      Result.AddPair('value_type', Val.ValueType.Title);
+      Result.AddPair('units', Val.ValueType.Units);
+    end;
+    Result.AddPair('source', ValueSourceJSON(Val));
+    if Issues <> [] then
+      Result.AddPair('confirmed_issues', IssueCodesJSON(Issues));
+  except
+    Result.Free;
+    raise;
   end;
 end;
 

@@ -269,7 +269,7 @@ begin
   Assert.IsTrue(Pos('COF: 0.4099', FFrame.lblStats.Caption) > 0, FFrame.lblStats.Caption);
   Assert.IsTrue(Pos('draft, not applied', FFrame.lblStats.Caption) > 0);
   Assert.IsTrue(Pos('Stale', FFrame.lblWarnings.Caption) > 0, FFrame.lblWarnings.Caption);
-  Assert.AreEqual(2, FFrame.SeriesBand.Count);
+  Assert.AreEqual<NativeInt>(2, FFrame.SeriesBand.Count);
   Assert.AreEqual<Double>(30, FFrame.SeriesBand.XValues[0]);
   Assert.IsFalse(CofOf(Cof), 'Extraction stays blocked while stale');
   Assert.AreEqual(0, FDouble.Calls);
@@ -282,7 +282,7 @@ begin
   Assert.AreEqual('50', FFrame.edEnd.Text);
   Assert.IsTrue(Pos('Stale', FFrame.lblStats.Caption) > 0, FFrame.lblStats.Caption);
   Assert.AreEqual(0, Pos('draft', FFrame.lblStats.Caption));
-  Assert.AreEqual(2, FFrame.SeriesBand.Count);
+  Assert.AreEqual<NativeInt>(2, FFrame.SeriesBand.Count);
   Assert.AreEqual<Double>(50, FFrame.SeriesBand.XValues[1]);
   FFrame.SetDraftMode(zsmAutomatic);
   Assert.IsTrue(Pos('draft, not applied', FFrame.lblStats.Caption) > 0, FFrame.lblStats.Caption);
@@ -390,7 +390,7 @@ begin
   Assert.AreEqual(1, Stored.Revision);
   Assert.AreEqual(7, Stored.AppliedBy);
   Assert.IsTrue(Stored.ApplyId <> '');
-  Assert.AreEqual(20, Length(Stored.AppliedAt));
+  Assert.AreEqual<NativeInt>(20, Length(Stored.AppliedAt));
   Assert.AreEqual('Z', Copy(Stored.AppliedAt, 20, 1));
   Assert.AreEqual('T', Copy(Stored.AppliedAt, 11, 1));
   FirstId := Stored.ApplyId;
@@ -508,7 +508,7 @@ begin
     Assert.IsTrue(Pos('line ', FFrame.Status.SimpleCaption) > 0, FFrame.Status.SimpleCaption);
     Assert.IsTrue(Pos('Stroke', FFrame.Status.SimpleCaption) = 0,
       'The previous file status must not remain');
-    Assert.AreEqual(0, FFrame.Series1.Count);
+    Assert.AreEqual<NativeInt>(0, FFrame.Series1.Count);
     FFrame.SetAnalysisContext(Context(''));
     Assert.IsTrue(Pos('line ', FFrame.lblStats.Caption) > 0, FFrame.lblStats.Caption);
     FFrame.SetDraftMode(zsmManual);

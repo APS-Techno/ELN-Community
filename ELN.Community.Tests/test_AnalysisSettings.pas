@@ -50,6 +50,7 @@ type
     [Test] procedure SnapshotFailureAfterFlushRollsBackValue;
     [Test] procedure RemoveValueDeletesSnapshot;
     [Test] procedure RemoveFileDeletesItsExtractedValues;
+    [Test] procedure RemoveFileDeletesViewerStateWithoutDesktopModel;
     [Test] procedure PurgeItemDeletesBothKinds;
     [Test] procedure OrphanSnapshotIsNotLoaded;
     [Test] procedure RegionsSnapshotMatchingSharedSelectionIsUnchanged;
@@ -65,7 +66,8 @@ uses
   System.IOUtils, System.Classes, System.Generics.Collections, System.JSON,
   Aurelius.Drivers.Interfaces,
   unit_Project, unit_ProjectModel, unit_ItemTypes, unit_FileType,
-  unit_ValueType, unit_SignatureModel, unit_RecycleBinModel, unit_ValueDrift;
+  unit_ValueType, unit_SignatureModel, unit_RecycleBinModel, unit_ValueDrift,
+  unit_ViewerStateModel, unit_FilePaths, unit_DataModel;
 
 const
   Password = 'Synthetic-Analysis-Settings-Only!';
@@ -399,7 +401,7 @@ begin
         ReaderSource(ReaderZrw), PaddedJson(HashA, 2001));
     end, EArgumentException);
   Reopen;
-  Assert.AreEqual(0, CurrentItem.Values.Count);
+  Assert.AreEqual<NativeInt>(0, CurrentItem.Values.Count);
   Assert.AreEqual(0, RowCount('analysis:%'));
 end;
 
@@ -417,9 +419,9 @@ begin
         TRecType.TEST_RESULT, 0.4, FNotebook.Principal.Id, Item, 0.01, 'COF',
         ReaderSource(LongReader), '{"file_hash":"' + HashA + '"}');
     end, EArgumentException);
-  Assert.AreEqual(0, Item.Values.Count);
+  Assert.AreEqual<NativeInt>(0, Item.Values.Count);
   Reopen;
-  Assert.AreEqual(0, CurrentItem.Values.Count);
+  Assert.AreEqual<NativeInt>(0, CurrentItem.Values.Count);
   Assert.AreEqual(0, RowCount('analysis:%'));
 end;
 
@@ -457,7 +459,27 @@ begin
   Reopen;
   Assert.IsNull(FindValue(ExtractedId), 'A value read from the file goes with the file');
   Assert.IsNotNull(FindValue(ManualId), 'A Manual value stays');
-  Assert.AreEqual(1, CurrentItem.Values.Count);
+  Assert.AreEqual<NativeInt>(1, CurrentItem.Values.Count);
+end;
+
+procedure TAnalysisSettingsTests.RemoveFileDeletesViewerStateWithoutDesktopModel;
+var
+  Item: TItem;
+  FileEntity: unit_Item.TFile;
+  States: TViewerStateModel;
+begin
+  Assert.IsNull(unit_DataModel.Model, 'The MCP host has no Desktop model');
+  States := TViewerStateModel.Create(FNotebook.Manager);
+  try
+    States.SaveOrUpdate(FNotebook.Principal.Id, FFileId, 'aps.zrw', '{}');
+    Assert.IsNotNull(States.GetState(FNotebook.Principal.Id, FFileId));
+    Item := CurrentItem;
+    FileEntity := FNotebook.Manager.Find<unit_Item.TFile>(FFileId);
+    Assert.IsTrue(FItems.RemoveFile(FileEntity, Item, FNotebook.Principal.Id));
+    Assert.IsNull(States.GetState(FNotebook.Principal.Id, FFileId));
+  finally
+    States.Free;
+  end;
 end;
 
 procedure TAnalysisSettingsTests.PurgeItemDeletesBothKinds;

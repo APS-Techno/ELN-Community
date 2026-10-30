@@ -34,6 +34,7 @@ type
     serUnloading: TFastLineSeries;
     serDrift: TFastLineSeries;
     dlgSave: TSaveDialog;
+    btnFit: TRzBitBtn;
     procedure lstRecordsClick(Sender: TObject);
     procedure lstRecordsClickCheck(Sender: TObject);
     procedure btnCopyClick(Sender: TObject);
@@ -41,10 +42,12 @@ type
     procedure btnSelectAllClick(Sender: TObject);
     procedure btnSelectNoneClick(Sender: TObject);
     procedure btnAverageClick(Sender: TObject);
+    procedure btnFitClick(Sender: TObject);
   private
     FMitFile: TMitFile;
     FSelectedIndex: Integer;
     FOverlaySeries: TList<TFastLineSeries>;
+    FFitSeries: TList<TFastLineSeries>;
     FShowAverage: Boolean;
     FAvgLoading: TFastLineSeries;
     FAvgUnloading: TFastLineSeries;
@@ -63,9 +66,13 @@ type
     procedure ClearOverlaySeries;
     procedure GenerateCurve(RecIndex: Integer;
       LoadingSer, UnloadingSer: TFastLineSeries);
+    procedure AddFitSeries(RecIndex: Integer);
     procedure UpdateOverlay;
     procedure HighlightIndent(RecIndex: Integer);
     procedure UpdateInfoPanel;
+    function CurveIndices: TArray<Integer>;
+    function ComputeAverage(out LoadPd, LoadFn, UnloadPd,
+      UnloadFn: TArray<Double>): Boolean;
     procedure CalcAndPlotAverage;
     procedure ScaleAxes;
     function BuildStatusText: string;
@@ -110,6 +117,7 @@ begin
   inherited;
   FMitFile := TMitFile.Create;
   FOverlaySeries := TList<TFastLineSeries>.Create;
+  FFitSeries := TList<TFastLineSeries>.Create;
   FSelectedIndex := -1;
   FShowAverage := False;
   FHighlightTag := -1;
@@ -123,6 +131,7 @@ destructor TframeMitFileViewer.Destroy;
 begin
   ClearOverlaySeries;
   FOverlaySeries.Free;
+  FFitSeries.Free;
   FMitFile.Free;
   inherited;
 end;
@@ -336,48 +345,46 @@ procedure TframeMitFileViewer.GenerateCurve(RecIndex: Integer;
   LoadingSer, UnloadingSer: TFastLineSeries);
 var
   Rec: TMitRecord;
-  I, LoadingCount, UnloadCount: Integer;
-  PhaseVal: Single;
-  Frac, PdNm, FnMN: Double;
+  I: Integer;
 begin
   Rec := FMitFile.GetRecord(RecIndex);
-
-  LoadingCount := 0;
-  UnloadCount := 0;
-  for I := 0 to Rec.DataPointCount - 1 do
-  begin
-    PhaseVal := Rec.Phase(I);
-    if PhaseVal < 0.5 then Inc(LoadingCount)
-    else if PhaseVal < 1.5 then Inc(UnloadCount);
-  end;
-
   LoadingSer.Clear;
   UnloadingSer.Clear;
-  if Rec.EstimatedDepth then
+  if not Rec.HasCurve then
+    Exit;
+  for I := 0 to Rec.PeakIndex do
+    LoadingSer.AddXY(Rec.Curve[I].DepthNm, Rec.Curve[I].ForceMN);
+  for I := Rec.PeakIndex to High(Rec.Curve) do
+    UnloadingSer.AddXY(Rec.Curve[I].DepthNm, Rec.Curve[I].ForceMN);
+end;
+
+procedure TframeMitFileViewer.AddFitSeries(RecIndex: Integer);
+const
+  FitPoints = 100;
+var
+  Rec: TMitRecord;
+  Ser: TFastLineSeries;
+  I: Integer;
+  H: Double;
+begin
+  Rec := FMitFile.GetRecord(RecIndex);
+  if Rec.EstimatedDepth or (Rec.HmaxNm <= Rec.HfNm) or (Rec.MExp <= 0) then
+    Exit;
+  Ser := TFastLineSeries.Create(Chart);
+  Ser.Title := Format('Indent %d instrument unloading fit', [RecIndex + 1]);
+  Ser.XValues.Order := loNone;
+  Ser.YValues.Order := loNone;
+  Chart.AddSeries(Ser);
+  Ser.LinePen.Color := clRed;
+  Ser.LinePen.Style := psDash;
+  Ser.LinePen.Width := 1;
+  FFitSeries.Add(Ser);
+  for I := 0 to FitPoints - 1 do
   begin
-    LoadingSer.Title := LoadingSer.Title + ' (estimated depth)';
-    UnloadingSer.Title := UnloadingSer.Title + ' (estimated depth)';
+    H := Rec.HfNm + (Rec.HmaxNm - Rec.HfNm) * I / (FitPoints - 1);
+    Ser.AddXY(H, Rec.FmaxMN *
+      Power((H - Rec.HfNm) / (Rec.HmaxNm - Rec.HfNm), Rec.MExp));
   end;
-
-  // Loading: Kick's law h = hmax * sqrt(F/Fmax)
-  if LoadingCount > 1 then
-    for I := 0 to LoadingCount - 1 do
-    begin
-      Frac := I / (LoadingCount - 1);
-      FnMN := Rec.FmaxMN * Frac;
-      PdNm := Rec.HmaxNm * Sqrt(Frac);
-      LoadingSer.AddXY(PdNm, FnMN);
-    end;
-
-  // Unloading: power law F = alpha*(h-hf)^m from (hmax, Fmax) to (hf, 0)
-  if UnloadCount > 1 then
-    for I := 0 to UnloadCount - 1 do
-    begin
-      Frac := I / (UnloadCount - 1);
-      FnMN := Rec.FmaxMN * (1 - Frac);
-      PdNm := Rec.HfNm + (Rec.HmaxNm - Rec.HfNm) * Power(1 - Frac, 1 / Rec.MExp);
-      UnloadingSer.AddXY(PdNm, FnMN);
-    end;
 end;
 
 
@@ -392,6 +399,13 @@ begin
   end;
   FOverlaySeries.Clear;
   FHighlightTag := -1;
+
+  for Ser in FFitSeries do
+  begin
+    Chart.RemoveSeries(Ser);
+    Ser.Free;
+  end;
+  FFitSeries.Clear;
 
   if Assigned(FAvgLoading) then
   begin
@@ -444,6 +458,8 @@ begin
       FOverlaySeries.Add(SerUnload);
 
       GenerateCurve(I, SerLoad, SerUnload);
+      if btnFit.Down then
+        AddFitSeries(I);
     end;
 
     FShowAverage := btnAverage.Down;
@@ -468,80 +484,124 @@ begin
 end;
 
 
+procedure AccumulateBranch(const Rec: TMitRecord; Unloading: Boolean;
+  const Grid: TArray<Double>; var Sum: TArray<Double>; var Cnt: TArray<Integer>);
+var
+  I, Dir, J: Integer;
+  PrevD, PrevF, D, F: Double;
+begin
+  if Unloading then
+  begin
+    I := High(Rec.Curve);
+    Dir := -1;
+  end
+  else
+  begin
+    I := 0;
+    Dir := 1;
+  end;
+  PrevD := Rec.Curve[I].DepthNm;
+  PrevF := Rec.Curve[I].ForceMN;
+  J := 0;
+  while (J < Length(Grid)) and (Grid[J] < PrevD) do
+    Inc(J);
+  while I <> Rec.PeakIndex do
+  begin
+    Inc(I, Dir);
+    D := Rec.Curve[I].DepthNm;
+    if D <= PrevD then
+      Continue;
+    F := Rec.Curve[I].ForceMN;
+    while (J < Length(Grid)) and (Grid[J] <= D) do
+    begin
+      Sum[J] := Sum[J] + PrevF + (F - PrevF) * (Grid[J] - PrevD) / (D - PrevD);
+      Inc(Cnt[J]);
+      Inc(J);
+    end;
+    PrevD := D;
+    PrevF := F;
+  end;
+end;
+
+function TframeMitFileViewer.CurveIndices: TArray<Integer>;
+var
+  I: Integer;
+begin
+  Result := nil;
+  for I := 0 to lstRecords.Count - 1 do
+    if lstRecords.Checked[I] and FMitFile.GetRecord(I).HasCurve then
+      Result := Result + [I];
+end;
+
+function TframeMitFileViewer.ComputeAverage(out LoadPd, LoadFn, UnloadPd,
+  UnloadFn: TArray<Double>): Boolean;
+
+  procedure Branch(const Indices: TArray<Integer>; Unloading: Boolean;
+    out Pd, Fn: TArray<Double>);
+  var
+    I, J: Integer;
+    Rec: TMitRecord;
+    Lo, Hi, Start: Double;
+    Grid, Sum: TArray<Double>;
+    Cnt: TArray<Integer>;
+  begin
+    Pd := nil;
+    Fn := nil;
+    Lo := -MaxDouble;
+    Hi := MaxDouble;
+    for I in Indices do
+    begin
+      Rec := FMitFile.GetRecord(I);
+      if Unloading then
+        Start := Rec.Curve[High(Rec.Curve)].DepthNm
+      else
+        Start := Rec.Curve[0].DepthNm;
+      Lo := Max(Lo, Start);
+      Hi := Min(Hi, Rec.Curve[Rec.PeakIndex].DepthNm);
+    end;
+    if Hi <= Lo then
+      Exit;
+    SetLength(Grid, GRID_POINTS);
+    for J := 0 to GRID_POINTS - 2 do
+      Grid[J] := Lo + (Hi - Lo) * J / (GRID_POINTS - 1);
+    Grid[GRID_POINTS - 1] := Hi;
+    SetLength(Sum, GRID_POINTS);
+    SetLength(Cnt, GRID_POINTS);
+    for I in Indices do
+      AccumulateBranch(FMitFile.GetRecord(I), Unloading, Grid, Sum, Cnt);
+    for J := 0 to GRID_POINTS - 1 do
+      if Cnt[J] = Length(Indices) then
+      begin
+        Pd := Pd + [Grid[J]];
+        Fn := Fn + [Sum[J] / Cnt[J]];
+      end;
+  end;
+
+var
+  Indices: TArray<Integer>;
+begin
+  LoadPd := nil;
+  LoadFn := nil;
+  UnloadPd := nil;
+  UnloadFn := nil;
+  Indices := CurveIndices;
+  if Indices = nil then
+    Exit(False);
+  Branch(Indices, False, LoadPd, LoadFn);
+  Branch(Indices, True, UnloadPd, UnloadFn);
+  Result := (LoadPd <> nil) or (UnloadPd <> nil);
+end;
+
 procedure TframeMitFileViewer.CalcAndPlotAverage;
 var
-  I, J, CheckedCount: Integer;
-  CheckedIndices: TArray<Integer>;
-  MinHmax, PdStep, Pd, Fn: Double;
-  Rec: TMitRecord;
-  SumLoad, SumUnload: array of Double;
-  CntLoad, CntUnload: array of Integer;
+  LoadPd, LoadFn, UnloadPd, UnloadFn: TArray<Double>;
+  J: Integer;
 begin
-  CheckedCount := 0;
-  SetLength(CheckedIndices, lstRecords.Count);
-  for I := 0 to lstRecords.Count - 1 do
-    if lstRecords.Checked[I] and not FMitFile.GetRecord(I).EstimatedDepth then
-    begin
-      CheckedIndices[CheckedCount] := I;
-      Inc(CheckedCount);
-    end;
-  SetLength(CheckedIndices, CheckedCount);
-
-  if CheckedCount < 1 then
+  if not ComputeAverage(LoadPd, LoadFn, UnloadPd, UnloadFn) then
     Exit;
-
-  // Find min hmax across checked curves (safe overlap region)
-  MinHmax := FMitFile.GetRecord(CheckedIndices[0]).HmaxNm;
-  for I := 1 to CheckedCount - 1 do
-  begin
-    Rec := FMitFile.GetRecord(CheckedIndices[I]);
-    if Rec.HmaxNm < MinHmax then
-      MinHmax := Rec.HmaxNm;
-  end;
-
-  if MinHmax <= 0 then
-    Exit;
-
-  PdStep := MinHmax / (GRID_POINTS - 1);
-
-  SetLength(SumLoad, GRID_POINTS);
-  SetLength(SumUnload, GRID_POINTS);
-  SetLength(CntLoad, GRID_POINTS);
-  SetLength(CntUnload, GRID_POINTS);
-  for J := 0 to GRID_POINTS - 1 do
-  begin
-    SumLoad[J] := 0;
-    SumUnload[J] := 0;
-    CntLoad[J] := 0;
-    CntUnload[J] := 0;
-  end;
-
-  for I := 0 to CheckedCount - 1 do
-  begin
-    Rec := FMitFile.GetRecord(CheckedIndices[I]);
-    for J := 0 to GRID_POINTS - 1 do
-    begin
-      Pd := J * PdStep;
-
-      // Loading: F = Fmax * (Pd/hmax)^2 (Kick's law)
-      if Rec.HmaxNm > 0 then
-      begin
-        Fn := Rec.FmaxMN * Sqr(Pd / Rec.HmaxNm);
-        SumLoad[J] := SumLoad[J] + Fn;
-        Inc(CntLoad[J]);
-      end;
-
-      if (Pd >= Rec.HfNm) and ((Rec.HmaxNm - Rec.HfNm) > 0) then
-      begin
-        Fn := Rec.FmaxMN * Power((Pd - Rec.HfNm) / (Rec.HmaxNm - Rec.HfNm), Rec.MExp);
-        SumUnload[J] := SumUnload[J] + Fn;
-        Inc(CntUnload[J]);
-      end;
-    end;
-  end;
 
   FAvgLoading := TFastLineSeries.Create(Chart);
-  FAvgLoading.Title := 'Average (measured depth only)';
+  FAvgLoading.Title := 'Average loading';
   FAvgLoading.XValues.Order := loNone;
   FAvgLoading.YValues.Order := loNone;
   Chart.AddSeries(FAvgLoading);
@@ -549,66 +609,56 @@ begin
   FAvgLoading.LinePen.Width := 3;
 
   FAvgUnloading := TFastLineSeries.Create(Chart);
-  FAvgUnloading.Title := 'Average unload (measured depth only)';
+  FAvgUnloading.Title := 'Average unloading';
   FAvgUnloading.XValues.Order := loNone;
   FAvgUnloading.YValues.Order := loNone;
   Chart.AddSeries(FAvgUnloading);
   FAvgUnloading.LinePen.Color := clMaroon;
   FAvgUnloading.LinePen.Width := 3;
 
-  for J := 0 to GRID_POINTS - 1 do
-  begin
-    Pd := J * PdStep;
-    if CntLoad[J] > 0 then
-      FAvgLoading.AddXY(Pd, SumLoad[J] / CntLoad[J]);
-    if CntUnload[J] > 0 then
-      FAvgUnloading.AddXY(Pd, SumUnload[J] / CntUnload[J]);
-  end;
+  for J := 0 to High(LoadPd) do
+    FAvgLoading.AddXY(LoadPd[J], LoadFn[J]);
+  for J := 0 to High(UnloadPd) do
+    FAvgUnloading.AddXY(UnloadPd[J], UnloadFn[J]);
 end;
 
 procedure TframeMitFileViewer.ScaleAxes;
 var
-  I, J: Integer;
   Ser: TFastLineSeries;
-  MaxX, MaxY: Double;
+  J: Integer;
+  MinX, MaxX, MaxY, Pad: Double;
+  Measured: TList<TFastLineSeries>;
 begin
+  MinX := 0;
   MaxX := 0;
   MaxY := 0;
 
-  for I := 0 to FOverlaySeries.Count - 1 do
-  begin
-    Ser := FOverlaySeries[I];
-    for J := 0 to Ser.Count - 1 do
-    begin
-      if Ser.XValue[J] > MaxX then
-        MaxX := Ser.XValue[J];
-      if Ser.YValue[J] > MaxY then
-        MaxY := Ser.YValue[J];
-    end;
+  Measured := TList<TFastLineSeries>.Create;
+  try
+    Measured.AddRange(FOverlaySeries);
+    if Assigned(FAvgLoading) then
+      Measured.Add(FAvgLoading);
+    if Assigned(FAvgUnloading) then
+      Measured.Add(FAvgUnloading);
+    for Ser in Measured do
+      for J := 0 to Ser.Count - 1 do
+      begin
+        MinX := Min(MinX, Ser.XValue[J]);
+        MaxX := Max(MaxX, Ser.XValue[J]);
+        MaxY := Max(MaxY, Ser.YValue[J]);
+      end;
+  finally
+    Measured.Free;
   end;
-
-  if Assigned(FAvgLoading) then
-    for J := 0 to FAvgLoading.Count - 1 do
-    begin
-      if FAvgLoading.XValue[J] > MaxX then
-        MaxX := FAvgLoading.XValue[J];
-      if FAvgLoading.YValue[J] > MaxY then
-        MaxY := FAvgLoading.YValue[J];
-    end;
-
-  if Assigned(FAvgUnloading) then
-    for J := 0 to FAvgUnloading.Count - 1 do
-    begin
-      if FAvgUnloading.XValue[J] > MaxX then
-        MaxX := FAvgUnloading.XValue[J];
-      if FAvgUnloading.YValue[J] > MaxY then
-        MaxY := FAvgUnloading.YValue[J];
-    end;
 
   if (MaxX > 0) and (MaxY > 0) then
   begin
+    Pad := 0.1 * (MaxX - MinX);
     Chart.BottomAxis.Automatic := False;
-    Chart.BottomAxis.SetMinMax(0, MaxX * 1.1);
+    if MinX < 0 then
+      Chart.BottomAxis.SetMinMax(MinX - Pad, MaxX + Pad)
+    else
+      Chart.BottomAxis.SetMinMax(0, MaxX + Pad);
     Chart.LeftAxis.Automatic := False;
     Chart.LeftAxis.SetMinMax(0, MaxY * 1.1);
   end;
@@ -650,16 +700,13 @@ begin
     var TestTime: Double := 0;
     var Temp: Double := 0;
     var TempCount: Integer := 0;
-    var LoadEndIdx: Integer := 0;
 
-    if Rec.DataPointCount > 1 then
+    if Rec.SampleCount > 1 then
     begin
-      TestTime := Rec.Time(Rec.DataPointCount - 1) - Rec.Time(0);
+      TestTime := Rec.Time(Rec.SampleCount - 1) - Rec.Time(0);
 
-      for I := 0 to Rec.DataPointCount - 1 do
+      for I := 0 to Rec.SampleCount - 1 do
       begin
-        if Rec.Phase(I) < 0.5 then
-          LoadEndIdx := I;
         var T: Single := Rec.Temperature(I);
         if (T > 0) and (T < 1000) then
         begin
@@ -671,11 +718,12 @@ begin
       if TempCount > 0 then
         Temp := Temp / TempCount;
 
-      if LoadEndIdx > 0 then
+      if Rec.HasCurve then
       begin
-        var LoadTime: Double := Rec.Time(LoadEndIdx) - Rec.Time(0);
+        var LoadTime: Double := Rec.Time(Rec.ContactRow + Rec.PeakIndex) -
+          Rec.Time(Rec.ContactRow);
         if LoadTime > 0 then
-          LoadRate := Rec.FmaxMN / LoadTime;
+          LoadRate := Rec.Curve[Rec.PeakIndex].ForceMN / LoadTime;
       end;
     end;
 
@@ -716,6 +764,9 @@ begin
       lblInfo.Caption := lblInfo.Caption + Format(#13#10'Test time: %.1f s', [TestTime]);
     if Temp > 0 then
       lblInfo.Caption := lblInfo.Caption + Format(#13#10'Temperature: %.1f '#$B0'C', [Temp]);
+    if Rec.FrameCompliance > 0 then
+      lblInfo.Caption := lblInfo.Caption + Format(#13#10'Frame compliance: %.4f nm/mN',
+        [Rec.FrameCompliance * 1e6]);
   end
   else
     lblInfo.Caption := 'No indents selected';
@@ -864,16 +915,20 @@ begin
   UpdateOverlay;
 end;
 
+procedure TframeMitFileViewer.btnFitClick(Sender: TObject);
+begin
+  UpdateOverlay;
+end;
+
 
 procedure TframeMitFileViewer.SeriesToText(List: TStringList);
 var
-  I, J, CheckedCount: Integer;
-  CheckedIndices: TArray<Integer>;
+  I, J, K, CheckedCount, Rows: Integer;
+  CheckedIndices, Curves: TArray<Integer>;
   Rec: TMitRecord;
-  MinHmax, PdStep, Pd, Fn: Double;
   Header, Line: string;
-  AvgSum: Double;
-  AvgCnt: Integer;
+  ColX, ColY: TArray<TArray<Double>>;
+  LoadPd, LoadFn, UnloadPd, UnloadFn, X, Y: TArray<Double>;
 begin
   CheckedCount := 0;
   SetLength(CheckedIndices, lstRecords.Count);
@@ -884,125 +939,105 @@ begin
       Inc(CheckedCount);
     end;
   SetLength(CheckedIndices, CheckedCount);
-  List.Add('# Reconstructed curves from measured depth records only.');
-  List.Add('# Records with estimated depth are excluded from this export and all averages.');
+  Curves := CurveIndices;
 
-  if CheckedCount = 0 then
+  if (CheckedCount = 0) and (Curves = nil) then
     Exit;
 
   List.Add('# MIT Nanoindentation Export');
   List.Add(Format('# File: %s', [ExtractFileName(FMitFile.FileName)]));
-  List.Add(Format('# Indents: %d', [CheckedCount]));
-  List.Add('#');
-  List.Add('# Indent' + #9 + 'Fmax (mN)' + #9 + 'hmax (nm)' + #9 +
-           'hc (nm)' + #9 + 'H (GPa)' + #9 + 'Er (GPa)' + #9 +
-           'S (mN/nm)' + #9 + 'm');
+  List.Add('# Curves: measured Pd and Fn from the contact point stored in the file.');
+  if (Curves <> nil) and (FMitFile.GetRecord(Curves[0]).FrameCompliance > 0) then
+    List.Add(Format('# Frame compliance subtracted from Pd: %.4f nm/mN',
+      [FMitFile.GetRecord(Curves[0]).FrameCompliance * 1e6]));
 
-  for I := 0 to CheckedCount - 1 do
+  if CheckedCount > 0 then
   begin
-    Rec := FMitFile.GetRecord(CheckedIndices[I]);
-    List.Add(Format('# %d' + #9 + '%.3f' + #9 + '%.1f' + #9 +
-                    '%.1f' + #9 + '%.1f' + #9 + '%.1f' + #9 +
-                    '%.4f' + #9 + '%.3f',
-      [CheckedIndices[I] + 1, Rec.FmaxMN, Rec.HmaxNm,
-       Rec.HcNm, FMitFile.Indent(CheckedIndices[I]).H_GPa,
-       FMitFile.Indent(CheckedIndices[I]).Er_GPa, ReportedStiffness(Rec), Rec.MExp]));
-  end;
+    List.Add(Format('# Indents with results: %d', [CheckedCount]));
+    List.Add('#');
+    List.Add('# Indent' + #9 + 'Fmax (mN)' + #9 + 'hmax (nm)' + #9 +
+             'hc (nm)' + #9 + 'H (GPa)' + #9 + 'Er (GPa)' + #9 +
+             'S (mN/nm)' + #9 + 'm');
 
-  if FShowAverage and (CheckedCount > 0) then
-  begin
-    var SumH: Double := 0;
-    var SumEr: Double := 0;
-    var SumHc: Double := 0;
-    var SumFmax: Double := 0;
-    var SumHmax: Double := 0;
     for I := 0 to CheckedCount - 1 do
     begin
       Rec := FMitFile.GetRecord(CheckedIndices[I]);
-      SumH := SumH + FMitFile.Indent(CheckedIndices[I]).H_GPa;
-      SumEr := SumEr + FMitFile.Indent(CheckedIndices[I]).Er_GPa;
-      SumHc := SumHc + Rec.HcNm;
-      SumFmax := SumFmax + Rec.FmaxMN;
-      SumHmax := SumHmax + Rec.HmaxNm;
+      List.Add(Format('# %d' + #9 + '%.3f' + #9 + '%.1f' + #9 +
+                      '%.1f' + #9 + '%.1f' + #9 + '%.1f' + #9 +
+                      '%.4f' + #9 + '%.3f',
+        [CheckedIndices[I] + 1, Rec.FmaxMN, Rec.HmaxNm,
+         Rec.HcNm, FMitFile.Indent(CheckedIndices[I]).H_GPa,
+         FMitFile.Indent(CheckedIndices[I]).Er_GPa, ReportedStiffness(Rec), Rec.MExp]));
     end;
-    List.Add(Format('# Avg' + #9 + '%.3f' + #9 + '%.1f' + #9 +
-                    '%.1f' + #9 + '%.1f' + #9 + '%.1f',
-      [SumFmax / CheckedCount, SumHmax / CheckedCount,
-       SumHc / CheckedCount, SumH / CheckedCount, SumEr / CheckedCount]));
+
+    if FShowAverage then
+    begin
+      var SumH: Double := 0;
+      var SumEr: Double := 0;
+      var SumHc: Double := 0;
+      var SumFmax: Double := 0;
+      var SumHmax: Double := 0;
+      for I := 0 to CheckedCount - 1 do
+      begin
+        Rec := FMitFile.GetRecord(CheckedIndices[I]);
+        SumH := SumH + FMitFile.Indent(CheckedIndices[I]).H_GPa;
+        SumEr := SumEr + FMitFile.Indent(CheckedIndices[I]).Er_GPa;
+        SumHc := SumHc + Rec.HcNm;
+        SumFmax := SumFmax + Rec.FmaxMN;
+        SumHmax := SumHmax + Rec.HmaxNm;
+      end;
+      List.Add(Format('# Avg' + #9 + '%.3f' + #9 + '%.1f' + #9 +
+                      '%.1f' + #9 + '%.1f' + #9 + '%.1f',
+        [SumFmax / CheckedCount, SumHmax / CheckedCount,
+         SumHc / CheckedCount, SumH / CheckedCount, SumEr / CheckedCount]));
+    end;
   end;
 
   List.Add('#');
   List.Add('');
 
-  MinHmax := FMitFile.GetRecord(CheckedIndices[0]).HmaxNm;
-  for I := 1 to CheckedCount - 1 do
-  begin
-    Rec := FMitFile.GetRecord(CheckedIndices[I]);
-    if Rec.HmaxNm < MinHmax then
-      MinHmax := Rec.HmaxNm;
-  end;
-
-  if MinHmax <= 0 then
+  if Curves = nil then
     Exit;
 
-  PdStep := MinHmax / (GRID_POINTS - 1);
-
-  Header := 'Pd (nm)';
-  for I := 0 to CheckedCount - 1 do
-    Header := Header + #9 + Format('Fn_%d (mN)', [CheckedIndices[I] + 1]);
-  if FShowAverage then
-    Header := Header + #9 + 'Fn_avg (mN)';
-  List.Add(Header);
-
-  List.Add('# Loading');
-  for J := 0 to GRID_POINTS - 1 do
+  Header := '';
+  for I in Curves do
   begin
-    Pd := J * PdStep;
-    Line := FloatToStrF(Pd, ffFixed, 10, 2);
-    AvgSum := 0;
-    for I := 0 to CheckedCount - 1 do
+    Rec := FMitFile.GetRecord(I);
+    X := nil;
+    Y := nil;
+    SetLength(X, Length(Rec.Curve));
+    SetLength(Y, Length(Rec.Curve));
+    for J := 0 to High(Rec.Curve) do
     begin
-      Rec := FMitFile.GetRecord(CheckedIndices[I]);
-      if Rec.HmaxNm > 0 then
-        Fn := Rec.FmaxMN * Sqr(Pd / Rec.HmaxNm)
-      else
-        Fn := 0;
-      Line := Line + #9 + FloatToStrF(Fn, ffFixed, 10, 4);
-      AvgSum := AvgSum + Fn;
+      X[J] := Rec.Curve[J].DepthNm;
+      Y[J] := Rec.Curve[J].ForceMN;
     end;
-    if FShowAverage then
-      Line := Line + #9 + FloatToStrF(AvgSum / CheckedCount, ffFixed, 10, 4);
-    List.Add(Line);
+    ColX := ColX + [X];
+    ColY := ColY + [Y];
+    Header := Header + Format('Pd_%d (nm)'#9'Fn_%d (mN)'#9, [I + 1, I + 1]);
   end;
-
-  List.Add('# Unloading');
-  for J := 0 to GRID_POINTS - 1 do
+  if FShowAverage and ComputeAverage(LoadPd, LoadFn, UnloadPd, UnloadFn) then
   begin
-    Pd := J * PdStep;
-    Line := FloatToStrF(Pd, ffFixed, 10, 2);
-    AvgSum := 0;
-    AvgCnt := 0;
-    for I := 0 to CheckedCount - 1 do
-    begin
-      Rec := FMitFile.GetRecord(CheckedIndices[I]);
-      if (Pd >= Rec.HfNm) and ((Rec.HmaxNm - Rec.HfNm) > 0) then
-      begin
-        Fn := Rec.FmaxMN * Power((Pd - Rec.HfNm) / (Rec.HmaxNm - Rec.HfNm), Rec.MExp);
-        AvgSum := AvgSum + Fn;
-        Inc(AvgCnt);
-      end
+    ColX := ColX + [LoadPd, UnloadPd];
+    ColY := ColY + [LoadFn, UnloadFn];
+    Header := Header + 'Pd_avg_load (nm)'#9'Fn_avg_load (mN)'#9 +
+      'Pd_avg_unload (nm)'#9'Fn_avg_unload (mN)'#9;
+  end;
+  List.Add(Header.TrimRight([#9]));
+
+  Rows := 0;
+  for K := 0 to High(ColX) do
+    Rows := Max(Rows, Length(ColX[K]));
+  for J := 0 to Rows - 1 do
+  begin
+    Line := '';
+    for K := 0 to High(ColX) do
+      if J < Length(ColX[K]) then
+        Line := Line + FloatToStrF(ColX[K][J], ffFixed, 12, 4) + #9 +
+          FloatToStrF(ColY[K][J], ffFixed, 12, 6) + #9
       else
-        Fn := 0;
-      Line := Line + #9 + FloatToStrF(Fn, ffFixed, 10, 4);
-    end;
-    if FShowAverage then
-    begin
-      if AvgCnt > 0 then
-        Line := Line + #9 + FloatToStrF(AvgSum / AvgCnt, ffFixed, 10, 4)
-      else
-        Line := Line + #9 + '0.0000';
-    end;
-    List.Add(Line);
+        Line := Line + #9#9;
+    List.Add(Line.TrimRight([#9]));
   end;
 end;
 
@@ -1163,6 +1198,7 @@ begin
     JObj.AddPair('checked', JArr);
 
     JObj.AddPair('average', TJSONBool.Create(btnAverage.Down));
+    JObj.AddPair('fit', TJSONBool.Create(btnFit.Down));
 
     Result := JObj.ToJSON;
   finally
@@ -1208,6 +1244,10 @@ begin
     JVal := JObj.GetValue('average');
     if Assigned(JVal) and (JVal is TJSONBool) then
       btnAverage.Down := (JVal as TJSONBool).AsBoolean;
+
+    JVal := JObj.GetValue('fit');
+    if Assigned(JVal) and (JVal is TJSONBool) then
+      btnFit.Down := (JVal as TJSONBool).AsBoolean;
 
     FShowAverage := btnAverage.Down;
 

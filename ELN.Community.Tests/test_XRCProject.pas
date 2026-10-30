@@ -296,7 +296,7 @@ begin
   Assert.IsTrue(P.Model.Valid);
   L := P.Model.Stacks[0].Layers[0];
   Assert.AreEqual(Ord(pkPolynomial), Ord(L.Profile[xpThickness].Kind));
-  Assert.AreEqual(1, Length(L.Profile[xpThickness].Coefficients));
+  Assert.AreEqual<NativeInt>(1, Length(L.Profile[xpThickness].Coefficients));
   Assert.AreEqual(0.5, L.Profile[xpThickness].Coefficients[0], 1e-6);
   Assert.AreEqual(10.0, XRCProfileValue(L, xpThickness, 1), 1e-5);
   Assert.AreEqual(12.0, XRCProfileValue(L, xpThickness, 5), 1e-5);
@@ -382,7 +382,7 @@ begin
   P := LoadXRCProject(WriteXRCX('a.xrcx', Params8, StdTree(
     '{"Stacks":[{"T":"ML","N":2,"Layers":[{"M":"W","H":10,"s":3,"r":15,' +
     '"Rmin":20,"Rmax":10}]}],"Subs":{"M":"Si","s":2,"r":2.33}}'), []));
-  Assert.AreEqual(1, Length(P.InvertedRanges));
+  Assert.AreEqual<NativeInt>(1, Length(P.InvertedRanges));
   Assert.AreEqual(Ord(xpDensity), Ord(P.InvertedRanges[0].Param));
   Assert.AreEqual(0, P.InvertedRanges[0].Stack);
   Assert.AreEqual(0, P.InvertedRanges[0].Layer);
@@ -422,7 +422,7 @@ begin
     StringReplace(Params8, 'LinkedData=2', 'LinkedData=9', []),
     Tree([GroupNode(0, [ModelNode(1, 'Model', WSI_JSON, [])]),
       GroupNode(1, [DataNode(9, 'S1.xrdml')])]), ['calc.dat', 'data_9.dat']));
-  Assert.AreEqual(2, Length(P.Curves));
+  Assert.AreEqual<NativeInt>(2, Length(P.Curves));
   Calc := False;
   Meas := False;
   for C in P.Curves do
@@ -430,7 +430,7 @@ begin
     begin
       Calc := True;
       Assert.AreEqual(Ord(crCalculated), Ord(C.Role));
-      Assert.AreEqual(3, Length(C.X));
+      Assert.AreEqual<NativeInt>(3, Length(C.X));
     end
     else
     begin
@@ -681,7 +681,7 @@ begin
     Assert.AreEqual(0.0123, J.GetValue<Double>('fit_result.chi2'), 1e-9);
     Assert.AreEqual('solved', J.GetValue<string>('fit_result.chi2_scale'));
     Curves := J.GetValue<TJSONArray>('curves');
-    Assert.AreEqual(2, Curves.Count);
+    Assert.AreEqual<NativeInt>(2, Curves.Count);
     SawMeasured := False;
     for I := 0 to Curves.Count - 1 do
       if Curves.Items[I].GetValue<string>('role') = 'measured' then
@@ -798,7 +798,7 @@ begin
       GroupNode(1, [])]), [])));
   try
     Seq := J.GetValue<TJSONArray>('layer_sequence');
-    Assert.AreEqual(11, Seq.Count);
+    Assert.AreEqual<NativeInt>(11, Seq.Count);
     Assert.AreEqual(10.0, Seq.Items[0].GetValue<Double>('h_A'), 1e-5);
     Assert.AreEqual(5, Seq.Items[8].GetValue<Integer>('period'));
     Assert.AreEqual(12.0, Seq.Items[8].GetValue<Double>('h_A'), 1e-5);

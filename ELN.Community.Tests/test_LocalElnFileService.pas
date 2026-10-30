@@ -979,7 +979,7 @@ begin
     Assert.AreEqual(Ord(srError), Ord(Fixture.Service.SaveLocalFile(
       Fixture.AFile.Id, Fixture.WorkingPath, ErrorText)), ErrorText);
     Backups := TDirectory.GetFiles(TPath.Combine(Fixture.WorkingRoot, 'backups'), '*.bak');
-    Assert.AreEqual(1, Length(Backups));
+    Assert.AreEqual<NativeInt>(1, Length(Backups));
     Assert.AreEqual('opened bytes', System.IOUtils.TFile.ReadAllText(Backups[0]));
     Assert.IsTrue(Pos(Backups[0], ErrorText) > 0, 'Error must identify retained original bytes');
     Assert.AreEqual('editor draft', System.IOUtils.TFile.ReadAllText(Fixture.WorkingPath));
@@ -1219,7 +1219,7 @@ begin
     Update.Commit;
     Assert.AreEqual('opened bytes', TEncoding.UTF8.GetString(
       Fixture.Notebook.Storage.ReadBytes(Fixture.StoragePath)));
-    Assert.AreEqual(0, Length(TDirectory.GetFiles(OutsidePath)),
+    Assert.AreEqual<NativeInt>(0, Length(TDirectory.GetFiles(OutsidePath)),
       'No staged or canonical bytes may be written through the redirect');
   finally
     if Update <> nil then Update.Rollback;
@@ -1271,7 +1271,7 @@ begin
     Rows := nil;
     Statement := nil;
     Backups := TDirectory.GetFiles(TPath.Combine(Fixture.WorkingRoot, 'backups'), '*.bak');
-    Assert.AreEqual(1, Length(Backups));
+    Assert.AreEqual<NativeInt>(1, Length(Backups));
     Assert.AreEqual('opened bytes', System.IOUtils.TFile.ReadAllText(Backups[0]));
     Assert.IsTrue(Pos(Backups[0], ErrorText) > 0);
     Assert.AreEqual(Baseline, Fixture.Service.GetOpenHash(Fixture.AFile.Id));
@@ -1304,7 +1304,7 @@ begin
     Update.Commit;
     Assert.AreEqual('opened bytes', TEncoding.UTF8.GetString(
       Fixture.Notebook.Storage.ReadBytes(Fixture.StoragePath)));
-    Assert.AreEqual(0, Length(TDirectory.GetFiles(OutsidePath)));
+    Assert.AreEqual<NativeInt>(0, Length(TDirectory.GetFiles(OutsidePath)));
   finally
     if Update <> nil then Update.Rollback;
     Update := nil;

@@ -10,6 +10,7 @@ procedure RegisterFileTools(Registry: TToolRegistry);
 implementation
 
 uses
+  Winapi.Windows,
   System.SysUtils, System.JSON, System.IOUtils, System.Generics.Collections,
   System.DateUtils,
   Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq,
@@ -18,7 +19,10 @@ uses
   unit_JSONCompact, unit_ToolScope, unit_ToolDownloads, unit_ToolsWrite,
   unit_ToolHelpers, unit_PluginHost,
   unit_ReaderValueMappingModel, unit_ReaderValueStatistics,
-  unit_FilePaths;
+  unit_FilePaths, unit_StorageCheck,
+  Aurelius.Commands.Exceptions, Aurelius.Drivers.Interfaces,
+  unit_ConflictHandler,
+  unit_Hypothesis, unit_HypothesisGuard, unit_SignatureModel, unit_ItemModel;
 
 
 function DateToISO(const DT: TDateTime): string;
@@ -52,14 +56,19 @@ var
   FT: TFileType;
   Arr: TJSONArray;
   Obj: TJSONObject;
+  InBin, CheckStorage: Boolean;
 begin
   ItemId := GetReqInt(Params, 'item_id');
   RequireItemRead(Context, ItemId);
+  CheckStorage := GetOptBool(Params, 'check_storage', False);
+  if CheckStorage and (Context.Storage = nil) then
+    raise Exception.Create('check_storage needs notebook storage.');
 
   Item := Context.Manager.Find<TItem>(ItemId);
   if not Assigned(Item) then
     raise Exception.CreateFmt('Item not found: %d', [ItemId]);
 
+  InBin := ItemInRecycleBin(Context.Manager, Item);
   Arr := TJSONArray.Create;
   try
     for F in Item.Files do
@@ -83,6 +92,10 @@ begin
       Obj.AddPair('hash', F.Hash);
       Obj.AddPair('created_date', DateToISO(F.CreatedDate));
       Obj.AddPair('modified_date', NullableDateToJSON(F.ModifiedDate));
+      Obj.AddPair('is_deleted', TJSONBool.Create(InBin));
+      if CheckStorage then
+        Obj.AddPair('storage_status', StorageCheckStatusCode(
+          CheckStoredFile(Context.Manager, Context.Storage, F).Status));
       Arr.AddElement(Obj);
     end;
   except
@@ -362,10 +375,222 @@ begin
   end;
 end;
 
+function DeleteFileInfoJSON(F: unit_Item.TFile; ItemId: Integer): TJSONObject;
+var
+  Ext: string;
+begin
+  if Assigned(F.FileType) then
+    Ext := F.FileType.Ext
+  else
+    Ext := '';
+  Result := TJSONObject.Create;
+  Result.AddPair('id', TJSONNumber.Create(F.Id));
+  Result.AddPair('title', F.Title);
+  Result.AddPair('extension', Ext);
+  Result.AddPair('hash', F.Hash);
+  Result.AddPair('item_id', TJSONNumber.Create(ItemId));
+end;
+
+function HandleDeleteFile(const Params: TJSONObject;
+  const Context: TToolContext): TJSONObject;
+var
+  FileId: Int64;
+  DryRun, HasConfirm, Removed: Boolean;
+  ConfirmHash, AttachPath, PreviewPath, BytesStatus, BytesError: string;
+  F: unit_Item.TFile;
+  Item: TItem;
+  Project: TProject;
+  HypId, ItemId, I: Integer;
+  HypStatus: THypothesisStatus;
+  Items, OpItems: TItemModel;
+  Operation: TObjectManager;
+  Transaction: IDBTransaction;
+  Committed: Boolean;
+  OpFile: unit_Item.TFile;
+  OpItem: TItem;
+  Extracted: TArray<unit_Item.TValue>;
+  ValueIds: TArray<Integer>;
+  Checks, Rows, Ids: TJSONArray;
+  Row: TJSONObject;
+  TypeTitle: string;
+begin
+  FileId := GetReqInt64(Params, 'file_id');
+  DryRun := GetOptBool(Params, 'dry_run', True);
+  HasConfirm := GetOptStr(Params, 'confirm_hash', ConfirmHash);
+
+  RequireFileRead(Context, FileId);
+  F := Context.Manager.Find<unit_Item.TFile>(FileId);
+  if not Assigned(F) then
+    RaiseOutOfScope;
+  Context.Manager.Refresh(F);
+  Item := F.Item;
+  if not Assigned(Item) then
+    RaiseOutOfScope;
+  Context.Manager.Refresh(Item);
+  RequireProjectRead(Context, Item.ProjectID);
+  ItemId := Item.Id;
+
+  if ItemInRecycleBin(Context.Manager, Item) then
+    raise Exception.CreateFmt('Item %d is deleted.', [ItemId]);
+  CheckProjectWriteAccess(Context, Item.ProjectID);
+  if IsItemSignedCheck(Context.Manager, ItemId) then
+    raise Exception.Create('Item is signed and cannot be modified.');
+  if IsItemCitedByLockedHypothesis(Context.Manager, ItemId, HypId, HypStatus) then
+    raise Exception.CreateFmt(
+      'Item %d is a run of, or is cited by, hypothesis %d (%s); file %d cannot be deleted.',
+      [ItemId, HypId, HypothesisStatusNames[HypStatus], FileId]);
+  if IsFileCitedByLockedHypothesis(Context.Manager, FileId, HypId, HypStatus) then
+    raise Exception.CreateFmt(
+      'File %d is cited by hypothesis %d (%s); it cannot be deleted.',
+      [FileId, HypId, HypothesisStatusNames[HypStatus]]);
+  if HasConfirm and not SameText(Trim(ConfirmHash), Trim(F.Hash)) then
+    raise Exception.CreateFmt(
+      'confirm_hash does not match the stored hash of file %d.', [FileId]);
+  if Context.Storage = nil then
+    raise Exception.Create('delete_file needs notebook storage.');
+
+  Items := TItemModel.Create(Context.Manager);
+  try
+    Extracted := Items.ReaderValuesOf(Item, FileId);
+    Result := TJSONObject.Create;
+    try
+      Result.AddPair('dry_run', TJSONBool.Create(DryRun));
+      Result.AddPair('file', DeleteFileInfoJSON(F, ItemId));
+      if DryRun then
+      begin
+        Result.AddPair('deleted', TJSONBool.Create(False));
+        Rows := TJSONArray.Create;
+        Result.AddPair('values_to_delete', Rows);
+        for I := 0 to High(Extracted) do
+        begin
+          if Assigned(Extracted[I].ValueType) then
+            TypeTitle := Extracted[I].ValueType.Title
+          else
+            TypeTitle := '';
+          Row := TJSONObject.Create;
+          Rows.AddElement(Row);
+          Row.AddPair('id', TJSONNumber.Create(Extracted[I].Id));
+          Row.AddPair('value_type', TypeTitle);
+          Row.AddPair('value', SmartNum(Extracted[I].Value));
+        end;
+        Checks := TJSONArray.Create;
+        Result.AddPair('checks_passed', Checks);
+        Checks.Add('scope');
+        Checks.Add('not_deleted');
+        Checks.Add('write_access');
+        Checks.Add('not_signed');
+        Checks.Add('no_locked_hypothesis');
+        if HasConfirm then
+          Checks.Add('confirm_hash');
+        Exit;
+      end;
+
+      Project := Context.Manager.Find<TProject>(Item.ProjectID);
+      AttachPath := AttachmentRelativePath(Project.FileFolder, Item.FolderName,
+        F.FullName);
+      PreviewPath := PreviewRelativePath(ItemId, FileId);
+      Operation := TObjectManager.Create(Context.Manager.Connection);
+      try
+        OpFile := Operation.Find<unit_Item.TFile>(FileId);
+        if (OpFile = nil) or (OpFile.Item = nil) then
+          Removed := False
+        else
+        begin
+          OpItem := OpFile.Item;
+          OpItems := TItemModel.Create(Operation);
+          try
+            Extracted := OpItems.ReaderValuesOf(OpItem, FileId);
+            SetLength(ValueIds, Length(Extracted));
+            for I := 0 to High(Extracted) do
+              ValueIds[I] := Extracted[I].Id;
+            Transaction := TConflictHandler.BeginOperationTransaction(Context.Manager);
+            Committed := False;
+            try
+              try
+                Removed := OpItems.RemoveFile(OpFile, OpItem, Context.User.Id);
+              except
+                on E: EVersionedConcurrencyControl do
+                  Removed := False;
+              end;
+              if Removed then
+              begin
+                Transaction.Commit;
+                Committed := True;
+              end;
+            finally
+              if not Committed then
+                Transaction.Rollback;
+            end;
+          finally
+            OpItems.Free;
+          end;
+        end;
+      finally
+        TConflictHandler.FreeOperationManager(Operation);
+      end;
+      if not Removed then
+      begin
+        RefreshCachedItem(Context, ItemId);
+        raise Exception.Create('The file was not deleted. It may be signed or ' +
+          'changed by another session.');
+      end;
+
+      BytesError := '';
+      try
+        if Context.Storage.Exists(AttachPath) then
+        begin
+          Context.Storage.DeleteFile(AttachPath);
+          BytesStatus := 'removed';
+        end
+        else
+          BytesStatus := 'absent';
+      except
+        on EAbort do
+          raise;
+        on E: Exception do
+        begin
+          BytesStatus := 'remaining';
+          BytesError := StringReplace(StringReplace(E.Message, AttachPath,
+            '(attachment)', [rfReplaceAll, rfIgnoreCase]),
+            StringReplace(AttachPath, '/', '\', [rfReplaceAll]),
+            '(attachment)', [rfReplaceAll, rfIgnoreCase]);
+        end;
+      end;
+      try
+        Context.Storage.DeleteFile(PreviewPath);
+      except
+        on EAbort do
+          raise;
+        on Exception do
+          ;
+      end;
+      RefreshCachedItem(Context, ItemId);
+      ForgetCachedRow(Context, Context.Manager.FindCached<unit_Item.TFile>(FileId));
+      for I := 0 to High(ValueIds) do
+        ForgetCachedRow(Context,
+          Context.Manager.FindCached<unit_Item.TValue>(ValueIds[I]));
+
+      Result.AddPair('deleted', TJSONBool.Create(True));
+      Ids := TJSONArray.Create;
+      Result.AddPair('values_deleted', Ids);
+      for I := 0 to High(ValueIds) do
+        Ids.Add(ValueIds[I]);
+      Result.AddPair('bytes_status', BytesStatus);
+      if BytesStatus = 'remaining' then
+        Result.AddPair('bytes_error', BytesError);
+    except
+      Result.Free;
+      raise;
+    end;
+  finally
+    Items.Free;
+  end;
+end;
+
 
 function MakeListFilesSchema: TJSONObject;
 var
-  Props, ItemId: TJSONObject;
+  Props, ItemId, CheckStorage: TJSONObject;
   Req: TJSONArray;
 begin
   Result := TJSONObject.Create;
@@ -375,6 +600,11 @@ begin
   ItemId.AddPair('type', 'integer');
   ItemId.AddPair('description', 'Item ID to list files for');
   Props.AddPair('item_id', ItemId);
+  CheckStorage := TJSONObject.Create;
+  CheckStorage.AddPair('type', 'boolean');
+  CheckStorage.AddPair('description',
+    'Read each file''s bytes and add storage_status. Default false.');
+  Props.AddPair('check_storage', CheckStorage);
   Result.AddPair('properties', Props);
   Req := TJSONArray.Create;
   Req.Add('item_id');
@@ -433,13 +663,176 @@ begin
   Result.AddPair('required', Req);
 end;
 
+function MakeDeleteFileSchema: TJSONObject;
+var
+  Props, FileId, DryRun, ConfirmHash: TJSONObject;
+  Req: TJSONArray;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('type', 'object');
+  Props := TJSONObject.Create;
+  FileId := TJSONObject.Create;
+  FileId.AddPair('type', 'integer');
+  FileId.AddPair('description', 'File ID to delete');
+  Props.AddPair('file_id', FileId);
+  DryRun := TJSONObject.Create;
+  DryRun.AddPair('type', 'boolean');
+  DryRun.AddPair('description', 'Default true: check and report only. ' +
+    'Set false to delete.');
+  Props.AddPair('dry_run', DryRun);
+  ConfirmHash := TJSONObject.Create;
+  ConfirmHash.AddPair('type', 'string');
+  ConfirmHash.AddPair('description', 'Optional hash from list_files. The call ' +
+    'is refused when the stored hash is different.');
+  Props.AddPair('confirm_hash', ConfirmHash);
+  Result.AddPair('properties', Props);
+  Req := TJSONArray.Create;
+  Req.Add('file_id');
+  Result.AddPair('required', Req);
+end;
+
+function HandleDownloadFile(const Params: TJSONObject;
+  const Context: TToolContext): TJSONObject;
+var
+  FileId: Int64;
+  DestPath, FullDest, DestDir, TempPath, RelativePath, ActualHash: string;
+  Overwrite, Stored: Boolean;
+  F: unit_Item.TFile;
+  Project: TProject;
+  Status: TStorageCheckStatus;
+  Size: Int64;
+  Flags: DWORD;
+begin
+  FileId := GetReqInt64(Params, 'file_id');
+  DestPath := GetReqStr(Params, 'dest_path');
+  Overwrite := GetOptBool(Params, 'overwrite', False);
+
+  CheckDownloadPathAllowed(Context, DestPath);
+  RequireFileRead(Context, FileId);
+  F := Context.Manager.Find<unit_Item.TFile>(FileId);
+  if F.Item.IsDeleted then
+    raise Exception.CreateFmt('File %d belongs to deleted item %d.',
+      [FileId, F.Item.Id]);
+  if Context.Storage = nil then
+    raise Exception.Create('download_file needs notebook storage.');
+  Project := Context.Manager.Find<TProject>(F.Item.ProjectID);
+  if not Assigned(Project) or not Assigned(F.FileType) then
+    raise Exception.CreateFmt(
+      'File %d: storage_status error. The record has no project or file type.',
+      [FileId]);
+  RelativePath := AttachmentRelativePath(Project.FileFolder,
+    F.Item.FolderName, F.FullName);
+
+  try
+    Stored := Context.Storage.Exists(RelativePath);
+  except
+    on E: Exception do
+      raise Exception.CreateFmt('File %d: storage_status error. %s: %s',
+        [FileId, E.ClassName, E.Message]);
+  end;
+  if not Stored then
+    raise Exception.CreateFmt('File %d: storage_status missing. Notebook ' +
+      'storage has no bytes for this record; nothing was written.', [FileId]);
+
+  FullDest := TPath.GetFullPath(DestPath);
+  DestDir := ExtractFileDir(FullDest);
+  ForceDirectories(DestDir);
+  CheckDownloadPathAllowed(Context, FullDest);
+
+  TempPath := TPath.Combine(DestDir,
+    '.eln-download-' + TGUID.NewGuid.ToString + '.tmp');
+  try
+    try
+      Context.Storage.CopyOut(RelativePath, TempPath);
+    except
+      on E: Exception do
+        raise Exception.CreateFmt('File %d: storage_status error. %s: %s',
+          [FileId, E.ClassName, E.Message]);
+    end;
+    ActualHash := ComputeFileMD5(TempPath);
+    Size := System.IOUtils.TFile.GetSize(TempPath);
+    if Trim(F.Hash) = '' then
+      Status := scsNoHash
+    else if SameText(Trim(F.Hash), ActualHash) then
+      Status := scsOk
+    else
+      Status := scsContentMismatch;
+
+    Flags := MOVEFILE_WRITE_THROUGH;
+    if Overwrite then
+      Flags := Flags or MOVEFILE_REPLACE_EXISTING;
+    if not MoveFileEx(PChar(TempPath), PChar(FullDest), Flags) then
+    begin
+      if GetLastError in [ERROR_ALREADY_EXISTS, ERROR_FILE_EXISTS] then
+        raise Exception.CreateFmt(
+          'dest_path already exists: %s. Pass overwrite true to replace it.',
+          [FullDest]);
+      RaiseLastOSError;
+    end;
+  finally
+    if FileExists(TempPath) then
+      System.SysUtils.DeleteFile(TempPath);
+  end;
+
+  Result := TJSONObject.Create;
+  Result.AddPair('file_id', TJSONNumber.Create(FileId));
+  Result.AddPair('dest_path', FullDest);
+  Result.AddPair('size', TJSONNumber.Create(Size));
+  Result.AddPair('md5', ActualHash);
+  Result.AddPair('stored_hash', F.Hash);
+  Result.AddPair('storage_status', StorageCheckStatusCode(Status));
+end;
+
+function MakeDownloadFileSchema: TJSONObject;
+var
+  Props, P: TJSONObject;
+  Req: TJSONArray;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('type', 'object');
+  Props := TJSONObject.Create;
+  P := TJSONObject.Create;
+  P.AddPair('type', 'integer');
+  P.AddPair('description', 'File ID to download');
+  Props.AddPair('file_id', P);
+  P := TJSONObject.Create;
+  P.AddPair('type', 'string');
+  P.AddPair('description', 'Absolute local path for the copy. Must sit ' +
+    'under the server''s configured upload root; missing parent folders ' +
+    'are created.');
+  Props.AddPair('dest_path', P);
+  P := TJSONObject.Create;
+  P.AddPair('type', 'boolean');
+  P.AddPair('description', 'Replace an existing file at dest_path. Default false.');
+  Props.AddPair('overwrite', P);
+  Result.AddPair('properties', Props);
+  Req := TJSONArray.Create;
+  Req.Add('file_id');
+  Req.Add('dest_path');
+  Result.AddPair('required', Req);
+end;
+
 
 procedure RegisterFileTools(Registry: TToolRegistry);
 begin
   Registry.Register('list_files',
     'List all files attached to an item. Returns file metadata including ' +
-    'title, extension, file type description, hash, and dates.',
+    'title, extension, file type description, hash, dates and is_deleted ' +
+    '(true when the item or an ancestor is in the recycle bin). Set ' +
+    'check_storage to add storage_status (ok, missing, content_mismatch, ' +
+    'no_hash or error) from the stored bytes.',
     MakeListFilesSchema, HandleListFiles, tscProjectScoped);
+
+  Registry.Register('download_file',
+    'Read-only. Copy the stored bytes of a file to dest_path on the server ' +
+    'computer. dest_path must sit under the configured upload root, which ' +
+    'serves for both import and export; without it the tool is disabled. ' +
+    'Returns file_id, dest_path, size, md5, stored_hash and storage_status ' +
+    '(ok, content_mismatch or no_hash; the file is written in each case). ' +
+    'Missing bytes or a storage failure give an error with storage_status ' +
+    'missing or error and write nothing. overwrite false refuses an ' +
+    'existing dest_path. Files of deleted items are refused.',
+    MakeDownloadFileSchema, HandleDownloadFile, tscProjectScoped);
 
   Registry.Register('list_file_types',
     'List all registered file types. Returns the extension and description ' +
@@ -470,7 +863,9 @@ begin
     'analysis_snapshot, the JSON of the interval and file hash it used; pass ' +
     'it unchanged as analysis_snapshot to add_value or add_values so the ' +
     'value can be re-checked later. analysis_status (no_plateau, ' +
-    'stale_selection or interval_unusable) appears when a key was left out. ' +
+    'stale_selection, interval_unusable or no_step_found) appears when a ' +
+    'key was left out; low_confidence appears when a Step Height was ' +
+    'returned but is weak. ' +
     'Drift checks use the saved conversion, not later mapping edits. ' +
     'Optional selection (JSON object) replaces the stored shared selection ' +
     'for this call only and is never stored; a reader without analysis ' +
@@ -498,6 +893,19 @@ begin
     'The header includes the filename and format ' +
     'extension, including .depo.json.',
     MakeExtractFileKeyValuesSchema, HandleExtractFileKeyValues, tscProjectScoped);
+
+  Registry.Register('delete_file',
+    'Delete a file permanently. This cannot be undone from MCP. It also ' +
+    'deletes the Reader values extracted from the file and their analysis ' +
+    'snapshots. Manual and Unknown values stay. Call it with dry_run true ' +
+    '(the default) first and check values_to_delete. Pass confirm_hash ' +
+    '(the hash from list_files) to protect against a changed file. The call ' +
+    'needs write access. It is refused for signed or deleted items, and for ' +
+    'files or items that are a run of, or are cited by, a hypothesis in ' +
+    'review or accepted. The result has bytes_status ' +
+    '(removed, absent or remaining); the file record is deleted even when ' +
+    'the bytes remain.',
+    MakeDeleteFileSchema, HandleDeleteFile, tscProjectScoped);
 end;
 
 end.

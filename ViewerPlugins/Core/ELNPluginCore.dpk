@@ -32,7 +32,7 @@ requires
   vcl,
   vclimg,
   Tee,
-  TMSVCLPluginFrameworkPkgCoreDXE16;
+  TMSVCLPluginFrameworkPkgCore;
 
 contains
   unit_ELNPluginCore in 'unit_ELNPluginCore.pas',

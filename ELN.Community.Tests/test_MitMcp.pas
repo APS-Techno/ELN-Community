@@ -31,7 +31,7 @@ type
     function Extract(Selection: TJSONValue): TJSONObject;
     function RowOf(Response: TJSONObject; const Name: string): TJSONValue;
     function StoreValue(const KeyName: string; Value: Double;
-      Snapshot: TJSONValue; const ReaderVersion: string = '2'): Integer;
+      Snapshot: TJSONValue; const ReaderVersion: string = '3'): Integer;
     function SettingsRowCount: Integer;
     function CallDrift: TJSONObject;
     function FlagsOf(Row: TJSONValue): string;
@@ -50,7 +50,7 @@ type
     [Test] procedure ReplacedBytesAreSourceChangedAndReplayedOverTheStoredIndents;
     [Test] procedure ChangedBytesWithSameValuesAreSourceChangedOnly;
     [Test] procedure ValueWithoutSnapshotIsIntervalUnusable;
-    [Test] procedure ValueStoredByReaderVersionOneDrifts;
+    [Test] procedure ValueStoredByReaderVersionTwoDrifts;
     [Test] procedure UnusableOrStaleSelectionIsRefused;
     [Test] procedure ToolDescriptionNamesTheIndentSelection;
   end;
@@ -338,7 +338,7 @@ begin
   Response := Extract(nil);
   try
     Assert.IsNull(Response.FindValue('error'));
-    Assert.AreEqual('2', Response.GetValue<string>('reader_version'));
+    Assert.AreEqual('3', Response.GetValue<string>('reader_version'));
     for Name in ['Hardness', 'Modulus', 'Reduced Modulus', 'Contact Depth',
       'Max Force', 'Indent Count'] do
     begin
@@ -532,13 +532,13 @@ begin
   end;
 end;
 
-procedure TMitMcpTests.ValueStoredByReaderVersionOneDrifts;
+procedure TMitMcpTests.ValueStoredByReaderVersionTwoDrifts;
 var
   Report: TJSONObject;
   Row: TJSONValue;
   Id: Integer;
 begin
-  Id := StoreValue('Hardness', 6.2287, nil, '1');
+  Id := StoreValue('Hardness', 6.2287, nil, '2');
   Report := CallDrift;
   try
     Row := DriftRow(Report, Id);

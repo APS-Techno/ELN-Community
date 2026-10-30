@@ -1,6 +1,6 @@
 #requires -Version 7.0
 param(
-  [ValidateSet('Win32')][string]$Platform = 'Win32',
+  [ValidateSet('Win64')][string]$Platform = 'Win64',
   [ValidateSet('Debug', 'Release')][string]$Configuration = 'Release',
   [string]$DependencyConfig,
   [string]$RuntimeConfig,

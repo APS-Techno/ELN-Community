@@ -1,7 +1,7 @@
 #requires -Version 7.0
 param(
   [Parameter(Mandatory)][string]$RepoRoot,
-  [ValidateSet('Win32')][string]$Platform = 'Win32',
+  [ValidateSet('Win64')][string]$Platform = 'Win64',
   [ValidateSet('Debug', 'Release')][string]$Configuration = 'Release',
   [Parameter(Mandatory)][string]$Destination,
   [string]$DependencyConfig,
@@ -125,17 +125,33 @@ foreach ($directory in @('Core', 'Core.Protocol', 'Viewer.Image', 'Viewer.HTML',
   $relative = if ($directory -like 'Core*') { $name } else { 'Plugins/' + $name }
   Add-File (Join-Path $viewerRoot $relative) (Join-Path 'Program' $relative) $true
 }
-$delphiBin = Split-Path $dependencies.RsVarsPath -Parent
+$delphiBin = Join-Path (Split-Path (Split-Path $dependencies.RsVarsPath -Parent) -Parent) 'bin64'
 foreach ($name in @('rtl370.bpl', 'vcl370.bpl', 'vclimg370.bpl', 'vclwinx370.bpl', 'vcledge370.bpl',
     'xmlrtl370.bpl', 'bindengine370.bpl', 'dbrtl370.bpl', 'vcldb370.bpl', 'vclactnband370.bpl', 'vclx370.bpl', 'Tee9370.bpl')) {
   $source = Join-Path $delphiBin $name
   if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { $source = Join-Path $runtime.RuntimeBplRoot $name }
   Add-File $source (Join-Path 'Program' $name)
 }
-foreach ($name in @('RaizeComponentsVcl370.bpl', 'SynEditDR370.bpl', 'TMSVCLPluginFrameworkPkgCoreDXE16.bpl',
-    'TMSVCLPluginFrameworkPkgMgrDXE16.bpl', 'JamShellBrowserRuntime.bpl')) {
+# TMS Smart Setup keeps the framework BPLs beside the DCPs, not in the shared Delphi Bpl folder.
+function Resolve-ExternalBpl([string]$Name) {
+  $directories = @($dependencies.ExternalUnitPaths)
+  if ($dependencies.ContainsKey('PlatformExternalUnitPaths') -and
+      $dependencies.PlatformExternalUnitPaths.ContainsKey($Platform)) {
+    $directories += @($dependencies.PlatformExternalUnitPaths[$Platform])
+  }
+  foreach ($entry in $directories) {
+    $candidate = Join-Path ([string]$entry).Replace('{Platform}', $Platform).Replace('{Configuration}', $Configuration) $Name
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+  }
+  return Join-Path $runtime.RuntimeBplRoot $Name
+}
+foreach ($name in @('RaizeComponentsVcl370.bpl', 'SynEditDR370.bpl', 'JamShellBrowserRuntime.bpl')) {
   Add-File (Join-Path $runtime.RuntimeBplRoot $name) (Join-Path 'Program' $name)
 }
+foreach ($name in @('TMSVCLPluginFrameworkPkgCore370.bpl', 'TMSVCLPluginFrameworkPkgMgr370.bpl')) {
+  Add-File (Resolve-ExternalBpl $name) (Join-Path 'Program' $name)
+}
+Add-File (Join-Path $RepoRoot 'ELN.Search/search-artifacts.json') 'Program/search-artifacts.json'
 Add-File $runtime.SQLiteRuntime 'Program/sqlite3.dll'
 Add-File $runtime.WebView2Runtime 'Program/WebView2Loader.dll'
 foreach ($relative in @('Help', 'ProtocolTemplates', 'ExperimentTemplates')) {

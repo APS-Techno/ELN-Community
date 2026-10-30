@@ -97,6 +97,7 @@ MENU_ICONS = [
     'Web Devices',
     'Save Draft',
     'Reload Draft',
+    'Semantic Search',
 ]
 
 

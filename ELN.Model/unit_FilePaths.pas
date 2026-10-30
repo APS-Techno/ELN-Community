@@ -7,11 +7,12 @@ function FileFormatExtension(const FileName, StoredExtension: string): string;
 function AttachmentTitle(const FileName, TypeExtension: string): string;
 function AttachmentRelativePath(const ProjectFileFolder, ItemFolderName,
   FileFullName: string): string;
+function PreviewRelativePath(ItemId: Integer; FileId: Int64): string;
 
 implementation
 
 uses
-  System.IOUtils, System.StrUtils;
+  System.SysUtils, System.IOUtils, System.StrUtils;
 
 function CleanFileName(const Input: string): string;
 var
@@ -50,6 +51,11 @@ function AttachmentRelativePath(const ProjectFileFolder, ItemFolderName,
 begin
   Result := 'Projects/' + CleanFileName(ProjectFileFolder) + '/' +
     CleanFileName(ItemFolderName) + '/' + FileFullName;
+end;
+
+function PreviewRelativePath(ItemId: Integer; FileId: Int64): string;
+begin
+  Result := Format('previews/[1000]/%.*d_%.*d.png', [5, ItemId, 5, FileId]);
 end;
 
 end.

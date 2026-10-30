@@ -273,8 +273,7 @@ begin
           begin
             MatchesType := False;
             if Assigned(VT) then
-              MatchesType := SameText(VT.Title, ValueTypeStr) or
-                             SameText(VT.Symbol, ValueTypeStr);
+              MatchesType := ValueTypeNameMatches(VT.Title, VT.Symbol, ValueTypeStr);
             if not MatchesType then
               Continue;
           end;

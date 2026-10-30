@@ -1,0 +1,2857 @@
+{
+ "description": "Synthetic evaluation corpus for search stages 5 and 6. All items, folders, codes and numbers are invented. Small and not a benchmark. Stage 6 added folders and the item fields folder, level, type, action_type and parent. The items and their texts did not change.",
+ "projects": [
+  {
+   "id": 1,
+   "name": "Multilayer deposition"
+  },
+  {
+   "id": 2,
+   "name": "X-ray reflectometry and structure"
+  },
+  {
+   "id": 3,
+   "name": "Thermal stability and degradation"
+  },
+  {
+   "id": 4,
+   "name": "Substrates, cleaning and vacuum"
+  },
+  {
+   "id": 5,
+   "name": "Beamline work, software and planning"
+  }
+ ],
+ "folders": [
+  {
+   "id": 1001,
+   "project": 1,
+   "parent": 0,
+   "title": "Mo/Si production runs"
+  },
+  {
+   "id": 1002,
+   "project": 1,
+   "parent": 1001,
+   "title": "Barrier layer batch"
+  },
+  {
+   "id": 1003,
+   "project": 1,
+   "parent": 1001,
+   "title": "Rate and pressure calibration"
+  },
+  {
+   "id": 1004,
+   "project": 1,
+   "parent": 0,
+   "title": "New material proposals"
+  },
+  {
+   "id": 1005,
+   "project": 1,
+   "parent": 0,
+   "title": "Chamber and power"
+  },
+  {
+   "id": 1006,
+   "project": 1,
+   "parent": 1005,
+   "title": "Targets and cathodes"
+  },
+  {
+   "id": 1007,
+   "project": 1,
+   "parent": 0,
+   "title": "Other material systems"
+  },
+  {
+   "id": 2001,
+   "project": 2,
+   "parent": 0,
+   "title": "XRR measurements of MS series"
+  },
+  {
+   "id": 2002,
+   "project": 2,
+   "parent": 2001,
+   "title": "Repeat and reference measurements"
+  },
+  {
+   "id": 2003,
+   "project": 2,
+   "parent": 2001,
+   "title": "Fitting and models"
+  },
+  {
+   "id": 2004,
+   "project": 2,
+   "parent": 0,
+   "title": "Microscopy and surface"
+  },
+  {
+   "id": 2005,
+   "project": 2,
+   "parent": 2004,
+   "title": "Electron microscopy"
+  },
+  {
+   "id": 2006,
+   "project": 2,
+   "parent": 0,
+   "title": "Optical and composition methods"
+  },
+  {
+   "id": 2007,
+   "project": 2,
+   "parent": 0,
+   "title": "Structure and texture"
+  },
+  {
+   "id": 3001,
+   "project": 3,
+   "parent": 0,
+   "title": "Annealing"
+  },
+  {
+   "id": 3002,
+   "project": 3,
+   "parent": 3001,
+   "title": "Mo/Si stacks"
+  },
+  {
+   "id": 3003,
+   "project": 3,
+   "parent": 3001,
+   "title": "W/B4C stacks"
+  },
+  {
+   "id": 3004,
+   "project": 3,
+   "parent": 3001,
+   "title": "Oven and controls"
+  },
+  {
+   "id": 3005,
+   "project": 3,
+   "parent": 0,
+   "title": "Storage and corrosion"
+  },
+  {
+   "id": 3006,
+   "project": 3,
+   "parent": 3005,
+   "title": "Humidity and air"
+  },
+  {
+   "id": 3007,
+   "project": 3,
+   "parent": 0,
+   "title": "Radiation and hydrogen"
+  },
+  {
+   "id": 3008,
+   "project": 3,
+   "parent": 0,
+   "title": "Models and summaries"
+  },
+  {
+   "id": 3009,
+   "project": 3,
+   "parent": 0,
+   "title": "Thermal properties"
+  },
+  {
+   "id": 4001,
+   "project": 4,
+   "parent": 0,
+   "title": "Cleaning and handling"
+  },
+  {
+   "id": 4002,
+   "project": 4,
+   "parent": 4001,
+   "title": "Substrate cleaning"
+  },
+  {
+   "id": 4003,
+   "project": 4,
+   "parent": 4001,
+   "title": "Chemical safety"
+  },
+  {
+   "id": 4004,
+   "project": 4,
+   "parent": 0,
+   "title": "Vacuum system"
+  },
+  {
+   "id": 4005,
+   "project": 4,
+   "parent": 4004,
+   "title": "Pumps and seals"
+  },
+  {
+   "id": 4006,
+   "project": 4,
+   "parent": 0,
+   "title": "Stock and purchases"
+  },
+  {
+   "id": 5001,
+   "project": 5,
+   "parent": 0,
+   "title": "Beamline BL-12"
+  },
+  {
+   "id": 5002,
+   "project": 5,
+   "parent": 5001,
+   "title": "Beamtime reports"
+  },
+  {
+   "id": 5003,
+   "project": 5,
+   "parent": 5001,
+   "title": "Alignment and calibration"
+  },
+  {
+   "id": 5004,
+   "project": 5,
+   "parent": 0,
+   "title": "Software and modelling"
+  },
+  {
+   "id": 5005,
+   "project": 5,
+   "parent": 0,
+   "title": "Planning and meetings"
+  },
+  {
+   "id": 5006,
+   "project": 5,
+   "parent": 0,
+   "title": "Publications and data rules"
+  }
+ ],
+ "items": [
+  {
+   "id": 1,
+   "project": 1,
+   "folder": 1001,
+   "level": "Proc",
+   "type": "Synthesis",
+   "action_type": "Magnetron sputtering",
+   "parent": 0,
+   "title": "Sample MS-0417: Mo/Si multilayer, 40 periods on Si(100)",
+   "description": "Magnetron sputtering run with Mo and Si targets. Argon pressure 2.0 mTorr, Mo target 150 W DC, Si target 300 W RF. Target period 6.9 nm, gamma 0.4. Deposition took 3 h 10 min.",
+   "tags": [
+    "Mo/Si",
+    "sputtering",
+    "multilayer"
+   ],
+   "files": [
+    {
+     "name": "MS-0417_log.txt",
+     "text": "Run MS-0417. Base pressure 3e-7 mbar. Rotation 20 rpm. Mo rate 0.052 nm/s, Si rate 0.081 nm/s. Shutter calibration done before the run. No arcing observed."
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "project": 1,
+   "folder": 1002,
+   "level": "Proc",
+   "type": "Synthesis",
+   "action_type": "Magnetron sputtering",
+   "parent": 0,
+   "title": "Напыление MS-0418: Mo/Si с барьерными слоями B4C",
+   "description": "Многослойная структура Mo/B4C/Si/B4C, 50 периодов, толщина барьера 0,4 нм. Барьерные слои вводились для уменьшения перемешивания на границах раздела.",
+   "tags": [
+    "Mo/Si",
+    "B4C",
+    "барьерные слои"
+   ],
+   "files": []
+  },
+  {
+   "id": 3,
+   "project": 1,
+   "folder": 1003,
+   "level": "Proc",
+   "type": "Synthesis",
+   "action_type": "Magnetron sputtering",
+   "parent": 0,
+   "title": "Argon pressure series for Mo single layers",
+   "description": "Mo films of 50 nm were deposited at 0.8, 1.5, 2.5 and 4.0 mTorr. Film density falls and roughness grows when the pressure goes up. Best compromise is 1.5 mTorr.",
+   "tags": [
+    "Mo",
+    "pressure",
+    "density"
+   ],
+   "files": [
+    {
+     "name": "mo_pressure_series.csv",
+     "text": "pressure_mTorr,density_g_cm3,rms_nm\n0.8,10.1,0.31\n1.5,9.9,0.35\n2.5,9.4,0.52\n4.0,8.7,0.88"
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "project": 1,
+   "folder": 1001,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Снижение внутренних напряжений в многослойных плёнках",
+   "description": "Сжимающие напряжения в плёнке Mo/Si снижаются при повышении давления аргона и при введении тонкого слоя Cr. Кривизну подложки измеряли профилометром до и после напыления.",
+   "tags": [
+    "напряжения",
+    "Mo/Si",
+    "кривизна подложки"
+   ],
+   "files": []
+  },
+  {
+   "id": 5,
+   "project": 1,
+   "folder": 1007,
+   "level": "Proc",
+   "type": "Synthesis",
+   "action_type": "Magnetron sputtering",
+   "parent": 0,
+   "title": "W/B4C multilayer for hard X-rays: first test run",
+   "description": "Test deposition of a W/B4C stack, 100 periods, period 2.5 nm. The stack was completed and the reflectivity was measured at 8.05 keV. Result: peak reflectivity 62 percent.",
+   "tags": [
+    "W/B4C",
+    "hard X-ray",
+    "completed"
+   ],
+   "files": []
+  },
+  {
+   "id": 6,
+   "project": 1,
+   "folder": 1004,
+   "level": "Proc",
+   "type": "Synthesis",
+   "action_type": "Planned work",
+   "parent": 0,
+   "title": "Plan: Cr/Sc multilayer for the water window",
+   "description": "Proposed work, not started. Deposit Cr/Sc with period 3.2 nm for 3.1 nm wavelength. We need a clean Sc target and a new rotation fixture. Start after the target arrives.",
+   "tags": [
+    "Cr/Sc",
+    "water window",
+    "planned"
+   ],
+   "files": []
+  },
+  {
+   "id": 7,
+   "project": 1,
+   "folder": 1001,
+   "level": "Action",
+   "type": "Measurement",
+   "action_type": "Deposition rate calibration",
+   "parent": 1,
+   "title": "Калибровка скоростей напыления кварцевым датчиком",
+   "description": "Скорость напыления Mo и Si определяли по кварцевому микровесам. Расхождение с толщиной по рентгеновской рефлектометрии составило менее 3 процентов.",
+   "tags": [
+    "калибровка",
+    "кварцевые весы",
+    "скорость напыления"
+   ],
+   "files": []
+  },
+  {
+   "id": 8,
+   "project": 1,
+   "folder": 1005,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Equipment log",
+   "parent": 0,
+   "title": "Shutter timing error found in the deposition controller",
+   "description": "Layer thickness was off by 0.15 nm because the shutter closed 0.4 s late. Firmware setting was corrected. All runs between February and March should be treated with care.",
+   "tags": [
+    "controller",
+    "shutter",
+    "error"
+   ],
+   "files": []
+  },
+  {
+   "id": 9,
+   "project": 1,
+   "folder": 1007,
+   "level": "Proc",
+   "type": "Synthesis",
+   "action_type": "Magnetron sputtering",
+   "parent": 0,
+   "title": "Ni/C multilayers for soft X-rays: results",
+   "description": "Ni/C stacks with period 4.5 nm showed good contrast. The carbon layers were smooth. Measured peak reflectivity at 0.154 nm was 71 percent. The run was completed last week.",
+   "tags": [
+    "Ni/C",
+    "soft X-ray",
+    "completed"
+   ],
+   "files": []
+  },
+  {
+   "id": 10,
+   "project": 1,
+   "folder": 1004,
+   "level": "Proc",
+   "type": "Synthesis",
+   "action_type": "Planned work",
+   "parent": 0,
+   "title": "Планируется: осаждение La/B для длины волны 6,7 нм",
+   "description": "Работа предложена, но не начата. Нужно подготовить мишень La и проверить совместимость с бором. Решение о закупке мишени ещё не принято.",
+   "tags": [
+    "La/B",
+    "план",
+    "6,7 нм"
+   ],
+   "files": []
+  },
+  {
+   "id": 11,
+   "project": 1,
+   "folder": 1001,
+   "level": "Proc",
+   "type": "Synthesis",
+   "action_type": "Magnetron sputtering",
+   "parent": 0,
+   "title": "Substrate temperature effect on Mo/Si interdiffusion",
+   "description": "Samples grown on cooled substrates (10 C) show thinner interfacial silicide layers than samples grown at 80 C. The effect is small but reproducible. Cooling stage was added to the holder.",
+   "tags": [
+    "interdiffusion",
+    "temperature",
+    "Mo/Si"
+   ],
+   "files": []
+  },
+  {
+   "id": 12,
+   "project": 1,
+   "folder": 1002,
+   "level": "Proc",
+   "type": "Synthesis",
+   "action_type": "Reactive sputtering",
+   "parent": 0,
+   "title": "Реактивное напыление: нитрид кремния как барьер",
+   "description": "Тонкий слой Si3N4 получали реактивным распылением в смеси аргона и азота. Доля азота 15 процентов. Слой оказался стабильнее, чем карбидный барьер.",
+   "tags": [
+    "Si3N4",
+    "азот",
+    "барьер"
+   ],
+   "files": []
+  },
+  {
+   "id": 13,
+   "project": 1,
+   "folder": 1006,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Equipment log",
+   "parent": 0,
+   "title": "Target utilisation and erosion track of the Mo cathode",
+   "description": "The erosion groove on the 3 inch Mo cathode reached 4 mm depth. Utilisation is about 28 percent. Replacement is advised after 120 kWh of operation.",
+   "tags": [
+    "target",
+    "cathode",
+    "maintenance"
+   ],
+   "files": []
+  },
+  {
+   "id": 14,
+   "project": 1,
+   "folder": 1003,
+   "level": "Item",
+   "type": "Specimen",
+   "action_type": "Specimen record",
+   "parent": 0,
+   "title": "MS-0421 reference: single Mo layer, 30 nm, for optical constants",
+   "description": "Thick reference film for the ellipsometry fit. Deposited at 1.5 mTorr. File mo_30nm_ref.dat stores the measured spectrum.",
+   "tags": [
+    "Mo",
+    "reference",
+    "optical constants"
+   ],
+   "files": [
+    {
+     "name": "mo_30nm_ref.dat",
+     "text": "wavelength_nm angle psi delta\n400 70 31.2 118.4\n500 70 29.8 112.1\n600 70 28.9 106.3"
+    }
+   ]
+  },
+  {
+   "id": 15,
+   "project": 1,
+   "folder": 1003,
+   "level": "Proc",
+   "type": "Synthesis",
+   "action_type": "Magnetron sputtering",
+   "parent": 0,
+   "title": "Влияние мощности магнетрона на шероховатость кремния",
+   "description": "При увеличении ВЧ мощности на мишени Si шероховатость аморфного слоя растёт с 0,25 до 0,41 нм. Оптимальная мощность 250-300 Вт.",
+   "tags": [
+    "шероховатость",
+    "кремний",
+    "мощность"
+   ],
+   "files": []
+  },
+  {
+   "id": 16,
+   "project": 1,
+   "folder": 1001,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Adhesion test",
+   "parent": 0,
+   "title": "Multilayer without the buffer layer: delamination did not occur",
+   "description": "Six Mo/Si stacks were grown directly on bare silicon. After two weeks no peeling or blistering was found on any of them. Adhesion was good without a buffer.",
+   "tags": [
+    "adhesion",
+    "buffer",
+    "Mo/Si"
+   ],
+   "files": []
+  },
+  {
+   "id": 17,
+   "project": 1,
+   "folder": 1001,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Adhesion test",
+   "parent": 0,
+   "title": "Delamination of Mo/Si on glass substrates",
+   "description": "Stacks grown on float glass peeled off at the edges after 10 days in air. A chromium adhesion layer of 5 nm solved the problem in the next batch.",
+   "tags": [
+    "delamination",
+    "adhesion",
+    "glass"
+   ],
+   "files": []
+  },
+  {
+   "id": 18,
+   "project": 1,
+   "folder": 1004,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Planned work",
+   "parent": 0,
+   "title": "Планируется ионная полировка слоёв Si",
+   "description": "Предложено добавить ионную полировку каждого кремниевого слоя пучком Ar+ с энергией 200 эВ. Эксперимент не проводился, нужна ионная пушка.",
+   "tags": [
+    "ионная полировка",
+    "план",
+    "Si"
+   ],
+   "files": []
+  },
+  {
+   "id": 19,
+   "project": 1,
+   "folder": 1001,
+   "level": "Proc",
+   "type": "Computing",
+   "action_type": "Calculation",
+   "parent": 0,
+   "title": "Gamma ratio optimisation for 13.5 nm mirrors",
+   "description": "Scan of gamma from 0.30 to 0.50 showed the highest calculated reflectivity at gamma = 0.40 for Mo/Si with 6.9 nm period. The measured peak agreed within 1 percent.",
+   "tags": [
+    "gamma",
+    "EUV",
+    "optimisation"
+   ],
+   "files": []
+  },
+  {
+   "id": 20,
+   "project": 1,
+   "folder": 1001,
+   "level": "Proc",
+   "type": "Synthesis",
+   "action_type": "Magnetron sputtering",
+   "parent": 0,
+   "title": "Журнал запуска MS-0422: сбой вращения подложки",
+   "description": "Во время напыления остановился привод вращения. Партия забракована. Причина: износ подшипника. Подшипник заменён, прогон повторён как MS-0423.",
+   "tags": [
+    "журнал",
+    "сбой",
+    "вращение"
+   ],
+   "files": []
+  },
+  {
+   "id": 21,
+   "project": 1,
+   "folder": 1003,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "Deposition rate calibration",
+   "parent": 0,
+   "title": "Deposition rate drift over a week",
+   "description": "Rate of the Si magnetron dropped by 6 percent during one week. Recalibration before every run is now required. A log table of drift is attached.",
+   "tags": [
+    "rate",
+    "drift",
+    "calibration"
+   ],
+   "files": [
+    {
+     "name": "rate_drift_week12.csv",
+     "text": "day,si_rate_nm_s\n1,0.081\n3,0.079\n5,0.078\n7,0.076"
+    }
+   ]
+  },
+  {
+   "id": 22,
+   "project": 1,
+   "folder": 1001,
+   "level": "Item",
+   "type": "Specimen",
+   "action_type": "Specimen record",
+   "parent": 0,
+   "title": "Sample MS-0430: aperiodic multilayer for broadband reflection",
+   "description": "Depth-graded Mo/Si stack with 60 layers designed for a flat response between 12.5 and 14.5 nm. The stack was deposited and checked by XRR.",
+   "tags": [
+    "aperiodic",
+    "broadband",
+    "Mo/Si"
+   ],
+   "files": []
+  },
+  {
+   "id": 23,
+   "project": 1,
+   "folder": 1001,
+   "level": "Proc",
+   "type": "Computing",
+   "action_type": "Calculation",
+   "parent": 0,
+   "title": "Расчётные профили многослойных зеркал для мягкого рентгена",
+   "description": "Выполнен расчёт профилей толщин для широкополосного зеркала. Расчёт использует оптические константы Хенке. Результаты ещё не проверены экспериментом.",
+   "tags": [
+    "расчёт",
+    "зеркало",
+    "Хенке"
+   ],
+   "files": []
+  },
+  {
+   "id": 24,
+   "project": 1,
+   "folder": 1005,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Equipment log",
+   "parent": 0,
+   "title": "Sputtering chamber leak check after venting",
+   "description": "Helium leak test found a leak at the viewport flange. Rate was 2e-8 mbar l/s. The copper gasket was replaced and the leak rate fell below 1e-10.",
+   "tags": [
+    "leak",
+    "vacuum",
+    "maintenance"
+   ],
+   "files": []
+  },
+  {
+   "id": 25,
+   "project": 1,
+   "folder": 1002,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Vacuum annealing",
+   "parent": 0,
+   "title": "Mo/Si with carbon-free barrier: thermal test pending",
+   "description": "Samples MS-0440 to MS-0444 are ready for the annealing test. The test has not started. The oven is booked for next Tuesday.",
+   "tags": [
+    "barrier",
+    "annealing",
+    "planned"
+   ],
+   "files": []
+  },
+  {
+   "id": 26,
+   "project": 1,
+   "folder": 1005,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Equipment log",
+   "parent": 0,
+   "title": "Magnetron power supply replacement",
+   "description": "The old RF generator was replaced with a new 600 W unit. Matching network retuned. Reflected power stays below 2 W at 300 W forward.",
+   "tags": [
+    "RF",
+    "generator",
+    "equipment"
+   ],
+   "files": []
+  },
+  {
+   "id": 27,
+   "project": 1,
+   "folder": 1006,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Рекомендации по подготовке мишеней перед напылением",
+   "description": "Перед каждой серией мишень распыляют 10 минут при закрытой заслонке. Это удаляет оксидную плёнку и стабилизирует скорость.",
+   "tags": [
+    "мишень",
+    "подготовка",
+    "протокол"
+   ],
+   "files": []
+  },
+  {
+   "id": 28,
+   "project": 1,
+   "folder": 1001,
+   "level": "Action",
+   "type": "Measurement",
+   "action_type": "Thickness mapping",
+   "parent": 1,
+   "title": "Thickness uniformity across a 100 mm wafer",
+   "description": "Mapping with a masked quartz sensor gave a thickness variation of 1.2 percent across the wafer. The uniformity mask was adjusted twice.",
+   "tags": [
+    "uniformity",
+    "mask",
+    "wafer"
+   ],
+   "files": []
+  },
+  {
+   "id": 29,
+   "project": 1,
+   "folder": 1001,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Compact record of multilayer recipes",
+   "description": "Table of recipes for Mo/Si, W/B4C, Ni/C and Cr/Sc. Each row lists target power, pressure, rotation speed and expected period.",
+   "tags": [
+    "recipes",
+    "table",
+    "summary"
+   ],
+   "files": [
+    {
+     "name": "recipes_v3.csv",
+     "text": "system,power_W,pressure_mTorr,rotation_rpm,period_nm\nMo/Si,150/300,2.0,20,6.9\nW/B4C,120/200,1.5,15,2.5\nNi/C,100/250,2.0,15,4.5"
+    }
+   ]
+  },
+  {
+   "id": 30,
+   "project": 2,
+   "folder": 2001,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "X-ray reflectometry",
+   "parent": 0,
+   "title": "XRR scan of MS-0417 at Cu K-alpha",
+   "description": "Specular reflectivity from 0.2 to 6 degrees. First Bragg peak at 1.21 degrees. The fitted period is 6.9 nm and the interface roughness is 0.4 nm. Fit quality is good up to the fifth order.",
+   "tags": [
+    "XRR",
+    "Mo/Si",
+    "fit"
+   ],
+   "files": [
+    {
+     "name": "xrr_ms0417_scan.dat",
+     "text": "2theta intensity\n0.20 1.2e6\n0.60 3.4e5\n1.21 8.8e4\n2.42 1.1e3"
+    }
+   ]
+  },
+  {
+   "id": 31,
+   "project": 2,
+   "folder": 2001,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "X-ray reflectometry",
+   "parent": 0,
+   "title": "Рефлектометрия образца MS-0418 с барьерами B4C",
+   "description": "Положение брэгговских пиков соответствует периоду 6,6 нм. Шероховатость на границах Mo-на-Si снизилась до 0,3 нм по сравнению с образцом без барьеров.",
+   "tags": [
+    "рефлектометрия",
+    "B4C",
+    "шероховатость"
+   ],
+   "files": []
+  },
+  {
+   "id": 32,
+   "project": 2,
+   "folder": 2003,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Fitting strategy for multilayers with many parameters",
+   "description": "Fit the period first, then thicknesses of individual layers, then roughness. Fixing densities at bulk values avoids unphysical solutions. A global optimiser is run before the local one.",
+   "tags": [
+    "fitting",
+    "method",
+    "XRR"
+   ],
+   "files": []
+  },
+  {
+   "id": 33,
+   "project": 2,
+   "folder": 2001,
+   "level": "Action",
+   "type": "Measurement",
+   "action_type": "X-ray reflectometry",
+   "parent": 30,
+   "title": "Ошибка юстировки образца при измерении XRR",
+   "description": "Образец был смещён относительно оси гониометра на 0,2 мм. Кривая сдвинулась на 0,03 градуса. Правило: перед каждым измерением выполнять сканирование по высоте и по наклону.",
+   "tags": [
+    "юстировка",
+    "гониометр",
+    "XRR"
+   ],
+   "files": []
+  },
+  {
+   "id": 34,
+   "project": 2,
+   "folder": 2001,
+   "level": "Action",
+   "type": "Measurement",
+   "action_type": "X-ray reflectometry",
+   "parent": 30,
+   "title": "Detector saturation during the first Bragg peak",
+   "description": "The peak count rate exceeded the linear range of the scintillation detector. An attenuator foil was inserted. Measurements before this change must not be used for peak height.",
+   "tags": [
+    "detector",
+    "saturation",
+    "attenuator"
+   ],
+   "files": []
+  },
+  {
+   "id": 35,
+   "project": 2,
+   "folder": 2004,
+   "level": "Proc",
+   "type": "Characterization",
+   "action_type": "AFM scan",
+   "parent": 0,
+   "title": "AFM of silicon substrates: roughness survey",
+   "description": "Ten substrates were scanned over 2x2 micrometres. RMS roughness 0.15 to 0.30 nm. Two wafers with scratches were rejected. Images stored with the sample records.",
+   "tags": [
+    "AFM",
+    "roughness",
+    "substrates"
+   ],
+   "files": [
+    {
+     "name": "afm_survey_2024.csv",
+     "text": "wafer,rms_nm\nSi-01,0.15\nSi-02,0.17\nSi-03,0.30"
+    }
+   ]
+  },
+  {
+   "id": 36,
+   "project": 2,
+   "folder": 2006,
+   "level": "Proc",
+   "type": "Characterization",
+   "action_type": "Ellipsometry",
+   "parent": 0,
+   "title": "Эллипсометрия естественного оксида на кремнии",
+   "description": "Толщина слоя SiO2 на пластинах Si(100) составляет 1,8-2,2 нм. Измерения проводились на длинах волн 400-800 нм, использована модель Коши.",
+   "tags": [
+    "эллипсометрия",
+    "SiO2",
+    "оксид"
+   ],
+   "files": []
+  },
+  {
+   "id": 37,
+   "project": 2,
+   "folder": 2006,
+   "level": "Proc",
+   "type": "Characterization",
+   "action_type": "Ellipsometry",
+   "parent": 0,
+   "title": "Ellipsometry of native silicon oxide on wafers",
+   "description": "Native oxide thickness on freshly cleaned Si(100) is 1.5 nm and grows to 2.2 nm after two weeks in air. Spectra between 300 and 900 nm were fitted with a Cauchy model.",
+   "tags": [
+    "ellipsometry",
+    "SiO2",
+    "native oxide"
+   ],
+   "files": []
+  },
+  {
+   "id": 38,
+   "project": 2,
+   "folder": 2001,
+   "level": "Action",
+   "type": "Measurement",
+   "action_type": "Diffuse scattering",
+   "parent": 31,
+   "title": "Диффузное рассеяние рентгеновского излучения на многослойных плёнках",
+   "description": "Карты обратного пространства показывают коррелированную шероховатость с длиной корреляции около 60 нм. Измерение выполнено на лабораторном дифрактометре.",
+   "tags": [
+    "диффузное рассеяние",
+    "корреляция",
+    "шероховатость"
+   ],
+   "files": []
+  },
+  {
+   "id": 39,
+   "project": 2,
+   "folder": 2007,
+   "level": "Proc",
+   "type": "Characterization",
+   "action_type": "X-ray diffraction",
+   "parent": 0,
+   "title": "Grazing-incidence XRD of the molybdenum layers",
+   "description": "Mo layers are polycrystalline with a (110) texture for thickness above 3 nm, and amorphous below 2 nm. Crystalline size grows with thickness.",
+   "tags": [
+    "GIXRD",
+    "Mo",
+    "texture"
+   ],
+   "files": []
+  },
+  {
+   "id": 40,
+   "project": 2,
+   "folder": 2001,
+   "level": "Action",
+   "type": "Measurement",
+   "action_type": "Instrument calibration",
+   "parent": 30,
+   "title": "Calibration of the goniometer zero",
+   "description": "The zero offset of the 2theta axis is 0.012 degrees. Determined from the direct beam and the half-cut of a silicon wafer. File zero_calib_0912.dat holds the scans.",
+   "tags": [
+    "goniometer",
+    "zero",
+    "calibration"
+   ],
+   "files": [
+    {
+     "name": "zero_calib_0912.dat",
+     "text": "angle intensity\n-0.05 100\n0.00 5.0e5\n0.05 120"
+    }
+   ]
+  },
+  {
+   "id": 41,
+   "project": 2,
+   "folder": 2002,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "X-ray reflectometry",
+   "parent": 0,
+   "title": "XRR-2231 repeat measurement after storage",
+   "description": "The same sample was measured after 30 days. The period did not change within 0.02 nm. The surface oxide grew by 0.3 nm.",
+   "tags": [
+    "XRR",
+    "storage",
+    "repeatability"
+   ],
+   "files": []
+  },
+  {
+   "id": 42,
+   "project": 2,
+   "folder": 2002,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "X-ray reflectometry",
+   "parent": 0,
+   "title": "Повторное измерение XRR-2232 после отжига",
+   "description": "Период уменьшился на 0,12 нм после отжига при 300 °C. Пики стали шире. Выводы по причине пока не сделаны.",
+   "tags": [
+    "XRR",
+    "отжиг",
+    "период"
+   ],
+   "files": []
+  },
+  {
+   "id": 43,
+   "project": 2,
+   "folder": 2001,
+   "level": "Action",
+   "type": "Characterization",
+   "action_type": "Electron microscopy",
+   "parent": 31,
+   "title": "Transmission electron microscopy of a Mo/Si cross-section",
+   "description": "TEM image shows amorphous Si layers and crystalline Mo layers. The interlayers of MoSi2 are 1.1 nm thick at the Mo-on-Si interface and 0.6 nm at the other.",
+   "tags": [
+    "TEM",
+    "cross-section",
+    "interlayer"
+   ],
+   "files": []
+  },
+  {
+   "id": 44,
+   "project": 2,
+   "folder": 2005,
+   "level": "Proc",
+   "type": "Characterization",
+   "action_type": "Electron microscopy",
+   "parent": 0,
+   "title": "Просвечивающая электронная микроскопия: подготовка срезов",
+   "description": "Тонкие срезы готовили фокусированным ионным пучком. Толщина ламели 80 нм. Для защиты поверхности наносили слой платины.",
+   "tags": [
+    "ТЭМ",
+    "FIB",
+    "подготовка"
+   ],
+   "files": []
+  },
+  {
+   "id": 45,
+   "project": 2,
+   "folder": 2003,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Software note",
+   "parent": 0,
+   "title": "Software note: batch fit script for XRR files",
+   "description": "Python script reads all dat files in a folder, fits the period and writes a table. It stops with an error if the file has a non-numeric header line.",
+   "tags": [
+    "script",
+    "batch",
+    "software"
+   ],
+   "files": [
+    {
+     "name": "batch_fit.py",
+     "text": "import glob\nfor f in glob.glob('*.dat'):\n    print('fit', f)"
+    }
+   ]
+  },
+  {
+   "id": 46,
+   "project": 2,
+   "folder": 2006,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "X-ray reflectometry",
+   "parent": 0,
+   "title": "Измерение оптических констант молибдена по рефлектометрии",
+   "description": "Дельта и бета определены по критическому углу на длине волны 0,154 нм. Значения совпадают с таблицей Хенке в пределах 2 процентов.",
+   "tags": [
+    "оптические константы",
+    "Mo",
+    "Хенке"
+   ],
+   "files": []
+  },
+  {
+   "id": 47,
+   "project": 2,
+   "folder": 2006,
+   "level": "Proc",
+   "type": "Characterization",
+   "action_type": "X-ray fluorescence",
+   "parent": 0,
+   "title": "X-ray fluorescence check of layer composition",
+   "description": "XRF showed an oxygen-free stack, with Mo to Si ratio matching the design within 3 percent. The method has no depth resolution.",
+   "tags": [
+    "XRF",
+    "composition",
+    "check"
+   ],
+   "files": []
+  },
+  {
+   "id": 48,
+   "project": 2,
+   "folder": 2001,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "Planned work",
+   "parent": 0,
+   "title": "Планируется: нейтронная рефлектометрия изотопных слоёв",
+   "description": "Запланировано, но пока не выполнено. Нужна заявка на реактор и образец с изотопом 11B. Срок подачи заявки в ноябре.",
+   "tags": [
+    "нейтроны",
+    "план",
+    "изотопы"
+   ],
+   "files": []
+  },
+  {
+   "id": 49,
+   "project": 2,
+   "folder": 2003,
+   "level": "Proc",
+   "type": "Characterization",
+   "action_type": "Data fitting",
+   "parent": 0,
+   "title": "Interface roughness: comparison of XRR and AFM",
+   "description": "AFM roughness of the top surface was 0.35 nm, XRR gave 0.38 nm. The agreement shows that the Mo-on-Si interface is not much rougher than the surface.",
+   "tags": [
+    "roughness",
+    "AFM",
+    "XRR"
+   ],
+   "files": []
+  },
+  {
+   "id": 50,
+   "project": 2,
+   "folder": 2001,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "EUV reflectivity",
+   "parent": 0,
+   "title": "Reflectivity at 13.5 nm measured on the laboratory source",
+   "description": "A laser plasma source with a grating monochromator gave 66 percent peak reflectivity for MS-0417. The measurement was completed and the curve is attached.",
+   "tags": [
+    "EUV",
+    "reflectivity",
+    "completed"
+   ],
+   "files": []
+  },
+  {
+   "id": 51,
+   "project": 2,
+   "folder": 2001,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Измерение на длине волны 13,5 нм: оценка погрешности",
+   "description": "Систематическая погрешность определяется нестабильностью источника и составляет 1,5 процента. Для снижения ошибки усредняют 50 импульсов.",
+   "tags": [
+    "EUV",
+    "погрешность",
+    "источник"
+   ],
+   "files": []
+  },
+  {
+   "id": 52,
+   "project": 2,
+   "folder": 2001,
+   "level": "Action",
+   "type": "Measurement",
+   "action_type": "X-ray reflectometry",
+   "parent": 30,
+   "title": "Sample holder misalignment found with an optical level",
+   "description": "The tilt of the sample stage was 0.05 degrees. It was fixed by adding shims. Earlier XRR curves show a small shift in angle.",
+   "tags": [
+    "alignment",
+    "stage",
+    "error"
+   ],
+   "files": []
+  },
+  {
+   "id": 53,
+   "project": 2,
+   "folder": 2007,
+   "level": "Proc",
+   "type": "Characterization",
+   "action_type": "X-ray diffraction",
+   "parent": 0,
+   "title": "Grain size analysis from rocking curves",
+   "description": "Rocking curve width of the Mo (110) peak gives a coherence length of 12 nm. This agrees with TEM images. Data file rocking_mo110.dat.",
+   "tags": [
+    "rocking curve",
+    "grain size",
+    "Mo"
+   ],
+   "files": [
+    {
+     "name": "rocking_mo110.dat",
+     "text": "omega counts\n-0.5 20\n0.0 4500\n0.5 25"
+    }
+   ]
+  },
+  {
+   "id": 54,
+   "project": 2,
+   "folder": 2006,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Сравнение методов измерения толщины: XRR, эллипсометрия, TEM",
+   "description": "Для плёнок Mo толщиной 30 нм все три метода дают результат в пределах 1 нм. Эллипсометрия быстрее, но зависит от модели.",
+   "tags": [
+    "толщина",
+    "сравнение",
+    "методы"
+   ],
+   "files": []
+  },
+  {
+   "id": 55,
+   "project": 2,
+   "folder": 2002,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "X-ray reflectometry",
+   "parent": 0,
+   "title": "XRR on samples without annealing: reference set",
+   "description": "Reference curves of as-deposited samples for comparison with annealed ones. No thermal treatment was applied to any sample in this set.",
+   "tags": [
+    "reference",
+    "as-deposited",
+    "XRR"
+   ],
+   "files": []
+  },
+  {
+   "id": 56,
+   "project": 2,
+   "folder": 2003,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Beam footprint correction in XRR",
+   "description": "At low angles the beam footprint exceeds the sample length. The correction factor is applied below 0.5 degrees. Incorrect handling gives intensity errors up to 30 percent.",
+   "tags": [
+    "footprint",
+    "correction",
+    "XRR"
+   ],
+   "files": []
+  },
+  {
+   "id": 57,
+   "project": 2,
+   "folder": 2001,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Рентгеновская рефлектометрия: что измерено, а что предложено",
+   "description": "Выполнены измерения образцов MS-0417 и MS-0418. Измерения MS-0430 предложены, но не сделаны, потому что образец ещё на нанесении защитного слоя.",
+   "tags": [
+    "XRR",
+    "статус",
+    "MS-0430"
+   ],
+   "files": []
+  },
+  {
+   "id": 58,
+   "project": 2,
+   "folder": 2003,
+   "level": "Item",
+   "type": "Model",
+   "action_type": "Model note",
+   "parent": 0,
+   "title": "Roughness model comparison: Debye-Waller versus Nevot-Croce",
+   "description": "Both models fit the data of smooth samples equally well. Differences appear above 4 degrees and for roughness above 0.6 nm.",
+   "tags": [
+    "roughness",
+    "model",
+    "theory"
+   ],
+   "files": []
+  },
+  {
+   "id": 59,
+   "project": 2,
+   "folder": 2001,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Lab note on XRR sample mounting",
+   "description": "Use double-sided tape only for cheap test pieces. Real samples are held by vacuum chuck. Avoid any strain of thin wafers because it bends the surface.",
+   "tags": [
+    "mounting",
+    "chuck",
+    "protocol"
+   ],
+   "files": []
+  },
+  {
+   "id": 60,
+   "project": 3,
+   "folder": 3002,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Vacuum annealing",
+   "parent": 0,
+   "title": "Vacuum annealing of Mo/Si at 400 C: period contraction",
+   "description": "After 2 hours at 400 C the period shrank by 0.25 nm and the reflectivity fell by 8 percent. MoSi2 growth at the interfaces explains the contraction.",
+   "tags": [
+    "annealing",
+    "Mo/Si",
+    "MoSi2"
+   ],
+   "files": []
+  },
+  {
+   "id": 61,
+   "project": 3,
+   "folder": 3002,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Vacuum annealing",
+   "parent": 0,
+   "title": "Отжиг Mo/Si с барьерами B4C: результаты при 500 °C",
+   "description": "Образцы с барьерами B4C сохранили период после 2 часов отжига при 500 °C, уменьшение не превысило 0,03 нм. Барьеры существенно повышают термостабильность.",
+   "tags": [
+    "отжиг",
+    "B4C",
+    "термостабильность"
+   ],
+   "files": []
+  },
+  {
+   "id": 62,
+   "project": 3,
+   "folder": 3006,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Environmental exposure",
+   "parent": 0,
+   "title": "Corrosion of Ni/C mirrors in humid air",
+   "description": "After six weeks at 60 percent humidity the top carbon layer swelled and started to peel at the edges. Reflectivity fell from 71 to 55 percent. Storage in a desiccator is advised.",
+   "tags": [
+    "corrosion",
+    "humidity",
+    "Ni/C"
+   ],
+   "files": []
+  },
+  {
+   "id": 63,
+   "project": 3,
+   "folder": 3006,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Environmental exposure",
+   "parent": 0,
+   "title": "Деградация зеркал при хранении на воздухе",
+   "description": "Через месяц плёнка потемнела и местами отслоилась, видны следы коррозии. Образцы из партии, хранившейся в эксикаторе, остались без изменений.",
+   "tags": [
+    "деградация",
+    "хранение",
+    "коррозия"
+   ],
+   "files": []
+  },
+  {
+   "id": 64,
+   "project": 3,
+   "folder": 3004,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "Instrument calibration",
+   "parent": 0,
+   "title": "Annealing oven temperature calibration",
+   "description": "A thermocouple mounted on the sample holder reads 14 C lower than the controller at 400 C. A correction table was entered in the controller.",
+   "tags": [
+    "oven",
+    "calibration",
+    "temperature"
+   ],
+   "files": [
+    {
+     "name": "oven_calib.csv",
+     "text": "setpoint_C,actual_C\n200,196\n300,290\n400,386"
+    }
+   ]
+  },
+  {
+   "id": 65,
+   "project": 3,
+   "folder": 3003,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Planned work",
+   "parent": 0,
+   "title": "Plan: annealing series 200 to 600 C for W/B4C",
+   "description": "Proposed. Ten samples, steps of 50 C, 1 h each. Sample preparation is not finished yet, so no result exists.",
+   "tags": [
+    "annealing",
+    "W/B4C",
+    "planned"
+   ],
+   "files": []
+  },
+  {
+   "id": 66,
+   "project": 3,
+   "folder": 3003,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Vacuum annealing",
+   "parent": 0,
+   "title": "Отжиг W/B4C: серия завершена",
+   "description": "Серия образцов отожжена при 200-600 °C. Период сохранялся до 450 °C, выше начиналось размытие слоёв. Данные рефлектометрии приложены.",
+   "tags": [
+    "отжиг",
+    "W/B4C",
+    "завершено"
+   ],
+   "files": []
+  },
+  {
+   "id": 67,
+   "project": 3,
+   "folder": 3006,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Environmental exposure",
+   "parent": 0,
+   "title": "Oxidation of the top silicon layer in air",
+   "description": "Native oxide on the topmost Si layer grows to 2 nm within a month, then saturates. A capping layer of 2 nm Ru stops the growth.",
+   "tags": [
+    "oxidation",
+    "capping",
+    "Ru"
+   ],
+   "files": []
+  },
+  {
+   "id": 68,
+   "project": 3,
+   "folder": 3007,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Radiation exposure",
+   "parent": 0,
+   "title": "Ruthenium capping layer: test of lifetime",
+   "description": "Samples with a 2 nm Ru cap were exposed to EUV radiation for 100 h in poor vacuum. Carbon contamination was 0.4 nm. Uncapped samples showed 1.1 nm of oxide.",
+   "tags": [
+    "Ru",
+    "capping",
+    "lifetime"
+   ],
+   "files": []
+  },
+  {
+   "id": 69,
+   "project": 3,
+   "folder": 3006,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Environmental exposure",
+   "parent": 0,
+   "title": "Влияние влажности на адгезию слоёв",
+   "description": "При влажности выше 70 процентов краевое отслоение наблюдалось через 10 суток. Хранение при влажности 30 процентов исключило отслоение на срок до полугода.",
+   "tags": [
+    "влажность",
+    "адгезия",
+    "отслоение"
+   ],
+   "files": []
+  },
+  {
+   "id": 70,
+   "project": 3,
+   "folder": 3004,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Thermal cycling",
+   "parent": 0,
+   "title": "Thermal cycling test between 20 and 150 C",
+   "description": "Fifty cycles did not change the period or the roughness. No cracks were found in optical microscopy. The film stress changed by less than 5 percent.",
+   "tags": [
+    "thermal cycling",
+    "stress",
+    "stability"
+   ],
+   "files": []
+  },
+  {
+   "id": 71,
+   "project": 3,
+   "folder": 3007,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Radiation exposure",
+   "parent": 0,
+   "title": "Радиационная стойкость: облучение пучком электронов",
+   "description": "Образцы облучали электронами 10 кэВ дозой 1e17 электронов на см2. Рост углеродного слоя на поверхности составил 0,6 нм. Отражение не изменилось.",
+   "tags": [
+    "облучение",
+    "электроны",
+    "углерод"
+   ],
+   "files": []
+  },
+  {
+   "id": 72,
+   "project": 3,
+   "folder": 3007,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Radiation exposure",
+   "parent": 0,
+   "title": "Hydrogen exposure of Mo/Si: no blistering observed",
+   "description": "Samples were kept in hydrogen plasma for 8 h. We observed neither blisters nor delamination. This is a good result for cleaning in EUV scanners.",
+   "tags": [
+    "hydrogen",
+    "blistering",
+    "EUV"
+   ],
+   "files": []
+  },
+  {
+   "id": 73,
+   "project": 3,
+   "folder": 3007,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Radiation exposure",
+   "parent": 0,
+   "title": "Blistering of Mo/Si caused by hydrogen implantation",
+   "description": "In another run with higher ion energy (500 eV) blisters of 1 to 3 micrometres appeared. The cause is trapped hydrogen in silicon. The sample is not suitable for use.",
+   "tags": [
+    "hydrogen",
+    "blistering",
+    "failure"
+   ],
+   "files": []
+  },
+  {
+   "id": 74,
+   "project": 3,
+   "folder": 3005,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Planned work",
+   "parent": 0,
+   "title": "Хранение образцов в азоте: план эксперимента",
+   "description": "Предложено хранить 10 образцов в азотном боксе и 10 на воздухе. Измерения через 1, 3 и 6 месяцев. Эксперимент ещё не запущен.",
+   "tags": [
+    "хранение",
+    "азот",
+    "план"
+   ],
+   "files": []
+  },
+  {
+   "id": 75,
+   "project": 3,
+   "folder": 3005,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Long-term stability",
+   "parent": 0,
+   "title": "Long-term stability study of MS-0417: one year",
+   "description": "The sample was measured at 0, 3, 6 and 12 months. The period is stable within 0.02 nm and the peak reflectivity changed by 1 percent. Study completed.",
+   "tags": [
+    "stability",
+    "long-term",
+    "completed"
+   ],
+   "files": []
+  },
+  {
+   "id": 76,
+   "project": 3,
+   "folder": 3003,
+   "level": "Action",
+   "type": "Characterization",
+   "action_type": "Optical and AFM microscopy",
+   "parent": 66,
+   "title": "Дефекты поверхности после отжига: микроскопия",
+   "description": "После отжига при 600 °C на поверхности появились кристаллиты размером около 200 нм. Они видны в оптической и атомно-силовой микроскопии.",
+   "tags": [
+    "дефекты",
+    "отжиг",
+    "микроскопия"
+   ],
+   "files": []
+  },
+  {
+   "id": 77,
+   "project": 3,
+   "folder": 3008,
+   "level": "Item",
+   "type": "Model",
+   "action_type": "Model note",
+   "parent": 0,
+   "title": "Interdiffusion model for annealed multilayers",
+   "description": "A simple diffusion model with activation energy 1.8 eV reproduces the period contraction of Mo/Si between 300 and 450 C. Silicide growth follows a parabolic law.",
+   "tags": [
+    "diffusion",
+    "model",
+    "activation energy"
+   ],
+   "files": []
+  },
+  {
+   "id": 78,
+   "project": 3,
+   "folder": 3002,
+   "level": "Action",
+   "type": "Characterization",
+   "action_type": "Energy dispersive spectroscopy",
+   "parent": 60,
+   "title": "Energy dispersive X-ray spectroscopy after annealing",
+   "description": "EDS line scans across the film section show oxygen at the top and a mix of Mo and Si in the middle. The resolution of EDS is not enough for single layers.",
+   "tags": [
+    "EDS",
+    "annealing",
+    "composition"
+   ],
+   "files": []
+  },
+  {
+   "id": 79,
+   "project": 3,
+   "folder": 3005,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Environmental exposure",
+   "parent": 0,
+   "title": "Тест на устойчивость к ацетону и спирту",
+   "description": "Многослойные плёнки выдержали 10 минут в ацетоне и изопропаноле без видимых изменений. Ультразвуковая очистка не рекомендуется для зеркал.",
+   "tags": [
+    "очистка",
+    "растворители",
+    "устойчивость"
+   ],
+   "files": []
+  },
+  {
+   "id": 80,
+   "project": 3,
+   "folder": 3005,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Planned work",
+   "parent": 0,
+   "title": "Cryogenic cycling to 77 K: planned",
+   "description": "Proposed test in liquid nitrogen, not performed. Needs a holder with slow cooling to avoid cracks. Waiting for the new cryostat insert.",
+   "tags": [
+    "cryogenic",
+    "planned",
+    "stability"
+   ],
+   "files": []
+  },
+  {
+   "id": 81,
+   "project": 3,
+   "folder": 3002,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Vacuum annealing",
+   "parent": 0,
+   "title": "Effect of residual gas on annealing: oxygen versus vacuum",
+   "description": "Annealing in 1e-4 mbar oxygen gives a 1.5 nm thicker top oxide than annealing at 1e-7 mbar. The inner layers are not affected.",
+   "tags": [
+    "annealing",
+    "oxygen",
+    "residual gas"
+   ],
+   "files": []
+  },
+  {
+   "id": 82,
+   "project": 3,
+   "folder": 3004,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Thermal cycling",
+   "parent": 0,
+   "title": "Разрушение зеркала при термоударе",
+   "description": "При быстром нагреве до 300 °C на стеклянной подложке возникли трещины. На кремнии трещин нет. Скорость нагрева должна быть ниже 5 °C в минуту.",
+   "tags": [
+    "термоудар",
+    "трещины",
+    "подложка"
+   ],
+   "files": []
+  },
+  {
+   "id": 83,
+   "project": 3,
+   "folder": 3005,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Environmental exposure",
+   "parent": 0,
+   "title": "Corrosion test in salt fog: negative result",
+   "description": "Salt fog exposure for 24 h destroyed the top layers of all uncapped samples. This is expected and is not a concern for vacuum use.",
+   "tags": [
+    "corrosion",
+    "salt fog",
+    "negative result"
+   ],
+   "files": []
+  },
+  {
+   "id": 84,
+   "project": 3,
+   "folder": 3008,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Table of annealing results for all series",
+   "description": "Summary: Mo/Si loses 0.25 nm of period at 400 C, Mo/Si with B4C loses 0.03 nm at 500 C, W/B4C keeps its period up to 450 C, Ni/C is stable up to 300 C.",
+   "tags": [
+    "summary",
+    "annealing",
+    "table"
+   ],
+   "files": [
+    {
+     "name": "annealing_summary.csv",
+     "text": "system,T_C,delta_period_nm\nMo/Si,400,-0.25\nMo/Si+B4C,500,-0.03\nW/B4C,450,0.00\nNi/C,300,0.00"
+    }
+   ]
+  },
+  {
+   "id": 85,
+   "project": 3,
+   "folder": 3005,
+   "level": "Action",
+   "type": "Testing",
+   "action_type": "Long-term stability",
+   "parent": 75,
+   "title": "Samples without any thermal treatment: control group",
+   "description": "Control samples were stored at room temperature while others were annealed. They show no change in period and roughness over the same time.",
+   "tags": [
+    "control",
+    "no annealing",
+    "stability"
+   ],
+   "files": []
+  },
+  {
+   "id": 86,
+   "project": 3,
+   "folder": 3009,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "Thermal conductivity",
+   "parent": 0,
+   "title": "Измерение тепловой проводимости многослойной плёнки",
+   "description": "Метод трёх омега показал теплопроводность поперёк слоёв 1,2 Вт/(м·К). Интерфейсы дают основной вклад в термическое сопротивление.",
+   "tags": [
+    "теплопроводность",
+    "три омега",
+    "интерфейсы"
+   ],
+   "files": []
+  },
+  {
+   "id": 87,
+   "project": 3,
+   "folder": 3008,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Literature review",
+   "parent": 0,
+   "title": "Review of silicide growth literature",
+   "description": "Notes from 12 papers about MoSi2 and Mo5Si3 formation in thin films. Thickness of the silicide grows with the square root of time at constant temperature.",
+   "tags": [
+    "literature",
+    "silicide",
+    "review"
+   ],
+   "files": []
+  },
+  {
+   "id": 88,
+   "project": 3,
+   "folder": 3007,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Planned work",
+   "parent": 0,
+   "title": "Ageing under EUV: dose planning",
+   "description": "Plan only. We want to expose three samples to 1e6 pulses each at 13.5 nm. The beam time request is pending and no data exist.",
+   "tags": [
+    "EUV",
+    "ageing",
+    "planned"
+   ],
+   "files": []
+  },
+  {
+   "id": 89,
+   "project": 4,
+   "folder": 4002,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Substrate cleaning",
+   "parent": 0,
+   "title": "Silicon wafer cleaning protocol: RCA-1 and RCA-2",
+   "description": "Wafers are cleaned in ammonia-peroxide, then in hydrochloric acid-peroxide, 10 min each at 75 C, and rinsed in deionised water. A last dip in dilute HF removes the oxide. Use gloves and a fume hood.",
+   "tags": [
+    "cleaning",
+    "RCA",
+    "protocol"
+   ],
+   "files": [
+    {
+     "name": "rca_protocol_v2.txt",
+     "text": "Step 1: SC-1 NH4OH:H2O2:H2O 1:1:5, 75 C, 10 min. Step 2: rinse 5 min. Step 3: SC-2 HCl:H2O2:H2O 1:1:6, 75 C, 10 min. Step 4: rinse, nitrogen dry."
+    }
+   ]
+  },
+  {
+   "id": 90,
+   "project": 4,
+   "folder": 4002,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Substrate cleaning",
+   "parent": 0,
+   "title": "Очистка подложек перед напылением: ультразвук и плазма",
+   "description": "Подложки очищают в ультразвуковой ванне с ацетоном и спиртом по 10 минут, затем обрабатывают кислородной плазмой 2 минуты. После очистки подложки сразу помещают в камеру.",
+   "tags": [
+    "очистка",
+    "плазма",
+    "подложки"
+   ],
+   "files": []
+  },
+  {
+   "id": 91,
+   "project": 4,
+   "folder": 4006,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Incoming inspection",
+   "parent": 0,
+   "title": "Superpolished substrates: incoming inspection",
+   "description": "Each substrate is checked by interferometry and AFM. Acceptance limit is 0.2 nm RMS in the 1 to 10 micrometre band. Two of twelve substrates failed.",
+   "tags": [
+    "substrate",
+    "inspection",
+    "acceptance"
+   ],
+   "files": []
+  },
+  {
+   "id": 92,
+   "project": 4,
+   "folder": 4001,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Stock record",
+   "parent": 0,
+   "title": "Подложки из плавленого кварца: поставщик и качество",
+   "description": "Заказано 20 пластин диаметром 50 мм. Шероховатость по паспорту 0,3 нм, измеренная на АСМ 0,35 нм. Задержка поставки составила три недели.",
+   "tags": [
+    "кварц",
+    "подложки",
+    "поставщик"
+   ],
+   "files": []
+  },
+  {
+   "id": 93,
+   "project": 4,
+   "folder": 4005,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Equipment log",
+   "parent": 0,
+   "title": "Turbomolecular pump vibration problem",
+   "description": "The pump HV-PUMP-03 produced vibrations that blurred AFM images on the same table. A damping mount cut the amplitude by a factor of 5.",
+   "tags": [
+    "pump",
+    "vibration",
+    "HV-PUMP-03"
+   ],
+   "files": []
+  },
+  {
+   "id": 94,
+   "project": 4,
+   "folder": 4004,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Equipment log",
+   "parent": 0,
+   "title": "Журнал обслуживания HV-PUMP-01",
+   "description": "Замена масла в форвакуумном насосе выполнена. Время откачки до 1e-6 мбар сократилось с 90 до 55 минут. Следующее обслуживание через 6 месяцев.",
+   "tags": [
+    "насос",
+    "обслуживание",
+    "HV-PUMP-01"
+   ],
+   "files": []
+  },
+  {
+   "id": 95,
+   "project": 4,
+   "folder": 4004,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Cryopump regeneration procedure",
+   "description": "Regenerate when the pressure rises above 5e-7 mbar. Warm the pump to 300 K with the valve closed, purge with nitrogen, then cool again. Whole cycle takes four hours.",
+   "tags": [
+    "cryopump",
+    "regeneration",
+    "procedure"
+   ],
+   "files": []
+  },
+  {
+   "id": 96,
+   "project": 4,
+   "folder": 4004,
+   "level": "Proc",
+   "type": "Characterization",
+   "action_type": "Residual gas analysis",
+   "parent": 0,
+   "title": "Hydrocarbon contamination in the load lock",
+   "description": "Mass spectrometer shows peaks at mass 41, 43 and 57 after venting. A bake of the load lock at 120 C for 12 h removed them.",
+   "tags": [
+    "contamination",
+    "bake",
+    "mass spectrometer"
+   ],
+   "files": []
+  },
+  {
+   "id": 97,
+   "project": 4,
+   "folder": 4004,
+   "level": "Proc",
+   "type": "Characterization",
+   "action_type": "Residual gas analysis",
+   "parent": 0,
+   "title": "Остаточные газы в камере: анализ масс-спектрометром",
+   "description": "Основные пики: вода (18), азот (28), аргон (40). После прогрева камеры доля воды упала втрое. Давление 3e-8 мбар достигнуто через 24 часа.",
+   "tags": [
+    "остаточные газы",
+    "масс-спектрометр",
+    "прогрев"
+   ],
+   "files": []
+  },
+  {
+   "id": 98,
+   "project": 4,
+   "folder": 4004,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "Instrument calibration",
+   "parent": 0,
+   "title": "Argon gas line: mass flow controller calibration",
+   "description": "The 20 sccm controller reads 7 percent high compared with the bubble meter. The correction factor 0.93 is entered in the recipe software.",
+   "tags": [
+    "gas",
+    "flow controller",
+    "calibration"
+   ],
+   "files": []
+  },
+  {
+   "id": 99,
+   "project": 4,
+   "folder": 4004,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Equipment log",
+   "parent": 0,
+   "title": "Chiller for magnetron cooling: failure",
+   "description": "The chiller tripped because the water filter was blocked. Targets were warm for 20 minutes but not damaged. The filter is now cleaned every month.",
+   "tags": [
+    "chiller",
+    "cooling",
+    "failure"
+   ],
+   "files": []
+  },
+  {
+   "id": 100,
+   "project": 4,
+   "folder": 4001,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Safety instruction",
+   "parent": 0,
+   "title": "Safety instruction: handling of liquid nitrogen",
+   "description": "Wear face shield and gloves. Never close a vessel with a tight cap. Transport only in approved dewars. Training record must be signed.",
+   "tags": [
+    "safety",
+    "nitrogen",
+    "instruction"
+   ],
+   "files": []
+  },
+  {
+   "id": 101,
+   "project": 4,
+   "folder": 4003,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Safety instruction",
+   "parent": 0,
+   "title": "Правила работы с плавиковой кислотой",
+   "description": "Работа только в вытяжном шкафу, в защитных перчатках и маске. Гель с глюконатом кальция хранится в аптечке. Отходы собираются в отдельную ёмкость.",
+   "tags": [
+    "безопасность",
+    "HF",
+    "правила"
+   ],
+   "files": []
+  },
+  {
+   "id": 102,
+   "project": 4,
+   "folder": 4006,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Stock record",
+   "parent": 0,
+   "title": "Sample storage boxes: inventory",
+   "description": "All finished samples are stored in numbered boxes in a desiccator cabinet. Box 4 holds the MS series, box 5 the W/B4C series. Inventory list is attached.",
+   "tags": [
+    "inventory",
+    "storage",
+    "desiccator"
+   ],
+   "files": [
+    {
+     "name": "sample_inventory.csv",
+     "text": "box,series,count\n4,MS,18\n5,WB4C,12\n6,NiC,9"
+    }
+   ]
+  },
+  {
+   "id": 103,
+   "project": 4,
+   "folder": 4005,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Equipment log",
+   "parent": 0,
+   "title": "Вакуумный шлюз: замена уплотнений",
+   "description": "Резиновые кольца шлюза заменены на витоновые. Течь по гелиевому течеискателю не обнаружена. Работы заняли два дня.",
+   "tags": [
+    "шлюз",
+    "уплотнения",
+    "вакуум"
+   ],
+   "files": []
+  },
+  {
+   "id": 104,
+   "project": 4,
+   "folder": 4004,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Ion etching",
+   "parent": 0,
+   "title": "Ion gun alignment for substrate etching",
+   "description": "The Ar+ ion gun beam was centred on the substrate using a Faraday cup. Current density 0.5 mA per cm2 at 300 eV. Etch rate of silicon is 1.2 nm per minute.",
+   "tags": [
+    "ion gun",
+    "etching",
+    "alignment"
+   ],
+   "files": []
+  },
+  {
+   "id": 105,
+   "project": 4,
+   "folder": 4004,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Stock record",
+   "parent": 0,
+   "title": "Планируется закупка нового кварцевого датчика",
+   "description": "Заявка на покупку подготовлена, но не подана. Стоимость 1200 евро. Датчик нужен для замены изношенного.",
+   "tags": [
+    "закупка",
+    "датчик",
+    "план"
+   ],
+   "files": []
+  },
+  {
+   "id": 106,
+   "project": 4,
+   "folder": 4001,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Planned work",
+   "parent": 0,
+   "title": "Gold coating of substrates for adhesion tests",
+   "description": "Planned only. A 50 nm gold underlayer is meant to test if it improves the adhesion of Ni/C on glass. Gold target has not arrived.",
+   "tags": [
+    "gold",
+    "adhesion",
+    "planned"
+   ],
+   "files": []
+  },
+  {
+   "id": 107,
+   "project": 4,
+   "folder": 4001,
+   "level": "Proc",
+   "type": "Characterization",
+   "action_type": "Substrate bow measurement",
+   "parent": 0,
+   "title": "Residual stress of bare substrates",
+   "description": "Silicon wafers bend by less than 2 micrometres over 100 mm. Glass substrates bend more, up to 8 micrometres, which complicates stress measurements.",
+   "tags": [
+    "substrate",
+    "bow",
+    "stress"
+   ],
+   "files": []
+  },
+  {
+   "id": 108,
+   "project": 4,
+   "folder": 4002,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Equipment log",
+   "parent": 0,
+   "title": "Plasma cleaner chamber maintenance",
+   "description": "Quartz tube replaced after 500 hours. Oxygen line checked. Plasma ignition now stable at 50 W. Maintenance record updated.",
+   "tags": [
+    "plasma",
+    "maintenance",
+    "cleaner"
+   ],
+   "files": []
+  },
+  {
+   "id": 109,
+   "project": 4,
+   "folder": 4001,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Протокол: хранение мишеней в вакуумных пакетах",
+   "description": "Новые мишени хранят в вакуумных пакетах с силикагелем. Перед установкой проверяют внешний вид и отсутствие окисления. Мишень Sc хранится только в аргоне.",
+   "tags": [
+    "мишень",
+    "хранение",
+    "протокол"
+   ],
+   "files": []
+  },
+  {
+   "id": 110,
+   "project": 4,
+   "folder": 4004,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Magnetron cathode installation checklist",
+   "description": "Check the water connection, the shield gap of 2 mm and the electrical insulation. Test resistance to the ground must exceed 1 megaohm. Photograph the installed target.",
+   "tags": [
+    "checklist",
+    "cathode",
+    "installation"
+   ],
+   "files": []
+  },
+  {
+   "id": 111,
+   "project": 4,
+   "folder": 4004,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Equipment log",
+   "parent": 0,
+   "title": "Replacement of the quartz crystal monitor head",
+   "description": "The head was replaced when the crystal life fell below 10 percent. The tooling factor must be recalibrated with a thick reference film.",
+   "tags": [
+    "quartz",
+    "monitor",
+    "calibration"
+   ],
+   "files": []
+  },
+  {
+   "id": 112,
+   "project": 4,
+   "folder": 4001,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Specimen preparation",
+   "parent": 0,
+   "title": "Подготовка образцов для нейтронных измерений",
+   "description": "Образцы разрезаны на куски 25x25 мм, края защищены от повреждений. Для хранения использовались пластиковые контейнеры. Рефлектометрия не планировалась.",
+   "tags": [
+    "образцы",
+    "подготовка",
+    "нейтроны"
+   ],
+   "files": []
+  },
+  {
+   "id": 113,
+   "project": 4,
+   "folder": 4001,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Environment log",
+   "parent": 0,
+   "title": "Dust control in the clean area",
+   "description": "Particle counter shows 2000 particles per litre above 0.5 micrometre. Target is below 1000. Laminar flow hood filters were changed.",
+   "tags": [
+    "dust",
+    "clean room",
+    "filters"
+   ],
+   "files": []
+  },
+  {
+   "id": 114,
+   "project": 4,
+   "folder": 4002,
+   "level": "Action",
+   "type": "Testing",
+   "action_type": "Contact angle test",
+   "parent": 89,
+   "title": "Contact angle test of cleaned substrates",
+   "description": "Water contact angle on RCA-cleaned silicon is below 5 degrees; on acetone-cleaned silicon it is 30 to 40 degrees. The test is quick and shows the cleanliness.",
+   "tags": [
+    "contact angle",
+    "cleanliness",
+    "test"
+   ],
+   "files": []
+  },
+  {
+   "id": 115,
+   "project": 4,
+   "folder": 4004,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Equipment log",
+   "parent": 0,
+   "title": "Log of power outage on the vacuum system",
+   "description": "A power cut stopped all pumps. The gate valve closed automatically. No damage. An uninterruptible supply for the controller was ordered.",
+   "tags": [
+    "power outage",
+    "vacuum",
+    "log"
+   ],
+   "files": []
+  },
+  {
+   "id": 116,
+   "project": 4,
+   "folder": 4003,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Safety instruction",
+   "parent": 0,
+   "title": "Cleaning solution waste: disposal routine",
+   "description": "Acid and solvent waste go into separate marked canisters. The canisters are collected by the safety office every second Thursday. Records of volume are kept.",
+   "tags": [
+    "waste",
+    "disposal",
+    "safety"
+   ],
+   "files": []
+  },
+  {
+   "id": 117,
+   "project": 4,
+   "folder": 4006,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Stock record",
+   "parent": 0,
+   "title": "Protein-free cleaning agent for optical surfaces",
+   "description": "Supplier data for a cleaning agent used on optics. It contains no protein-digesting enzymes and no cell-culture components. Compatible with glass, quartz and coated silicon.",
+   "tags": [
+    "cleaning",
+    "optics",
+    "agent"
+   ],
+   "files": []
+  },
+  {
+   "id": 118,
+   "project": 5,
+   "folder": 5002,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "Beamtime",
+   "parent": 0,
+   "title": "Beamtime BL-12 summary: reflectivity of mirrors at 8 keV",
+   "description": "Three nights at the synchrotron beamline BL-12. We measured angular scans of six W/B4C mirrors. Data files bl12_run_001 to bl12_run_042 are stored in the project folder.",
+   "tags": [
+    "beamline",
+    "synchrotron",
+    "W/B4C"
+   ],
+   "files": [
+    {
+     "name": "bl12_run_017.dat",
+     "text": "angle_deg refl\n0.45 0.62\n0.46 0.58\n0.47 0.31"
+    }
+   ]
+  },
+  {
+   "id": 119,
+   "project": 5,
+   "folder": 5002,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Сеанс на синхротроне BL-12: ошибки и уроки",
+   "description": "Из-за нестабильности пучка потеряно около 6 часов. Рекомендация: перед каждой серией проверять положение щелей и ток накопителя.",
+   "tags": [
+    "синхротрон",
+    "BL-12",
+    "уроки"
+   ],
+   "files": []
+  },
+  {
+   "id": 120,
+   "project": 5,
+   "folder": 5003,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "Instrument calibration",
+   "parent": 0,
+   "title": "Beamline slit calibration procedure",
+   "description": "Scan each slit across the beam and record the half-maximum point. Offsets of up to 20 micrometres were found and are now stored in the control file.",
+   "tags": [
+    "slits",
+    "calibration",
+    "beamline"
+   ],
+   "files": []
+  },
+  {
+   "id": 121,
+   "project": 5,
+   "folder": 5003,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "Instrument calibration",
+   "parent": 0,
+   "title": "Focusing mirror alignment at the soft X-ray source",
+   "description": "Pitch and roll were adjusted with a CCD at the focus. Spot size 80 micrometres FWHM. The adjustment takes about 40 minutes.",
+   "tags": [
+    "focusing",
+    "alignment",
+    "soft X-ray"
+   ],
+   "files": []
+  },
+  {
+   "id": 122,
+   "project": 5,
+   "folder": 5001,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Equipment log",
+   "parent": 0,
+   "title": "Laser plasma source: nozzle erosion",
+   "description": "The xenon nozzle eroded after 3e7 shots and the EUV output fell by 40 percent. A new nozzle restored it. Spare nozzles are in the cabinet.",
+   "tags": [
+    "source",
+    "xenon",
+    "nozzle"
+   ],
+   "files": []
+  },
+  {
+   "id": 123,
+   "project": 5,
+   "folder": 5003,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Монохроматор для области 13,5 нм: настройка решётки",
+   "description": "Решётка 1200 штрихов на миллиметр. Разрешение по длине волны 0,02 нм. Настройка занимает один день, нулевой порядок используется для проверки.",
+   "tags": [
+    "монохроматор",
+    "решётка",
+    "13,5 нм"
+   ],
+   "files": []
+  },
+  {
+   "id": 124,
+   "project": 5,
+   "folder": 5003,
+   "level": "Proc",
+   "type": "Measurement",
+   "action_type": "Instrument calibration",
+   "parent": 0,
+   "title": "EUV photodiode calibration against a reference",
+   "description": "The AXUV diode was compared with a calibrated reference. Responsivity 0.21 A/W at 13.5 nm, within 3 percent of the certificate.",
+   "tags": [
+    "photodiode",
+    "calibration",
+    "EUV"
+   ],
+   "files": []
+  },
+  {
+   "id": 125,
+   "project": 5,
+   "folder": 5004,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Software note",
+   "parent": 0,
+   "title": "Data analysis pipeline for reflectivity curves",
+   "description": "A Python package reads raw files, subtracts dark counts, normalises by the incident beam and writes a table. Version 0.4 adds logging and unit tests.",
+   "tags": [
+    "software",
+    "pipeline",
+    "Python"
+   ],
+   "files": [
+    {
+     "name": "pipeline_readme.txt",
+     "text": "Run: python -m refl.run input_dir output_dir. Requires numpy and scipy. Dark counts are taken from the first ten points."
+    }
+   ]
+  },
+  {
+   "id": 126,
+   "project": 5,
+   "folder": 5004,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Software note",
+   "parent": 0,
+   "title": "Конвейер анализа данных: ошибка нормировки",
+   "description": "В версии 0.3 нормировка делилась на ток накопителя дважды. Все результаты, полученные этой версией, нужно пересчитать версией 0.4.",
+   "tags": [
+    "программа",
+    "ошибка",
+    "нормировка"
+   ],
+   "files": []
+  },
+  {
+   "id": 127,
+   "project": 5,
+   "folder": 5004,
+   "level": "Item",
+   "type": "Model",
+   "action_type": "Model note",
+   "parent": 0,
+   "title": "Machine learning model to predict multilayer reflectivity",
+   "description": "A small neural network was trained on 50 thousand simulated stacks. It predicts the peak reflectivity with 1 percent error and runs a thousand times faster than the transfer-matrix code.",
+   "tags": [
+    "machine learning",
+    "surrogate",
+    "simulation"
+   ],
+   "files": []
+  },
+  {
+   "id": 128,
+   "project": 5,
+   "folder": 5004,
+   "level": "Item",
+   "type": "Model",
+   "action_type": "Model note",
+   "parent": 0,
+   "title": "Нейронная сеть для подгонки рефлектометрических кривых",
+   "description": "Предложена архитектура, обучение не проведено. Данные для обучения будут получены расчётом по матричному методу.",
+   "tags": [
+    "нейросеть",
+    "подгонка",
+    "план"
+   ],
+   "files": []
+  },
+  {
+   "id": 129,
+   "project": 5,
+   "folder": 5004,
+   "level": "Item",
+   "type": "Model",
+   "action_type": "Model note",
+   "parent": 0,
+   "title": "Transfer-matrix code: validation against a textbook example",
+   "description": "The code reproduces the reflectivity of a Si/SiO2 bilayer to 1e-6 relative error. Parratt recursion gives identical numbers.",
+   "tags": [
+    "transfer matrix",
+    "validation",
+    "code"
+   ],
+   "files": []
+  },
+  {
+   "id": 130,
+   "project": 5,
+   "folder": 5005,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Meeting record",
+   "parent": 0,
+   "title": "Weekly meeting notes: priorities for the quarter",
+   "description": "Priorities: finish annealing series for W/B4C, repair the sputtering controller, submit the beamtime proposal. Proposed new topic: La/B mirrors for 6.7 nm.",
+   "tags": [
+    "meeting",
+    "priorities",
+    "quarter"
+   ],
+   "files": []
+  },
+  {
+   "id": 131,
+   "project": 5,
+   "folder": 5005,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Meeting record",
+   "parent": 0,
+   "title": "Протокол совещания: распределение времени на установке",
+   "description": "Установка напыления занята по понедельникам и средам. Рефлектометр свободен ежедневно. Пятница используется для обслуживания.",
+   "tags": [
+    "совещание",
+    "расписание",
+    "установка"
+   ],
+   "files": []
+  },
+  {
+   "id": 132,
+   "project": 5,
+   "folder": 5005,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Beam time proposal for the 2025 cycle",
+   "description": "Proposal submitted for 12 shifts at BL-12 to study thermal stability in situ. Status: submitted, not yet accepted. Decision expected in January.",
+   "tags": [
+    "proposal",
+    "beamtime",
+    "submitted"
+   ],
+   "files": []
+  },
+  {
+   "id": 133,
+   "project": 5,
+   "folder": 5001,
+   "level": "Proc",
+   "type": "Treatment",
+   "action_type": "Planned work",
+   "parent": 0,
+   "title": "In situ annealing setup at the beamline: design",
+   "description": "Heating stage with Kapton windows, maximum 600 C. Drawing and heat load calculation completed. The workshop has not yet built it.",
+   "tags": [
+    "in situ",
+    "heating",
+    "design"
+   ],
+   "files": []
+  },
+  {
+   "id": 134,
+   "project": 5,
+   "folder": 5005,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Бюджет проекта: расходные материалы за год",
+   "description": "Мишени 9500 евро, подложки 3200 евро, газы 800 евро, обслуживание насосов 1500 евро. Расходы по мишеням превышают план на 12 процентов.",
+   "tags": [
+    "бюджет",
+    "расходы",
+    "мишени"
+   ],
+   "files": []
+  },
+  {
+   "id": 135,
+   "project": 5,
+   "folder": 5006,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Student training record: sputtering system",
+   "description": "Two students finished the training on the sputtering system and signed the safety sheet. A short exam on vacuum safety was passed.",
+   "tags": [
+    "training",
+    "students",
+    "safety"
+   ],
+   "files": []
+  },
+  {
+   "id": 136,
+   "project": 5,
+   "folder": 5001,
+   "level": "Proc",
+   "type": "Characterization",
+   "action_type": "Interlab comparison",
+   "parent": 0,
+   "title": "Результаты сравнения двух лабораторий: круговой тест",
+   "description": "Два образца измерены в двух лабораториях. Расхождение по периоду 0,02 нм, по пиковому отражению 2 процента. Согласие считается хорошим.",
+   "tags": [
+    "круговой тест",
+    "сравнение",
+    "отражение"
+   ],
+   "files": []
+  },
+  {
+   "id": 137,
+   "project": 5,
+   "folder": 5004,
+   "level": "Proc",
+   "type": "Computing",
+   "action_type": "Data fitting",
+   "parent": 0,
+   "title": "Round-robin on XRR fitting with three groups",
+   "description": "The same curve was fitted by three groups with different software. Periods agree within 0.01 nm, roughness values differ by 0.2 nm, depending on the model.",
+   "tags": [
+    "round robin",
+    "fitting",
+    "software"
+   ],
+   "files": []
+  },
+  {
+   "id": 138,
+   "project": 5,
+   "folder": 5006,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Poster draft for the conference on X-ray optics",
+   "description": "Abstract and layout of the poster: Mo/Si with barrier layers, thermal stability and long-term ageing. Draft only. Figures have to be redone in vector format.",
+   "tags": [
+    "poster",
+    "conference",
+    "draft"
+   ],
+   "files": []
+  },
+  {
+   "id": 139,
+   "project": 5,
+   "folder": 5006,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Подготовка статьи: структура и распределение ролей",
+   "description": "Предложена структура статьи из пяти разделов. Первый автор пишет введение и методы. Раздел о термостабильности ждёт данных отжига.",
+   "tags": [
+    "статья",
+    "план",
+    "роли"
+   ],
+   "files": []
+  },
+  {
+   "id": 140,
+   "project": 5,
+   "folder": 5006,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Bibliography file for the thermal stability paper",
+   "description": "List of 40 references with DOI. Duplicates removed. A few entries have no page numbers and need checking.",
+   "tags": [
+    "bibliography",
+    "paper",
+    "references"
+   ],
+   "files": [
+    {
+     "name": "refs_thermal.bib",
+     "text": "@article{Smith1999, title={Silicide formation in thin films}, year={1999}}"
+    }
+   ]
+  },
+  {
+   "id": 141,
+   "project": 5,
+   "folder": 5006,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Laboratory network storage layout",
+   "description": "Raw data go to the folder raw, processed tables to processed, figures to figures. Use the date and the sample code in file names. Back-up runs every night.",
+   "tags": [
+    "data management",
+    "folders",
+    "backup"
+   ],
+   "files": []
+  },
+  {
+   "id": 142,
+   "project": 5,
+   "folder": 5006,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Лабораторный журнал: правила именования образцов",
+   "description": "Код образца состоит из префикса серии и номера, например MS-0417. Образцы с барьерами обозначаются суффиксом B. Коды не используются повторно.",
+   "tags": [
+    "именование",
+    "образцы",
+    "журнал"
+   ],
+   "files": []
+  },
+  {
+   "id": 143,
+   "project": 5,
+   "folder": 5004,
+   "level": "Proc",
+   "type": "Computing",
+   "action_type": "Calculation",
+   "parent": 0,
+   "title": "Uncertainty budget for peak reflectivity",
+   "description": "Contributions: source stability 1.5 percent, detector linearity 0.8 percent, alignment 1.0 percent, normalisation 0.5 percent. Combined uncertainty 2.1 percent.",
+   "tags": [
+    "uncertainty",
+    "budget",
+    "reflectivity"
+   ],
+   "files": []
+  },
+  {
+   "id": 144,
+   "project": 5,
+   "folder": 5003,
+   "level": "Proc",
+   "type": "Testing",
+   "action_type": "Detector test",
+   "parent": 0,
+   "title": "Test of a new area detector for diffuse scattering",
+   "description": "The detector has 1024x1024 pixels and a dynamic range of 1e6. Hot pixels were masked. Tests with a rough sample are planned for next month.",
+   "tags": [
+    "detector",
+    "area",
+    "diffuse"
+   ],
+   "files": []
+  },
+  {
+   "id": 145,
+   "project": 5,
+   "folder": 5006,
+   "level": "Item",
+   "type": "Wiki",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Instruction: opening a new notebook entry for each run",
+   "description": "Every deposition and every measurement needs its own entry with sample code, date and operator. Attach raw files directly to the entry.",
+   "tags": [
+    "notebook",
+    "instruction",
+    "data management"
+   ],
+   "files": []
+  },
+  {
+   "id": 146,
+   "project": 5,
+   "folder": 5004,
+   "level": "Proc",
+   "type": "Computing",
+   "action_type": "Calculation",
+   "parent": 0,
+   "title": "Thermal expansion mismatch between film and substrate",
+   "description": "Calculated stress from the difference of expansion coefficients between Mo, Si and glass. The stress at 400 C reaches 300 MPa on glass and 120 MPa on silicon.",
+   "tags": [
+    "thermal expansion",
+    "stress",
+    "calculation"
+   ],
+   "files": []
+  },
+  {
+   "id": 147,
+   "project": 5,
+   "folder": 5004,
+   "level": "Proc",
+   "type": "Computing",
+   "action_type": "Calculation",
+   "parent": 0,
+   "title": "Calculation of the mirror reflectivity for 6.7 nm radiation",
+   "description": "Preliminary calculation shows that La/B stacks could reach 70 percent at 6.7 nm if interfaces are smooth to 0.3 nm. This is a calculation only, no sample exists.",
+   "tags": [
+    "La/B",
+    "calculation",
+    "6.7 nm"
+   ],
+   "files": []
+  },
+  {
+   "id": 148,
+   "project": 5,
+   "folder": 5004,
+   "level": "Proc",
+   "type": "Computing",
+   "action_type": "Calculation",
+   "parent": 0,
+   "title": "Результаты расчёта: многослойное зеркало для излучения 3,1 нм",
+   "description": "Для пары Cr/Sc расчётная отражательная способность около 40 процентов при нормальном падении. Образцов пока нет.",
+   "tags": [
+    "Cr/Sc",
+    "расчёт",
+    "водяное окно"
+   ],
+   "files": []
+  },
+  {
+   "id": 149,
+   "project": 5,
+   "folder": 5005,
+   "level": "Item",
+   "type": "Other",
+   "action_type": "Documentation",
+   "parent": 0,
+   "title": "Sample shipment to the partner institute",
+   "description": "Four Mo/Si samples were sent in sealed boxes with silica gel. Tracking number is stored in the entry. Return is expected in three weeks.",
+   "tags": [
+    "shipment",
+    "partner",
+    "samples"
+   ],
+   "files": []
+  }
+ ]
+}

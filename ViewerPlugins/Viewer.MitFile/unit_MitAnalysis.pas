@@ -7,7 +7,7 @@ uses
 
 const
   MitReaderId = 'aps.mit';
-  MitReaderVersion = '2';
+  MitReaderVersion = '3';
   MitAlgorithmVersion = '1';
   MitSchemaVersion = 1;
   MitKeyHardness = 'Hardness';

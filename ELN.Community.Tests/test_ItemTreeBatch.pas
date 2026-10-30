@@ -125,7 +125,7 @@ begin
   Other := NewItem('Other', 0);
   F := NewFile(RootItem, 'file');
   Model.Items.AddNote('note', 'body', Model.User.Id, Child);
-  Assert.AreEqual(1, Child.Entries.Count);
+  Assert.AreEqual<NativeInt>(1, Child.Entries.Count);
   N := Child.Entries[0];
 
   Picked := FBatch.TopLevel([
@@ -133,7 +133,7 @@ begin
     TBatchTarget.ForItem(RootItem), TBatchTarget.ForItem(Grandchild),
     TBatchTarget.ForNote(N, Child), TBatchTarget.ForItem(Other)]);
 
-  Assert.AreEqual(2, Length(Picked));
+  Assert.AreEqual<NativeInt>(2, Length(Picked));
   Assert.AreEqual('I:' + IntToStr(RootItem.Id), Picked[0].Key);
   Assert.AreEqual('I:' + IntToStr(Other.Id), Picked[1].Key);
 end;
@@ -199,7 +199,7 @@ begin
     Skips[I].Reason := 'R' + IntToStr(I + 1);
   end;
   Lines := TItemTreeBatch.FormatSkips(Skips, 20).Split([sLineBreak]);
-  Assert.AreEqual(21, Length(Lines));
+  Assert.AreEqual<NativeInt>(21, Length(Lines));
   Assert.AreEqual('"Subject": R1', Lines[0]);
   Assert.AreEqual('...and 5 more', Lines[20]);
 end;
@@ -237,10 +237,10 @@ begin
   Plan := FBatch.PlanDelete([TBatchTarget.ForItem(A), TBatchTarget.ForItem(B),
     TBatchTarget.ForFile(FA, A), TBatchTarget.ForNote(NB, B)]);
 
-  Assert.AreEqual(2, Length(Plan.Targets));
+  Assert.AreEqual<NativeInt>(2, Length(Plan.Targets));
   Assert.AreEqual('I:' + IntToStr(B.Id), Plan.Targets[0].Key);
   Assert.AreEqual('N:' + IntToStr(NB.Id), Plan.Targets[1].Key);
-  Assert.AreEqual(2, Length(Plan.Skipped));
+  Assert.AreEqual<NativeInt>(2, Length(Plan.Skipped));
   Assert.IsTrue(Plan.Skipped[0].Reason.StartsWith('Cannot delete item "A"'));
   Assert.AreEqual('Its item is signed.', Plan.Skipped[1].Reason);
 end;
@@ -258,8 +258,8 @@ begin
 
   Plan := FBatch.PlanDelete([TBatchTarget.ForFile(FB, B)]);
 
-  Assert.AreEqual(0, Length(Plan.Targets));
-  Assert.AreEqual(1, Length(Plan.Skipped));
+  Assert.AreEqual<NativeInt>(0, Length(Plan.Targets));
+  Assert.AreEqual<NativeInt>(1, Length(Plan.Skipped));
   Assert.AreEqual('Its item is signed.', Plan.Skipped[0].Reason);
 end;
 
@@ -294,8 +294,8 @@ begin
     TBatchTarget.ForItem(Y), TBatchTarget.ForFile(FZ, Z),
     TBatchTarget.ForNote(NZ, Z)]));
 
-  Assert.AreEqual(4, Length(Result.Done));
-  Assert.AreEqual(0, Length(Result.Failed));
+  Assert.AreEqual<NativeInt>(4, Length(Result.Done));
+  Assert.AreEqual<NativeInt>(0, Length(Result.Failed));
   Fresh := TObjectManager.Create(FNotebook.Connection);
   try
     Assert.IsTrue(Fresh.Find<TItem>(XId).IsDeleted);
@@ -321,8 +321,8 @@ begin
   Result := FBatch.ExecuteDelete(FBatch.PlanDelete(FBatch.TopLevel(
     [TBatchTarget.ForItem(X), TBatchTarget.ForFile(FX, X)])));
 
-  Assert.AreEqual(1, Length(Result.Done));
-  Assert.AreEqual(0, Length(Result.Failed));
+  Assert.AreEqual<NativeInt>(1, Length(Result.Done));
+  Assert.AreEqual<NativeInt>(0, Length(Result.Failed));
 end;
 
 procedure TItemTreeBatchTests.DeletedTargetsKeepKeyAndTitle;
@@ -347,7 +347,7 @@ begin
 
   Result := FBatch.ExecuteDelete(FBatch.PlanDelete([TargetFile, TargetNote]));
 
-  Assert.AreEqual(2, Length(Result.Done));
+  Assert.AreEqual<NativeInt>(2, Length(Result.Done));
   Assert.AreEqual(FileKey, Result.Done[0].Key);
   Assert.AreEqual(FileTitle, Result.Done[0].Title);
   Assert.AreEqual(NoteKey, Result.Done[1].Key);
@@ -363,16 +363,16 @@ begin
   P := NewItem('P', 0);
   Q := NewItem('Q', 0);
   Plan := FBatch.PlanDelete([TBatchTarget.ForItem(P), TBatchTarget.ForItem(Q)]);
-  Assert.AreEqual(2, Length(Plan.Targets));
+  Assert.AreEqual<NativeInt>(2, Length(Plan.Targets));
   Assert.IsTrue(Model.Signatures.SignItem(P, Model.User, Password, 'Synthetic', ''));
 
   Result := FBatch.ExecuteDelete(Plan);
 
-  Assert.AreEqual(1, Length(Result.Failed));
+  Assert.AreEqual<NativeInt>(1, Length(Result.Failed));
   Assert.AreEqual('I:' + IntToStr(P.Id), Result.Failed[0].Target.Key);
   Assert.AreEqual('Cannot delete item "P": it is signed.',
     Result.Failed[0].Reason);
-  Assert.AreEqual(1, Length(Result.Done));
+  Assert.AreEqual<NativeInt>(1, Length(Result.Done));
   Assert.AreEqual('I:' + IntToStr(Q.Id), Result.Done[0].Key);
 end;
 
@@ -406,9 +406,9 @@ begin
     TBatchTarget.ForItem(S), TBatchTarget.ForItem(A), TBatchTarget.ForItem(B)]),
     A1.Id);
 
-  Assert.AreEqual(1, Length(Plan.Targets));
+  Assert.AreEqual<NativeInt>(1, Length(Plan.Targets));
   Assert.AreEqual('I:' + IntToStr(B.Id), Plan.Targets[0].Key);
-  Assert.AreEqual(3, Length(Plan.Skipped));
+  Assert.AreEqual<NativeInt>(3, Length(Plan.Skipped));
   Assert.AreEqual('Folders cannot be moved here.', Plan.Skipped[0].Reason);
   Assert.AreEqual('The item is signed.', Plan.Skipped[1].Reason);
   Assert.AreEqual('The target is inside this item.', Plan.Skipped[2].Reason);
@@ -431,8 +431,8 @@ begin
   Result := FBatch.ExecuteMoveItems(FBatch.PlanMoveItemsTo(FBatch.PlanMoveItems(
     [TBatchTarget.ForItem(B), TBatchTarget.ForItem(C)]), PId), PId);
 
-  Assert.AreEqual(2, Length(Result.Done));
-  Assert.AreEqual(0, Length(Result.Failed));
+  Assert.AreEqual<NativeInt>(2, Length(Result.Done));
+  Assert.AreEqual<NativeInt>(0, Length(Result.Failed));
   Fresh := TObjectManager.Create(FNotebook.Connection);
   try
     Assert.AreEqual(PId, Fresh.Find<TItem>(BId).Parent);
@@ -461,8 +461,8 @@ begin
   Result := FBatch.ExecuteMoveFiles(FBatch.PlanMoveFiles(
     [TBatchTarget.ForFile(F1, A), TBatchTarget.ForFile(F2, A)], B.Id), B.Id);
 
-  Assert.AreEqual(2, Length(Result.Done));
-  Assert.AreEqual(0, Length(Result.Failed));
+  Assert.AreEqual<NativeInt>(2, Length(Result.Done));
+  Assert.AreEqual<NativeInt>(0, Length(Result.Failed));
   New1 := StringReplace(Model.GetFileName(F1.Id), '\', '/', [rfReplaceAll]);
   New2 := StringReplace(Model.GetFileName(F2.Id), '\', '/', [rfReplaceAll]);
   Assert.AreNotEqual(Old1, New1);
@@ -481,8 +481,8 @@ begin
   B := NewItem('B', 0);
   FB := NewFile(B, 'fb');
   Plan := FBatch.PlanMoveFiles([TBatchTarget.ForFile(FB, B)], B.Id);
-  Assert.AreEqual(0, Length(Plan.Targets));
-  Assert.AreEqual(1, Length(Plan.Skipped));
+  Assert.AreEqual<NativeInt>(0, Length(Plan.Targets));
+  Assert.AreEqual<NativeInt>(1, Length(Plan.Skipped));
   Assert.AreEqual('The file is already there.', Plan.Skipped[0].Reason);
 end;
 
@@ -510,11 +510,11 @@ begin
   Result := FBatch.ExecuteMoveFiles(FBatch.PlanMoveFiles(
     [TBatchTarget.ForFile(F1, A), TBatchTarget.ForFile(F2, A)], BId), BId);
 
-  Assert.AreEqual(1, Length(Result.Failed), 'failed count');
+  Assert.AreEqual<NativeInt>(1, Length(Result.Failed), 'failed count');
   Assert.AreEqual('F:' + IntToStr(Id1), Result.Failed[0].Target.Key);
   Assert.IsFalse(Result.Failed[0].Reason.Contains('Rollback failed'), Result.Failed[0].Reason);
   Assert.IsTrue(Result.Failed[0].Reason <> '');
-  Assert.AreEqual(1, Length(Result.Done), 'done count');
+  Assert.AreEqual<NativeInt>(1, Length(Result.Done), 'done count');
   Assert.AreEqual('F:' + IntToStr(Id2), Result.Done[0].Key);
   Fresh := TObjectManager.Create(FNotebook.Connection);
   try
@@ -573,8 +573,8 @@ begin
     Result := FBatch.ExecuteExportFiles(
       [TBatchTarget.ForFile(F1, A), TBatchTarget.ForFile(F2, B)], Folder);
 
-    Assert.AreEqual(2, Length(Result.Done));
-    Assert.AreEqual(0, Length(Result.Failed));
+    Assert.AreEqual<NativeInt>(2, Length(Result.Done));
+    Assert.AreEqual<NativeInt>(0, Length(Result.Failed));
     Assert.AreEqual<TBytes>(TBytes.Create(9, 9),
       System.IOUtils.TFile.ReadAllBytes(TPath.Combine(Folder, 'data.txt')));
     Assert.AreEqual<TBytes>(TBytes.Create(1, 2, 3),

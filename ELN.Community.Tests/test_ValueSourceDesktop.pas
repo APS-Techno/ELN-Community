@@ -153,7 +153,7 @@ begin
   VT := Model.Manager.Find<TValueType>(ThicknessType);
   FVM.AddValue(VT, EXP_CONDITION, 5e-8, FItem, 0, 'typed by hand',
     TValueSourceInfo.Manual);
-  Assert.AreEqual(1, FItem.Values.Count);
+  Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
   Stored := FreshValue(FItem.Values[0].Id);
   Assert.IsTrue(Stored.SourceKind.HasValue, 'Manual entry must not stay Unknown');
   Assert.IsTrue(Stored.SourceKind.Value = vskManual);
@@ -230,7 +230,7 @@ begin
   WriteExtractedValue(Model.Items, Mapping, KV, Model.User.Id, FItem, AFile.Id,
     'synthetic.reader', '2.1', '', 0);
 
-  Assert.AreEqual(1, FItem.Values.Count);
+  Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
   Stored := FreshValue(FItem.Values[0].Id);
   Assert.IsTrue(Stored.EffectiveSourceKind = vskReader);
   Assert.IsTrue(Stored.RecType = TEST_RESULT);
@@ -317,7 +317,7 @@ begin
     AutoStd.Value := 0.2;
     Assert.AreEqual(0, WriteAutomaticExtractedValues(Model.Items, Resolver, [AutoStd, KV],
       Model.User.Id, FItem, AFile.Id, 'aps.xrcx', '1', nil, 1000, Warning));
-    Assert.AreEqual(1, FItem.Values.Count, 'A key-flagged STD is not a second value');
+    Assert.AreEqual<NativeInt>(1, FItem.Values.Count, 'A key-flagged STD is not a second value');
     AutoId := FItem.Values[0].Id;
     Automatic := FreshValue(AutoId);
     Assert.AreEqual(15e-10, Automatic.Value, 1e-22);
@@ -325,7 +325,7 @@ begin
     KV.Value := 2000;
     Assert.IsFalse(TryWriteAutomaticExtractedValue(Model.Items, Mapping, KV,
       Model.User.Id, FItem, AFile.Id, 'aps.xrcx', '1', '', 1000, 0));
-    Assert.AreEqual(1, FItem.Values.Count);
+    Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
     Assert.AreEqual(15e-10, FreshValue(AutoId).Value, 1e-22);
     KV.Value := 15;
     KV.Description := 'paired STD test';
@@ -350,7 +350,7 @@ begin
           AFile.Id, 'aps.xrcx', '1', nil));
       end;
       Assert.AreEqual(0, Questions, 'Converted value is inside the range');
-      Assert.AreEqual(1, FItem.Values.Count, 'The dialog updates the value of this file');
+      Assert.AreEqual<NativeInt>(1, FItem.Values.Count, 'The dialog updates the value of this file');
       Assert.AreEqual(AutoId, FItem.Values[0].Id);
       Assert.AreEqual(15e-10, FreshValue(AutoId).Value, 1e-22);
       Assert.AreEqual('A', FreshValue(AutoId).ReaderUnits.Value);
@@ -364,7 +364,7 @@ begin
         Assert.IsTrue(ShowExtractValuesDialog([StdKV, KV], FItem, Model.User.Id,
           AFile.Id, 'aps.xrcx', '1', nil));
       end;
-      Assert.AreEqual(1, FItem.Values.Count, 'Invalid STD is not stored separately');
+      Assert.AreEqual<NativeInt>(1, FItem.Values.Count, 'Invalid STD is not stored separately');
       Assert.AreEqual(15e-10, FreshValue(AutoId).Value, 1e-22);
       Assert.AreEqual<Double>(0, FreshValue(AutoId).Tol);
       Assert.AreEqual(1, Driver.WarningsShown, 'Invalid STD reason must be visibly reported');
@@ -376,14 +376,14 @@ begin
           AFile.Id, 'aps.xrcx', '1', nil));
       end;
       Assert.AreEqual(2, Driver.WarningsShown, 'Orphan STD must be visibly reported');
-      Assert.AreEqual(1, FItem.Values.Count);
+      Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
       Model.ValueTypes.AddType('RT', 'Synthetic raw thickness', 'A', 0);
       Driver.Attempts := 0;
       Driver.TargetTitle := 'Synthetic raw thickness';
       AutoStd.Value := 0.2;
       Assert.IsTrue(ShowExtractValuesDialog([KV, AutoStd], FItem, Model.User.Id,
         AFile.Id, 'aps.xrcx', '1', nil));
-      Assert.AreEqual(1, FItem.Values.Count);
+      Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
       Assert.AreEqual(15.0, FreshValue(AutoId).Value, 1e-12);
       Assert.AreEqual(0.2, FreshValue(AutoId).Tol, 1e-12);
       Assert.AreEqual(1.0, FreshValue(AutoId).ConversionFactor.Value, 1e-12);
@@ -435,7 +435,7 @@ begin
     Timer.Free;
     Driver.Free;
   end;
-  Assert.AreEqual(1, FItem.Values.Count);
+  Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
   Stored := FreshValue(FItem.Values[0].Id);
   Assert.AreEqual(0.35e-6, Stored.Value, 1e-18);
   Assert.AreEqual('um', Stored.ReaderUnits.Value);
@@ -523,23 +523,23 @@ begin
     Analysis := AttachAnalysisContext(Plugin, Path, AFile.Id);
     Assert.IsTrue(Analysis <> nil, 'The ZRW reader provides an analysis context');
     CofKeys := CofKeysOf(Plugin.GetKeyValues);
-    Assert.AreEqual(2, Length(CofKeys));
+    Assert.AreEqual<NativeInt>(2, Length(CofKeys));
 
     Assert.AreEqual(0, WriteAutomaticExtractedValues(Model.Items, Resolver, CofKeys,
       Model.User.Id, FItem, AFile.Id, 'aps.zrw', '2', Analysis, 1000, Warning));
     Assert.AreEqual('', Warning);
-    Assert.AreEqual(1, FItem.Values.Count, 'COF STD is not stored separately');
+    Assert.AreEqual<NativeInt>(1, FItem.Values.Count, 'COF STD is not stored separately');
     AutoValue := FreshValue(FItem.Values[0].Id).Value;
     AutoTol := FreshValue(FItem.Values[0].Id).Tol;
     AutoSnapshot := SnapshotWithoutValueId(FItem.Values[0]);
 
     Model.Items.RemoveValue(FItem.Values[0], FItem, Model.User.Id);
-    Assert.AreEqual(0, FItem.Values.Count);
+    Assert.AreEqual<NativeInt>(0, FItem.Values.Count);
     Timer.Interval := 100;
     Timer.OnTimer := Driver.Tick;
     Assert.IsTrue(ShowExtractValuesDialog(CofKeys, FItem, Model.User.Id,
       AFile.Id, 'aps.zrw', '2', Analysis));
-    Assert.AreEqual(1, FItem.Values.Count);
+    Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
     DialogValue := FreshValue(FItem.Values[0].Id).Value;
     DialogTol := FreshValue(FItem.Values[0].Id).Tol;
     DialogSnapshot := SnapshotWithoutValueId(FItem.Values[0]);
@@ -749,7 +749,7 @@ begin
   Assert.AreEqual(1, WriteChosenValues([Choice], Keys, Model.User.Id, FItem,
     AFile.Id, 'aps.xrcx', '1', nil, False, 1000, Skipped));
   Assert.AreEqual(0, Skipped);
-  Assert.AreEqual(1, FItem.Values.Count);
+  Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
   Assert.AreEqual(2e-9, FreshValue(FItem.Values[0].Id).Value, 1e-22);
 end;
 
@@ -792,11 +792,11 @@ begin
   Assert.AreEqual(0, WriteChosenValues(Choices, Keys, Model.User.Id, FItem,
     AFile.Id, 'aps.xrcx', '1', nil, True, 1000, Skipped));
   Assert.AreEqual(2, Skipped);
-  Assert.AreEqual(0, FItem.Values.Count);
+  Assert.AreEqual<NativeInt>(0, FItem.Values.Count);
   Assert.AreEqual(1, WriteChosenValues(Choices, Keys, Model.User.Id, FItem,
     AFile.Id, 'aps.xrcx', '1', nil, False, 1000, Skipped));
   Assert.AreEqual(1, Skipped);
-  Assert.AreEqual(1, FItem.Values.Count);
+  Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
 end;
 
 procedure TValueSourceDesktopTests.WriteChosenValuesPairsDuplicateKeysInOrder;
@@ -837,7 +837,7 @@ begin
   Assert.AreEqual(2, WriteChosenValues(Choices, Keys, Model.User.Id, FItem,
     AFile.Id, 'aps.xrcx', '1', nil, False, 1000, Skipped));
   Assert.AreEqual(0, Skipped);
-  Assert.AreEqual(2, FItem.Values.Count);
+  Assert.AreEqual<NativeInt>(2, FItem.Values.Count);
   A := FreshValue(FItem.Values[0].Id).Value;
   B := FreshValue(FItem.Values[1].Id).Value;
   Assert.AreEqual(5e-9, A + B, 1e-22);
@@ -846,7 +846,7 @@ begin
   Assert.AreEqual(1, WriteChosenValues(Choices, Keys, Model.User.Id, FItem,
     AFile.Id, 'aps.xrcx', '1', nil, False, 1000, Skipped));
   Assert.AreEqual(1, Skipped);
-  Assert.AreEqual(2, FItem.Values.Count,
+  Assert.AreEqual<NativeInt>(2, FItem.Values.Count,
     'Extracting the file again updates the first occurrence instead of adding one');
 end;
 
@@ -877,24 +877,24 @@ begin
   try
     Assert.AreEqual(0, WriteAutomaticExtractedValues(Model.Items, Resolver, [KV],
       Model.User.Id, FItem, AFile.Id, 'aps.xrcx', '1', nil, 1000, Warning));
-    Assert.AreEqual(1, FItem.Values.Count);
+    Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
     ValueId := FItem.Values[0].Id;
     WriteAutomaticExtractedValues(Model.Items, Resolver, [KV], Model.User.Id,
       FItem, AFile.Id, 'aps.xrcx', '1', nil, 1000, Warning);
-    Assert.AreEqual(1, FItem.Values.Count,
+    Assert.AreEqual<NativeInt>(1, FItem.Values.Count,
       'A second extraction from the same file must not add a value');
     Assert.IsFalse(FreshValue(ValueId).ModifiedDate.HasValue,
       'An unchanged number is not written again');
     KV.Value := 16;
     WriteAutomaticExtractedValues(Model.Items, Resolver, [KV], Model.User.Id,
       FItem, AFile.Id, 'aps.xrcx', '1', nil, 1000, Warning);
-    Assert.AreEqual(1, FItem.Values.Count);
+    Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
     Assert.AreEqual(ValueId, FItem.Values[0].Id, 'The stored value keeps its ID');
     Assert.AreEqual(16e-10, FreshValue(ValueId).Value, 1e-22);
     Assert.IsTrue(FreshValue(ValueId).ModifiedDate.HasValue);
     WriteAutomaticExtractedValues(Model.Items, Resolver, [KV], Model.User.Id,
       FItem, Other.Id, 'aps.xrcx', '1', nil, 1000, Warning);
-    Assert.AreEqual(2, FItem.Values.Count, 'Another file gives its own value');
+    Assert.AreEqual<NativeInt>(2, FItem.Values.Count, 'Another file gives its own value');
   finally
     Resolver.Free;
   end;
@@ -934,13 +934,13 @@ begin
   Assert.AreEqual(1, WriteChosenValues([Choice], Keys, Model.User.Id, FItem,
     AFile.Id, 'aps.xrcx', '1', nil, False, 1000, Skipped));
   Assert.AreEqual(0, Skipped);
-  Assert.AreEqual(1, FItem.Values.Count);
+  Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
   Assert.AreEqual(3e-9, FreshValue(FItem.Values[0].Id).Value, 1e-22);
   SetLength(Keys, 1);
   Assert.AreEqual(0, WriteChosenValues([Choice], Keys, Model.User.Id, FItem,
     AFile.Id, 'aps.xrcx', '1', nil, False, 1000, Skipped));
   Assert.AreEqual(1, Skipped);
-  Assert.AreEqual(1, FItem.Values.Count);
+  Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
 end;
 
 procedure TValueSourceDesktopTests.DerivedValueDialogComputesFromChosenInputs;
@@ -970,13 +970,13 @@ begin
     Assert.IsTrue(Formula >= 0, 'The wear-rate formula is offered');
     Dialog.lbFormula.ItemIndex := Formula;
     Dialog.lbFormulaClick(Dialog.lbFormula);
-    Assert.AreEqual(3, Dialog.lbRoles.Items.Count, 'Every role is listed');
+    Assert.AreEqual<NativeInt>(3, Dialog.lbRoles.Items.Count, 'Every role is listed');
     Assert.IsFalse(Dialog.btnSave.Enabled, 'Nothing can be stored before inputs are chosen');
     for I := 0 to Dialog.lbRoles.Items.Count - 1 do
     begin
       Dialog.lbRoles.ItemIndex := I;
       Dialog.lbRolesClick(Dialog.lbRoles);
-      Assert.AreEqual(1, Dialog.lbCandidates.Items.Count,
+      Assert.AreEqual<NativeInt>(1, Dialog.lbCandidates.Items.Count,
         'Only values of the required type and unit are offered');
       Dialog.lbCandidates.Selected[0] := True;
       Dialog.lbCandidatesClick(Dialog.lbCandidates);
@@ -995,7 +995,7 @@ begin
   Assert.IsTrue(Stored.EffectiveSourceKind = vskDerived);
   Assert.AreEqual(WEAR_RATE_FORMULA_ID, Stored.FormulaId.Value);
   Assert.AreEqual(1, Stored.FormulaVersion.Value);
-  Assert.AreEqual(3, Stored.DerivedInputs.Count);
+  Assert.AreEqual<NativeInt>(3, Stored.DerivedInputs.Count);
   Assert.AreEqual<Double>(0, Stored.Tol, 'The client stores no tolerance');
 
   Saved := ConfirmValueIssues;

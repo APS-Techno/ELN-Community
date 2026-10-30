@@ -60,12 +60,12 @@ type
       Seen: TDictionary<string, Boolean>);
     procedure SearchTags(const Pattern: string; Results: TSearchResults;
       Seen: TDictionary<string, Boolean>);
-    function BuildProjectPath(ProjectId, FolderId: Integer): string;
   public
     constructor Create(Manager: TObjectManager; const Access: IProjectAccessPolicy);
     destructor Destroy; override;
     procedure AssignUser(AUser: TUser);
     function Search(const Term: string): TSearchResults;
+    function BuildProjectPath(ProjectId, FolderId: Integer): string;
   end;
 
 implementation

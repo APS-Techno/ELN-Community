@@ -9,10 +9,9 @@ const
   MIT_MAGIC = $11011972;
   MIT_STRIDE = 14;  // 14 Single-precision floats per data row
 
-  COL_DEPTH = 6;
+  COL_FORCE = 0;
+  COL_DISPLACEMENT = 1;
   COL_TEMPERATURE = 7;
-  COL_RAWFORCE = 8;
-  COL_PHASE = 11;
   COL_FORCESETPOINT = 12;
   COL_TIME = 13;
 
@@ -24,12 +23,21 @@ const
 type
   TMitDataRow = array[0..MIT_STRIDE - 1] of Single;
 
+  TMitCurvePoint = record
+    DepthNm: Double;
+    ForceMN: Double;
+  end;
+
   TMitRecord = record
     Description: string;
     IndenterType: string;
     Material: string;
     DataPointCount: Integer;
     DataPoints: TArray<TMitDataRow>;
+    ContactRow: Integer;
+    FrameCompliance: Double;
+    Curve: TArray<TMitCurvePoint>;
+    PeakIndex: Integer;
 
     HcNm: Double;
     FmaxRefN: Double;
@@ -58,14 +66,14 @@ type
     SInstMNnm: Double;
 
     procedure CalcOliverPharr;
+    procedure BuildCurve;
+    function HasCurve: Boolean;
+    function SampleCount: Integer;
     function ReducedModulusFromStiffness(SmNnm: Double): Double;
     function CalcArea(hcNm: Double): Double;
     function Time(Row: Integer): Single;
-    function Depth(Row: Integer): Single;
     function Temperature(Row: Integer): Single;
-    function RawForce(Row: Integer): Single;
     function ForceSetpoint(Row: Integer): Single;
-    function Phase(Row: Integer): Single;
   end;
 
   TMitSource = (msComputed, msInstrument);
@@ -92,6 +100,7 @@ type
       MaxSearch: Integer): Int64;
     function FindDataBlock(Stream: TStream; EndPos: Int64;
       out Count: Integer): Boolean;
+    function FindFrameCompliance(Stream: TStream; EndPos: Int64): Double;
     procedure ParsePostData(Stream: TStream; EndPos: Int64;
       var Rec: TMitRecord);
     procedure EstimateHmaxFromRawData(var Rec: TMitRecord);
@@ -230,14 +239,62 @@ begin
     Result := 0;
 end;
 
+procedure TMitRecord.BuildCurve;
+var
+  Trailer: Single;
+  Index, I, N: Integer;
+  Z0, F0, DF: Double;
+  Point: TMitCurvePoint;
+begin
+  ContactRow := -1;
+  Curve := nil;
+  PeakIndex := -1;
+  if DataPointCount < 2 then
+    Exit;
+  // The last row is not a sample: its time field holds the Int32 index of
+  // the contact row, the zero of depth and force in the Anton Paar software.
+  Trailer := DataPoints[DataPointCount - 1][COL_TIME];
+  Move(Trailer, Index, SizeOf(Index));
+  if (Index < 0) or (Index >= DataPointCount - 1) then
+    Exit;
+  Z0 := DataPoints[Index][COL_DISPLACEMENT];
+  F0 := DataPoints[Index][COL_FORCE];
+  N := DataPointCount - 1 - Index;
+  SetLength(Curve, N);
+  PeakIndex := 0;
+  for I := 0 to N - 1 do
+  begin
+    DF := DataPoints[Index + I][COL_FORCE] - F0;
+    Point.DepthNm := (DataPoints[Index + I][COL_DISPLACEMENT] - Z0 -
+      FrameCompliance * DF) * 1e9;
+    Point.ForceMN := DF * 1e3;
+    if IsNan(Point.DepthNm) or IsInfinite(Point.DepthNm) or
+       IsNan(Point.ForceMN) or IsInfinite(Point.ForceMN) then
+    begin
+      Curve := nil;
+      PeakIndex := -1;
+      Exit;
+    end;
+    Curve[I] := Point;
+    if Point.ForceMN > Curve[PeakIndex].ForceMN then
+      PeakIndex := I;
+  end;
+  ContactRow := Index;
+end;
+
+function TMitRecord.HasCurve: Boolean;
+begin
+  Result := Length(Curve) > 1;
+end;
+
+function TMitRecord.SampleCount: Integer;
+begin
+  Result := Max(DataPointCount - 1, 0);
+end;
+
 function TMitRecord.Time(Row: Integer): Single;
 begin
   Result := DataPoints[Row][COL_TIME];
-end;
-
-function TMitRecord.Depth(Row: Integer): Single;
-begin
-  Result := DataPoints[Row][COL_DEPTH];
 end;
 
 function TMitRecord.Temperature(Row: Integer): Single;
@@ -245,19 +302,9 @@ begin
   Result := DataPoints[Row][COL_TEMPERATURE];
 end;
 
-function TMitRecord.RawForce(Row: Integer): Single;
-begin
-  Result := DataPoints[Row][COL_RAWFORCE];
-end;
-
 function TMitRecord.ForceSetpoint(Row: Integer): Single;
 begin
   Result := DataPoints[Row][COL_FORCESETPOINT];
-end;
-
-function TMitRecord.Phase(Row: Integer): Single;
-begin
-  Result := DataPoints[Row][COL_PHASE];
 end;
 
 
@@ -414,14 +461,14 @@ begin
   SetLength(Buf, BufLen);
   BufLen := Stream.Read(Buf[0], BufLen);
 
-  // Scan byte-by-byte for: uint32 (500..50000) + 4 bytes + valid float data
+  // Scan byte-by-byte for: uint32 count + 4 bytes + valid float data
   // Old MIT files have a float (time step) instead of zero after the count,
   // so we validate by checking that the data block fits and row content is valid.
   I := 0;
   while I <= BufLen - (8 + MIT_STRIDE * SizeOf(Single)) do
   begin
     Move(Buf[I], Val, 4);
-    if (Val > 500) and (Val < 50000) then
+    if (Val > 500) and (Val < 50000000) then
     begin
       if Int64(I) + 8 + Int64(Val) * MIT_STRIDE * SizeOf(Single) > BufLen then
       begin
@@ -448,6 +495,50 @@ begin
   Stream.Position := StartPos;
 end;
 
+function TMitFile.FindFrameCompliance(Stream: TStream; EndPos: Int64): Double;
+var
+  Buf: TBytes;
+  StartPos: Int64;
+  BufLen, I, J, Len, Dots, Tail: Integer;
+  Valid: Boolean;
+  Value: Single;
+begin
+  // Software 7.x and later store, after a length-prefixed version string
+  // such as "9.0.19": one byte, an enabled flag byte, the frame compliance
+  // (Single, m/N) and the UInt32 5. Older files have no such section.
+  Result := 0;
+  StartPos := Stream.Position;
+  BufLen := Integer(Min(EndPos - StartPos, Int64(MaxInt)));
+  if BufLen < 32 then
+    Exit;
+  SetLength(Buf, BufLen);
+  BufLen := Stream.Read(Buf[0], BufLen);
+  Stream.Position := StartPos;
+  for I := 0 to BufLen - 4 do
+  begin
+    Len := PInteger(@Buf[I])^;
+    if (Len < 5) or (Len > 11) or (I + 4 + Len + 10 > BufLen) then
+      Continue;
+    Dots := 0;
+    Valid := CharInSet(Char(Buf[I + 4]), ['0'..'9']) and
+      CharInSet(Char(Buf[I + 3 + Len]), ['0'..'9']);
+    for J := I + 4 to I + 3 + Len do
+      if Buf[J] = Ord('.') then
+        Inc(Dots)
+      else if not CharInSet(Char(Buf[J]), ['0'..'9']) then
+        Valid := False;
+    J := I + 4 + Len;
+    Tail := PInteger(@Buf[J + 6])^;
+    if not Valid or (Dots <> 2) or (Buf[J + 1] > 1) or (Tail <> 5) then
+      Continue;
+    Value := PSingle(@Buf[J + 2])^;
+    if (Buf[J + 1] = 1) and not IsNan(Value) and not IsInfinite(Value) and
+       (Value > 0) and (Value < 1e-5) then
+      Result := Value;
+    Exit;
+  end;
+end;
+
 procedure TMitFile.ParseRecord(Stream: TStream; EndPos: Int64;
   out Rec: TMitRecord);
 var
@@ -455,7 +546,7 @@ var
   PatternBytes: TBytes;
   FoundPos: Int64;
   I: Integer;
-  MaxSearch: Integer;
+  MaxSearch: Int64;
   BetaSingle, PoissonSingle, YoungsSingle: Single;
   BSplineCount: UInt32;
   HcSingle, ApSingle: Single;
@@ -468,10 +559,12 @@ begin
   Rec.Description := ReadLenString(Stream);
 
   PatternBytes := TEncoding.ASCII.GetBytes('TIndentor');
-  MaxSearch := Integer(EndPos - Stream.Position);
-  if MaxSearch > 2000 then
-    MaxSearch := 2000;
-  FoundPos := FindBytes(Stream, PatternBytes, MaxSearch);
+  MaxSearch := EndPos - Stream.Position;
+  if MaxSearch > MaxInt then
+    MaxSearch := MaxInt;
+  // Sinus records keep a cycle table before the indenter section, so the
+  // indenter can lie far past the description and the data block follows it.
+  FoundPos := FindBytes(Stream, PatternBytes, Integer(MaxSearch));
 
   Rec.Beta := 0;
 
@@ -525,6 +618,8 @@ begin
     SetLength(Rec.DataPoints, Rec.DataPointCount);
     for I := 0 to Rec.DataPointCount - 1 do
       Stream.ReadBuffer(Rec.DataPoints[I], SizeOf(TMitDataRow));
+    Rec.FrameCompliance := FindFrameCompliance(Stream, EndPos);
+    Rec.BuildCurve;
 
     //   New format (v>0): per-record Singles at +364..+400 (Fmax,hmax,hc,hr,hf,eps,m)
     //   Old format (v=0): Single FmaxRefN at +36, Double HcNm at +636
@@ -534,6 +629,7 @@ begin
   begin
     Rec.DataPointCount := 0;
     SetLength(Rec.DataPoints, 0);
+    Rec.BuildCurve;
   end;
 
   Rec.CalcOliverPharr;
@@ -685,13 +781,17 @@ begin
 end;
 
 procedure TMitFile.ParseFromStream(Stream: TStream);
+const
+  RecordClasses: array[0..2] of string = ('TSimpleIndentation',
+    'TStandardIndentation', 'TSinusIndentation');
 var
   Magic: UInt32;
   FileType: string;
-  Marker: TBytes;
+  Buf, Marker: TBytes;
   MarkerPositions: TList<Int64>;
-  Pos, EndPos: Int64;
-  I: Integer;
+  EndPos: Int64;
+  I, BufLen: Integer;
+  RecordClass: string;
   Rec: TMitRecord;
   VersionByte: Byte;
 begin
@@ -718,26 +818,22 @@ begin
     FVersion := VersionByte;
   end;
 
-  Marker := TEncoding.ASCII.GetBytes('TSimpleIndentation');
   MarkerPositions := TList<Int64>.Create;
   try
+    BufLen := Integer(Min(Stream.Size, Int64(MaxInt)));
+    SetLength(Buf, BufLen);
     Stream.Position := 0;
-    Pos := 0;
-    while True do
+    BufLen := Stream.Read(Buf[0], BufLen);
+    for RecordClass in RecordClasses do
     begin
-      Stream.Position := Pos;
-      // Clamp the remaining-bytes count to Int32 BEFORE casting. On >2 GB MIT
-      // files the Int64 subtraction (Stream.Size - Pos) previously overflowed
-      // Integer and went negative, making FindBytes always return -1 — the
-      // scan silently found nothing instead of reporting a parse error.
-      Pos := FindBytes(Stream, Marker,
-        Integer(Min(Int64(Stream.Size) - Pos, Int64(MaxInt))));
-      if Pos < 0 then
-        Break;
-      // Record position of the uint32 length prefix (4 bytes before marker text)
-      MarkerPositions.Add(Pos - 4);
-      Pos := Pos + Length(Marker);
+      Marker := TEncoding.ASCII.GetBytes(RecordClass);
+      for I := 4 to BufLen - Length(Marker) do
+        if (PInteger(@Buf[I - 4])^ = Length(Marker)) and
+           CompareMem(@Buf[I], @Marker[0], Length(Marker)) then
+          MarkerPositions.Add(I - 4);
     end;
+    Buf := nil;
+    MarkerPositions.Sort;
 
     for I := 0 to MarkerPositions.Count - 1 do
     begin

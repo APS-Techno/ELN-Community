@@ -279,6 +279,7 @@ end;
 
 procedure TPluginHost.OnAfterPackageLoaded(Sender: TObject; AFilename: string);
 begin
+  RegisterLoadedPackageUnits(AFilename);
   WriteLn(ErrOutput, 'PluginHost: package loaded: ' + ExtractFileName(AFilename));
   Flush(ErrOutput);
 end;

@@ -134,6 +134,19 @@ object frameZRWViewer: TframeZRWViewer
       TabOrder = 5
       OnClick = btnReloadClick
     end
+    object btnSmoothing: TButton
+      Left = 796
+      Top = 7
+      Width = 84
+      Height = 25
+      Hint = 'Smoothing of the logger channel curve'
+      Caption = 'Median: 21'
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 6
+      Visible = False
+      OnClick = btnSmoothingClick
+    end
   end
   object Chart: TChart
     AlignWithMargins = True
@@ -228,11 +241,62 @@ object frameZRWViewer: TframeZRWViewer
       YValues.Name = 'Y'
       YValues.Order = loNone
     end
+    object SeriesChannel: TFastLineSeries
+      Active = False
+      ShowInLegend = False
+      VertAxis = aRightAxis
+      LinePen.Color = clRed
+      LinePen.Width = 2
+      XValues.Name = 'X'
+      XValues.Order = loAscending
+      YValues.Name = 'Y'
+      YValues.Order = loNone
+    end
   end
   object dlgSave: TSaveDialog
     DefaultExt = '.dat'
     Filter = 'DAT (ASCII)|*.dat|TXT|*.txt'
     Left = 200
     Top = 150
+  end
+  object pmSmoothing: TPopupMenu
+    Left = 280
+    Top = 150
+    object miSmoothOff: TMenuItem
+      Tag = 1
+      Caption = 'No smoothing'
+      GroupIndex = 1
+      RadioItem = True
+      OnClick = SmoothingItemClick
+    end
+    object miSmooth5: TMenuItem
+      Tag = 5
+      Caption = 'Median of 5 cycles'
+      GroupIndex = 1
+      RadioItem = True
+      OnClick = SmoothingItemClick
+    end
+    object miSmooth11: TMenuItem
+      Tag = 11
+      Caption = 'Median of 11 cycles'
+      GroupIndex = 1
+      RadioItem = True
+      OnClick = SmoothingItemClick
+    end
+    object miSmooth21: TMenuItem
+      Tag = 21
+      Caption = 'Median of 21 cycles'
+      Checked = True
+      GroupIndex = 1
+      RadioItem = True
+      OnClick = SmoothingItemClick
+    end
+    object miSmooth51: TMenuItem
+      Tag = 51
+      Caption = 'Median of 51 cycles'
+      GroupIndex = 1
+      RadioItem = True
+      OnClick = SmoothingItemClick
+    end
   end
 end

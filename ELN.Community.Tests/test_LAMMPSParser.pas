@@ -539,7 +539,7 @@ procedure TLAMMPSParserTests.MassesAndBoxBounds_StillParse;
 begin
   FDump.ParseFromFile(DataPath('lammps_full.data'));
 
-  Assert.AreEqual(2, Length(FDump.Masses));
+  Assert.AreEqual<NativeInt>(2, Length(FDump.Masses));
   Assert.AreEqual(1, FDump.Masses[0].AtomType);
   Assert.AreEqual(Double(1.008), FDump.Masses[0].Mass, 1E-9);
   Assert.AreEqual(2, FDump.Masses[1].AtomType);
@@ -552,7 +552,7 @@ begin
   Assert.IsFalse(FDump.HasVelocities);
 
   FDump.ParseFromFile(DataPath('lammps_atomic.data'));
-  Assert.AreEqual(4, Length(FDump.Masses));
+  Assert.AreEqual<NativeInt>(4, Length(FDump.Masses));
   Assert.AreEqual(Double(12.011), FDump.Masses[3].Mass, 1E-9);
   Assert.AreEqual(Double(30), FDump.Box.XHi, 1E-9);
   Assert.AreEqual(Double(32), FDump.Box.ZHi, 1E-9);
@@ -645,7 +645,7 @@ begin
   Assert.AreEqual(0, FDump.AtomCount);
   Assert.AreEqual(0, FDump.AtomTypeCount);
   Assert.AreEqual(0, FDump.HeaderAtomCount);
-  Assert.AreEqual(0, Length(FDump.Masses));
+  Assert.AreEqual<NativeInt>(0, Length(FDump.Masses));
   Assert.AreEqual('', FDump.AtomStyle);
   Assert.AreEqual('', FDump.FileName);
   Assert.AreEqual(Double(0), FDump.Box.XHi, 1E-9);

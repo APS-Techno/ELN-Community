@@ -16,6 +16,11 @@ function HandleListProjects(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 function HandleSearch(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
+function HandleSearchSemantic(const Params: TJSONObject;
+  const Context: TToolContext): TJSONObject;
+
+var
+  SemanticSyncDeadlineMs: Cardinal = 20000;
 
 implementation
 
@@ -26,6 +31,9 @@ uses
   Aurelius.Types.Nullable,
   unit_Item, unit_Project, unit_ItemTypes, unit_ELNDB_Dictionary,
   unit_LabEntry, unit_ValueType, unit_SearchModel,
+  unit_SearchPassages, unit_SearchDocumentProvider, unit_HybridSearch,
+  unit_SemanticSearchApi, unit_SemanticSearchService, unit_SemanticSearchFilter,
+  unit_SearchVisibility,
   unit_ActionType, unit_Equipment, unit_Tag, unit_TagModel,
   unit_JSONCompact, unit_ToolHelpers, unit_ToolsTags, unit_ToolScope;
 
@@ -433,6 +441,7 @@ function HandleGetItem(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
   ItemId: Integer;
+  InBin: Boolean;
   Item: TItem;
   ItemDic: TItemDictionary;
   Children: TList<TItem>;
@@ -509,6 +518,7 @@ begin
     end;
 
     FilesArr := TJSONArray.Create;
+    InBin := ItemInRecycleBin(Context.Manager, Item);
     for F in Item.Files do
     begin
       Obj := TJSONObject.Create;
@@ -517,6 +527,7 @@ begin
       Obj.AddPair('full_name', F.FullName);
       Obj.AddPair('hash', F.Hash);
       Obj.AddPair('created_date', DateToISO(F.CreatedDate));
+      Obj.AddPair('is_deleted', TJSONBool.Create(InBin));
       FilesArr.AddElement(Obj);
     end;
     Result.AddPair('files', FilesArr);
@@ -615,6 +626,293 @@ begin
     end;
   finally
     SearchModel.Free;
+  end;
+end;
+
+resourcestring
+  SSemanticUnavailable = 'Semantic search is not installed. Install it in ' +
+    'ELN Community: Tools > Semantic Search Setup. Use the search tool for ' +
+    'keyword search. [semantic_search_unavailable]';
+  SSemanticCouldNotStart = 'Semantic search could not start: %s ' +
+    '[semantic_search_unavailable]';
+  STopKRange = 'top_k must be an integer from 1 to 50.';
+  SNotAnArray = '%s must be an array.';
+  SNotAString = '%s must contain only strings.';
+  SNotPositive = '%s must be a positive integer.';
+  SBadDateField = 'date_field must be "created" or "modified".';
+  SBadIsoDate = '%s must be an ISO 8601 date, for example 2026-01-31.';
+  SBadValueEntry = 'values[%d] must be an object.';
+  SNoValueType = 'values[%d].value_type is required.';
+  SBadLimit = 'values[%d].%s must be a number.';
+  SBadFiltersApplied = 'The semantic search returned an invalid filters_applied object.';
+
+const
+  DefaultTopK = 10;
+  MaxTopK = 50;
+  MinQueryChars = 2;
+
+function SemanticVisibleIds(const Context: TToolContext; HasProject: Boolean;
+  ProjectId: Integer): TArray<Integer>;
+var
+  Id: Integer;
+  Ids: TList<Integer>;
+begin
+  Ids := TList<Integer>.Create;
+  try
+    for Id in SearchVisibleProjectIds(Context.Manager, Context.AccessPolicy, Context.User) do
+      if (not HasProject or (Id = ProjectId)) and IsProjectVisible(Context, Id) then
+        Ids.Add(Id);
+    Result := Ids.ToArray;
+  finally
+    Ids.Free;
+  end;
+end;
+
+function ReadFilterStrings(const Params: TJSONObject; const Key: string): TArray<string>;
+var
+  Node, Entry: TJSONValue;
+begin
+  Result := nil;
+  Node := Params.FindValue(Key);
+  if (Node = nil) or (Node is TJSONNull) then
+    Exit;
+  if not (Node is TJSONArray) then
+    raise Exception.CreateFmt(SNotAnArray, [Key]);
+  for Entry in TJSONArray(Node) do
+  begin
+    if not (Entry is TJSONString) or (Entry is TJSONNumber) then
+      raise Exception.CreateFmt(SNotAString, [Key]);
+    Result := Result + [Entry.Value];
+  end;
+end;
+
+function ReadFilterId(const Params: TJSONObject; const Key: string): Integer;
+begin
+  Result := 0;
+  if GetOptInt(Params, Key, Result) and (Result < 1) then
+    raise Exception.CreateFmt(SNotPositive, [Key]);
+end;
+
+function ReadFilterDate(const Params: TJSONObject; const Key: string): TDateTime;
+var
+  Text: string;
+begin
+  Result := 0;
+  if not GetOptStr(Params, Key, Text) then
+    Exit;
+  if Text.Contains('T') or Text.Contains(':') or Text.Contains(' ') then
+    raise Exception.CreateFmt(SBadIsoDate, [Key]);
+  try
+    Result := ISO8601ToDate(Text, True);
+  except
+    on EDateTimeException do
+      raise Exception.CreateFmt(SBadIsoDate, [Key]);
+  end;
+end;
+
+function ReadFilterLimit(const Entry: TJSONObject; Index: Integer;
+  const Key: string; out Limit: Double): Boolean;
+var
+  Node: TJSONValue;
+begin
+  Limit := 0;
+  Node := Entry.FindValue(Key);
+  if (Node = nil) or (Node is TJSONNull) then
+    Exit(False);
+  if not (Node is TJSONNumber) then
+    raise Exception.CreateFmt(SBadLimit, [Index, Key]);
+  Limit := TJSONNumber(Node).AsDouble;
+  Result := True;
+end;
+
+function ReadFilterValues(const Params: TJSONObject): TArray<TValueConstraint>;
+var
+  Node, Entry: TJSONValue;
+  Obj: TJSONObject;
+  Constraint: TValueConstraint;
+  Text: string;
+  Index: Integer;
+begin
+  Result := nil;
+  Node := Params.FindValue('values');
+  if (Node = nil) or (Node is TJSONNull) then
+    Exit;
+  if not (Node is TJSONArray) then
+    raise Exception.CreateFmt(SNotAnArray, ['values']);
+  Index := 0;
+  for Entry in TJSONArray(Node) do
+  begin
+    if not (Entry is TJSONObject) then
+      raise Exception.CreateFmt(SBadValueEntry, [Index]);
+    Obj := TJSONObject(Entry);
+    Constraint := Default(TValueConstraint);
+    if not GetOptStr(Obj, 'value_type', Constraint.ValueType) or (Trim(Constraint.ValueType) = '') then
+      raise Exception.CreateFmt(SNoValueType, [Index]);
+    Constraint.HasMin := ReadFilterLimit(Obj, Index, 'min', Constraint.Min);
+    Constraint.HasMax := ReadFilterLimit(Obj, Index, 'max', Constraint.Max);
+    if GetOptStr(Obj, 'unit', Text) then
+      Constraint.UnitSymbol := Text;
+    if GetOptStr(Obj, 'rec_type', Text) then
+      Constraint.RecType := Text;
+    Result := Result + [Constraint];
+    Inc(Index);
+  end;
+end;
+
+function ReadSemanticFilter(const Params: TJSONObject): TSemanticSearchFilter;
+var
+  Text: string;
+  HasFrom, HasTo: Boolean;
+begin
+  Result := Default(TSemanticSearchFilter);
+  Result.FolderId := ReadFilterId(Params, 'folder_id');
+  Result.ItemTypes := ReadFilterStrings(Params, 'item_types');
+  Result.Levels := ReadFilterStrings(Params, 'levels');
+  Result.ActionTypeId := ReadFilterId(Params, 'action_type_id');
+  Result.DateFrom := ReadFilterDate(Params, 'date_from');
+  Result.DateTo := ReadFilterDate(Params, 'date_to');
+  HasFrom := Params.FindValue('date_from') is TJSONString;
+  HasTo := Params.FindValue('date_to') is TJSONString;
+  if GetOptStr(Params, 'date_field', Text) then
+  begin
+    if SameText(Trim(Text), 'created') then
+      Result.DateField := sdfCreated
+    else if SameText(Trim(Text), 'modified') then
+      Result.DateField := sdfModified
+    else
+      raise Exception.Create(SBadDateField);
+  end
+  else if HasFrom or HasTo then
+    Result.DateField := sdfCreated;
+  Result.Values := ReadFilterValues(Params);
+end;
+
+function IndexJson(const Status: TSemanticSearchStatus): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('complete', TJSONBool.Create(Status.IsComplete));
+  Result.AddPair('indexed_passages', TJSONNumber.Create(Status.IndexedPassages));
+  Result.AddPair('pending_passages', TJSONNumber.Create(Status.PendingPassages));
+  Result.AddPair('files_pending', TJSONNumber.Create(Status.FilesTotal - Status.FilesDone));
+end;
+
+function HandleSearchSemantic(const Params: TJSONObject;
+  const Context: TToolContext): TJSONObject;
+var
+  Search: ISemanticSearch;
+  Request: TSemanticSearchRequest;
+  ProjectId: Integer;
+  HasProject: Boolean;
+  Provider: ISearchDocumentSource;
+  Searched: TSemanticSearchResult;
+  Group: THybridGroup;
+  Passage: THybridHit;
+  Item: TItem;
+  SearchModel: TSearchModel;
+  HitSource: TSearchHitSource;
+  Arr, SourcesArr, PassagesArr: TJSONArray;
+  Obj, PassageObj, Applied: TJSONObject;
+  Parsed: TJSONValue;
+begin
+  Search := Context.SemanticSearch;
+  if Search = nil then
+    raise Exception.Create(SSemanticUnavailable);
+  Request := Default(TSemanticSearchRequest);
+  Request.Query := GetReqStr(Params, 'query');
+  HasProject := GetOptInt(Params, 'project_id', ProjectId);
+  if HasProject then
+    RequireProjectRead(Context, ProjectId);
+  if not GetOptInt(Params, 'top_k', Request.TopK) then
+    Request.TopK := DefaultTopK;
+  if (Request.TopK < 1) or (Request.TopK > MaxTopK) then
+    raise Exception.Create(STopKRange);
+  Request.Filter := ReadSemanticFilter(Params);
+  Request.Rerank := True;
+
+  if Length(Trim(Request.Query)) < MinQueryChars then
+  begin
+    Result := TJSONObject.Create;
+    Result.AddPair('groups', TJSONArray.Create);
+    Result.AddPair('index', IndexJson(Search.Status));
+    Result.AddPair('reranked', TJSONBool.Create(False));
+    Exit;
+  end;
+
+  Request.VisibleProjectIds := SemanticVisibleIds(Context, HasProject, ProjectId);
+  try
+    if (Context.SemanticIndex <> nil) and not Search.IsRemote then
+    begin
+      if not Request.Filter.IsEmpty then
+        ResolveSemanticFilter(Context.Manager, Request.VisibleProjectIds, Request.Filter);
+      Provider := TNotebookDocumentProvider.Create(Context.Manager);
+      Context.SemanticIndex.SyncNow(Provider.ReadSnapshot(nil),
+        TStorageFileReader.Create(Context.Storage), SemanticSyncDeadlineMs);
+    end;
+    Searched := Search.Search(Request, nil);
+  except
+    on E: ESemanticSearchUnavailable do
+      raise Exception.Create(Format(SSemanticCouldNotStart, [E.Message]));
+  end;
+
+  Arr := TJSONArray.Create;
+  try
+    SearchModel := TSearchModel.Create(Context.Manager, Context.AccessPolicy);
+    try
+      SearchModel.AssignUser(Context.User);
+      for Group in Searched.Groups do
+      begin
+        if not IsProjectVisible(Context, Group.ProjectId) then
+          Continue;
+        Item := Context.Manager.Find<TItem>(Group.ItemId);
+        if Item = nil then
+          Continue;
+        SourcesArr := TJSONArray.Create;
+        for HitSource in Group.Sources do
+          SourcesArr.Add(HitSourceNames[HitSource]);
+        PassagesArr := TJSONArray.Create;
+        for Passage in Group.Passages do
+        begin
+          PassageObj := TJSONObject.Create;
+          PassagesArr.AddElement(PassageObj);
+          PassageObj.AddPair('field', PassageFieldNames[Passage.Field]);
+          PassageObj.AddPair('file_id', TJSONNumber.Create(Passage.FileId));
+          PassageObj.AddPair('snippet', Passage.Snippet);
+          PassageObj.AddPair('score', TJSONNumber.Create(Passage.Score));
+        end;
+        Obj := TJSONObject.Create;
+        Arr.AddElement(Obj);
+        Obj.AddPair('item_id', TJSONNumber.Create(Group.ItemId));
+        Obj.AddPair('item_title', Item.Title);
+        Obj.AddPair('project_id', TJSONNumber.Create(Group.ProjectId));
+        Obj.AddPair('project_path',
+          SearchModel.BuildProjectPath(Item.ProjectID, Item.FolderID));
+        Obj.AddPair('score', TJSONNumber.Create(Group.Score));
+        Obj.AddPair('sources', SourcesArr);
+        Obj.AddPair('passages', PassagesArr);
+      end;
+    finally
+      SearchModel.Free;
+    end;
+    Applied := nil;
+    if Searched.FiltersApplied <> '' then
+    begin
+      Parsed := TJSONObject.ParseJSONValue(Searched.FiltersApplied);
+      if not (Parsed is TJSONObject) then
+      begin
+        Parsed.Free;
+        raise Exception.Create(SBadFiltersApplied);
+      end;
+      Applied := TJSONObject(Parsed);
+    end;
+    Result := TJSONObject.Create;
+    Result.AddPair('groups', Arr);
+    Result.AddPair('reranked', TJSONBool.Create(Searched.Reranked));
+    Result.AddPair('index', IndexJson(Searched.IndexStatus));
+    if Applied <> nil then
+      Result.AddPair('filters_applied', Applied);
+  except
+    Arr.Free;
+    raise;
   end;
 end;
 
@@ -738,6 +1036,105 @@ begin
   Result.AddPair('required', Req);
 end;
 
+procedure AddSchemaProp(Props: TJSONObject; const Name, TypeName, Description: string);
+var
+  Prop: TJSONObject;
+begin
+  Prop := TJSONObject.Create;
+  Prop.AddPair('type', TypeName);
+  Prop.AddPair('description', Description);
+  Props.AddPair(Name, Prop);
+end;
+
+function StringArraySchema(const Description: string): TJSONObject;
+var
+  Items: TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('type', 'array');
+  Items := TJSONObject.Create;
+  Items.AddPair('type', 'string');
+  Result.AddPair('items', Items);
+  Result.AddPair('description', Description);
+end;
+
+function ValueFiltersSchema: TJSONObject;
+var
+  Items, Props: TJSONObject;
+  Req: TJSONArray;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('type', 'array');
+  Items := TJSONObject.Create;
+  Items.AddPair('type', 'object');
+  Props := TJSONObject.Create;
+  AddSchemaProp(Props, 'value_type', 'string', 'Title or symbol of the value type, as in query_values.');
+  AddSchemaProp(Props, 'min', 'number', 'Lowest value, inclusive.');
+  AddSchemaProp(Props, 'max', 'number', 'Highest value, inclusive.');
+  AddSchemaProp(Props, 'unit', 'string',
+    'Unit of min and max. The limits are converted into the unit of the value type. ' +
+    'Empty means the unit of the value type. A unit of another dimension is an error.');
+  AddSchemaProp(Props, 'rec_type', 'string', 'EXP_CONDITION or TEST_RESULT. Empty means both.');
+  Items.AddPair('properties', Props);
+  Req := TJSONArray.Create;
+  Req.Add('value_type');
+  Items.AddPair('required', Req);
+  Result.AddPair('items', Items);
+  Result.AddPair('description',
+    'Only items that have a recorded value for every entry (AND). min and max ' +
+    'are inclusive.');
+end;
+
+function MakeSearchSemanticSchema: TJSONObject;
+var
+  Props, QStr, ProjId, TopK: TJSONObject;
+  Req: TJSONArray;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('type', 'object');
+  Props := TJSONObject.Create;
+
+  QStr := TJSONObject.Create;
+  QStr.AddPair('type', 'string');
+  QStr.AddPair('description', 'Search query in natural language (min 2 characters)');
+  Props.AddPair('query', QStr);
+
+  TopK := TJSONObject.Create;
+  TopK.AddPair('type', 'integer');
+  TopK.AddPair('minimum', TJSONNumber.Create(1));
+  TopK.AddPair('maximum', TJSONNumber.Create(50));
+  TopK.AddPair('default', TJSONNumber.Create(10));
+  TopK.AddPair('description', 'Maximum number of item groups');
+  Props.AddPair('top_k', TopK);
+
+  ProjId := TJSONObject.Create;
+  ProjId.AddPair('type', 'integer');
+  ProjId.AddPair('description', 'Limit search to a specific project');
+  Props.AddPair('project_id', ProjId);
+
+  AddSchemaProp(Props, 'folder_id', 'integer',
+    'Only items in this folder and its subfolders. The folder must be in a project you can read.');
+  Props.AddPair('item_types', StringArraySchema(
+    'Only items of these types: Synthesis, Treatment, Measurement, Testing, ' +
+    'Characterization, Computing, Specimen, Model, Other, Wiki.'));
+  Props.AddPair('levels', StringArraySchema(
+    'Only items of these hierarchy levels: Proc, Item, Action, Folder.'));
+  AddSchemaProp(Props, 'action_type_id', 'integer', 'Only items of this action type.');
+  AddSchemaProp(Props, 'date_field', 'string',
+    'Which date date_from and date_to test: created (default) or modified. ' +
+    'An item without a modified date never matches modified.');
+  AddSchemaProp(Props, 'date_from', 'string',
+    'First day, ISO 8601 date, for example 2026-01-31. The day is included.');
+  AddSchemaProp(Props, 'date_to', 'string',
+    'Last day, ISO 8601 date. The whole day is included.');
+  Props.AddPair('values', ValueFiltersSchema);
+
+  Result.AddPair('properties', Props);
+  Req := TJSONArray.Create;
+  Req.Add('query');
+  Result.AddPair('required', Req);
+end;
+
 
 procedure RegisterNavigationTools(Registry: TToolRegistry);
 begin
@@ -776,6 +1173,29 @@ begin
     'File-name matches include the complete filename, extension, and file ID. ' +
     'Supports multi-word queries with automatic intersection.',
     MakeSearchSchema, HandleSearch, tscProjectScoped);
+
+  Registry.Register('search_semantic',
+    'Search by meaning across item titles, descriptions, properties, tags, ' +
+    'entries, protocol forms, value descriptions, and the names and text of ' +
+    'attached files. Combines vector and word matching. Brings the index up ' +
+    'to date first; index.complete is false when it is still catching up, ' +
+    'so repeat the call to finish. Returns groups, one per item, best first: ' +
+    'each group has item_id, item_title, project_id, project_path, score, ' +
+    'sources, and up to 3 passages with field, file_id, snippet, and score. ' +
+    'top_k counts groups. This replaces the earlier flat hits list. ' +
+    'When the optional reranking model is installed, a second model sorts ' +
+    'the best 20 groups by how well the best passage of each group answers ' +
+    'the query; reranked is true when that order was used, and false when ' +
+    'the model is not installed, took too long, or failed. Then the groups ' +
+    'are in hybrid order. The score of a group is the hybrid score and does ' +
+    'not follow the reranked order. ' +
+    'Optional filters narrow the search before ranking, so a strict filter ' +
+    'still finds items that a plain search would rank low. Filters are ' +
+    'explicit parameters; nothing is read from the query text. ' +
+    'filters_applied echoes what was enforced, with value limits converted ' +
+    'into the unit of each value type. Filters never reach beyond the ' +
+    'projects the caller can read.',
+    MakeSearchSemanticSchema, HandleSearchSemantic, tscProjectScoped);
 end;
 
 end.

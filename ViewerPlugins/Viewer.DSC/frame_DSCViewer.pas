@@ -69,7 +69,63 @@ begin
   end;
 end;
 
-procedure ParseDSCVar(const VarName: string; VarValue: Double;
+type
+  TDSCPulseKind = (pkUnknown, pkMicroseconds, pkPercent);
+
+function PulseKindOfCommand(const Target, Command: string): TDSCPulseKind;
+var
+  Cmd: string;
+begin
+  Cmd := LowerCase(Command);
+  if (Cmd = 'pd') or (Cmd = 'pulseduration') or (Cmd = 'pulsetime') then
+    Result := pkMicroseconds
+  else if Cmd = 'duty' then
+    Result := pkPercent
+  else if Cmd = 'dutycycle' then
+  begin
+    if LowerCase(Target).Contains('dc4001') then
+      Result := pkMicroseconds
+    else
+      Result := pkPercent;
+  end
+  else
+    Result := pkUnknown;
+end;
+
+procedure CollectPulseUsage(Lines: TStrings; Usage: TDictionary<string, TDSCPulseKind>);
+var
+  I: Integer;
+  InScript: Boolean;
+  Statement, Key: string;
+  Tokens: TArray<string>;
+  Kind, Seen: TDSCPulseKind;
+begin
+  InScript := False;
+  for I := 0 to Lines.Count - 1 do
+  begin
+    if not InScript then
+    begin
+      InScript := Trim(Lines[I]).StartsWith('start', True);
+      Continue;
+    end;
+    for Statement in Lines[I].Split([';']) do
+    begin
+      Tokens := Trim(Statement).Split([' ', #9], TStringSplitOptions.ExcludeEmpty);
+      if (Length(Tokens) < 4) or not SameText(Tokens[0], 'set') then
+        Continue;
+      Kind := PulseKindOfCommand(Tokens[1], Tokens[2]);
+      if Kind = pkUnknown then
+        Continue;
+      Key := LowerCase(Tokens[3]);
+      if Usage.TryGetValue(Key, Seen) and (Seen <> Kind) then
+        Usage[Key] := pkUnknown
+      else
+        Usage.AddOrSetValue(Key, Kind);
+    end;
+  end;
+end;
+
+procedure ParseDSCVar(const VarName: string; VarValue: Double; Kind: TDSCPulseKind;
   out AName, AUnits, ADesc: string);
 var
   Lo: string;
@@ -96,11 +152,13 @@ var
 
 var
   Suffix: string;
+  Qualify: Boolean;
 begin
   AName := VarName;
   AUnits := '';
   ADesc := '';
   Lo := LowerCase(VarName);
+  Qualify := True;
 
   if ExtractSuffix('current', Suffix) then
   begin
@@ -141,6 +199,7 @@ begin
   begin
     AName := 'N';
     ADesc := 'repeats';
+    Qualify := False;
   end
   else if ExtractSuffix('mfc_', Suffix) then
   begin
@@ -154,18 +213,30 @@ begin
     AUnits := 'kHz';
     ADesc := FormatSuffix(Suffix);
   end
-  else if ExtractSuffix('dcpulseduty', Suffix) then
+  else if ExtractSuffix('dcpulseduty', Suffix) or ExtractSuffix('dcpulsetime', Suffix) then
   begin
-    AName := 'DC Duty';
-    AUnits := '%';
-    ADesc := FormatSuffix(Suffix);
-  end
-  else if ExtractSuffix('dcpulsetime', Suffix) then
-  begin
-    AName := 'DC Duty';
-    AUnits := '%';
+    if (Kind = pkUnknown) and Lo.StartsWith('dcpulseduty') then
+      Kind := pkPercent;
+    case Kind of
+      pkMicroseconds:
+        begin
+          AName := 'DC Pulse Time';
+          AUnits := 'us';
+        end;
+      pkPercent:
+        begin
+          AName := 'DC Duty';
+          AUnits := '%';
+        end;
+    else
+      AName := 'DC Pulse';
+      AUnits := '';
+    end;
     ADesc := FormatSuffix(Suffix);
   end;
+
+  if Qualify and (ADesc <> '') then
+    AName := AName + '.' + ADesc;
 end;
 
 function TframeDSCViewer.GetKeyValues: TArray<TPluginKeyValue>;
@@ -177,13 +248,20 @@ var
   V: Double;
   SpacePos: Integer;
   Code: Integer;
+  Used: TDictionary<string, Integer>;
+  Count: Integer;
+  Usage: TDictionary<string, TDSCPulseKind>;
+  PulseKind: TDSCPulseKind;
 begin
   Result := nil;
   if Editor.Lines.Count = 0 then
     Exit;
 
   List := TList<TPluginKeyValue>.Create;
+  Used := TDictionary<string, Integer>.Create;
+  Usage := TDictionary<string, TDSCPulseKind>.Create;
   try
+    CollectPulseUsage(Editor.Lines, Usage);
     for I := 0 to Editor.Lines.Count - 1 do
     begin
       Line := Trim(Editor.Lines[I]);
@@ -206,7 +284,17 @@ begin
       if Code <> 0 then
         Continue;
 
-      ParseDSCVar(VarName, V, KV.Name, KV.Units, KV.Description);
+      if not Usage.TryGetValue(LowerCase(VarName), PulseKind) then
+        PulseKind := pkUnknown;
+      ParseDSCVar(VarName, V, PulseKind, KV.Name, KV.Units, KV.Description);
+      if Used.TryGetValue(KV.Name, Count) then
+      begin
+        Inc(Count);
+        Used[KV.Name] := Count;
+        KV.Name := KV.Name + '#' + IntToStr(Count);
+      end
+      else
+        Used.Add(KV.Name, 1);
       KV.Value := V;
       KV.RecType := prCondition;
       KV.IsKey := False;
@@ -215,6 +303,8 @@ begin
 
     Result := List.ToArray;
   finally
+    Usage.Free;
+    Used.Free;
     List.Free;
   end;
 end;

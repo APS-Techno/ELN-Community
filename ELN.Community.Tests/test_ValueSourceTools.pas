@@ -7,19 +7,24 @@ procedure RunValueSourceTests;
 implementation
 
 uses
-  System.SysUtils, System.Classes, System.JSON, System.IOUtils,
-  System.Generics.Collections,
+  Winapi.Windows,
+  System.SysUtils, System.Classes, System.JSON, System.IOUtils, System.Hash,
+  System.Generics.Collections, System.Variants,
   Vcl.Forms,
   Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq, Aurelius.Drivers.Interfaces,
   upfVisualClasses, upfIntf,
   unit_AuthorizationTestSupport,
   unit_MCPTools, unit_PluginHost, unit_ELNPluginCore, unit_ELNPluginTypes,
   unit_ToolsWrite, unit_ToolsValues, unit_ToolsNavigation, unit_ToolsFiles,
-  unit_ToolsValueChecks,
+  unit_ToolsWiki,
+  unit_ToolsValueChecks, unit_ToolsValueEdit, unit_ToolsMetadata,
   unit_Project, unit_Item, unit_ItemTypes, unit_ValueType,
   unit_ReaderValueMapping,
   unit_FileType, unit_AuditLog, unit_FilePaths,
-  unit_ItemModel, unit_DerivedFormulas;
+  unit_ItemModel, unit_DerivedFormulas,
+  unit_Hypothesis, unit_HypothesisRun, unit_HypothesisEvidence, unit_Signature,
+  unit_AnalysisSettingsModel, unit_NotebookStorage, unit_ViewerStateModel,
+  unit_ToolScope, unit_ToolsHypotheses;
 
 type
   TDriftFixturePlugin = class(TupfVisualPlugin, IViewerPlugin,
@@ -48,6 +53,20 @@ type
     Values, Audits, Items, ValueTypes, Files: Integer;
     class function Take: TRowSnapshot; static;
     function SameAs(const Other: TRowSnapshot): Boolean;
+  end;
+
+  TFailingDeleteStorage = class(TInterfacedObject, INotebookStorage)
+  private
+    FInner: INotebookStorage;
+  public
+    constructor Create(const Inner: INotebookStorage);
+    procedure MoveFile(const OldPath, NewPath: string);
+    function ReadBytes(const RelativePath: string): TBytes;
+    procedure WriteBytes(const RelativePath: string; const Data: TBytes);
+    procedure CopyIn(const SourcePath, RelativePath: string);
+    procedure CopyOut(const RelativePath, TargetPath: string);
+    function Exists(const RelativePath: string): Boolean;
+    procedure DeleteFile(const RelativePath: string);
   end;
 
 const
@@ -200,9 +219,56 @@ begin
     (Files = Other.Files);
 end;
 
-procedure Prepare;
+constructor TFailingDeleteStorage.Create(const Inner: INotebookStorage);
 begin
-  Context.Storage := Notebook.Storage;
+  inherited Create;
+  FInner := Inner;
+end;
+
+procedure TFailingDeleteStorage.MoveFile(const OldPath, NewPath: string);
+begin
+  FInner.MoveFile(OldPath, NewPath);
+end;
+
+function TFailingDeleteStorage.ReadBytes(const RelativePath: string): TBytes;
+begin
+  Result := FInner.ReadBytes(RelativePath);
+end;
+
+procedure TFailingDeleteStorage.WriteBytes(const RelativePath: string;
+  const Data: TBytes);
+begin
+  FInner.WriteBytes(RelativePath, Data);
+end;
+
+procedure TFailingDeleteStorage.CopyIn(const SourcePath, RelativePath: string);
+begin
+  FInner.CopyIn(SourcePath, RelativePath);
+end;
+
+procedure TFailingDeleteStorage.CopyOut(const RelativePath, TargetPath: string);
+begin
+  FInner.CopyOut(RelativePath, TargetPath);
+end;
+
+function TFailingDeleteStorage.Exists(const RelativePath: string): Boolean;
+begin
+  Result := FInner.Exists(RelativePath);
+end;
+
+procedure TFailingDeleteStorage.DeleteFile(const RelativePath: string);
+begin
+  if RelativePath.StartsWith('Projects/') then
+    raise EInOutError.Create('synthetic delete failure');
+  FInner.DeleteFile(RelativePath);
+end;
+
+procedure Prepare(const Storage: INotebookStorage = nil);
+begin
+  if Storage = nil then
+    Context.Storage := Notebook.Storage
+  else
+    Context.Storage := Storage;
   FreeAndNil(Registry);
   Registry := TToolRegistry.Create(Context);
   RegisterWriteTools(Registry);
@@ -210,6 +276,10 @@ begin
   RegisterNavigationTools(Registry);
   RegisterFileTools(Registry);
   RegisterValueCheckTools(Registry);
+  RegisterValueEditTools(Registry);
+  RegisterMetadataTools(Registry);
+  RegisterWikiTools(Registry);
+  RegisterHypothesisTools(Registry);
 end;
 
 function NewItem(Project: TProject; ParentId: Integer;
@@ -859,6 +929,204 @@ begin
   Check(TRowSnapshot.Take.SameAs(Before), 'The storage check writes nothing');
 end;
 
+function NewDownloadRoot: string;
+begin
+  Result := TPath.Combine(TPath.GetTempPath,
+    'ELN-DownloadRoot-' + TGUID.NewGuid.ToString);
+  TDirectory.CreateDirectory(Result);
+  Context.UploadRoot := Result;
+  Prepare;
+end;
+
+function DownloadJSON(FileId: Int64; const DestPath: string;
+  Overwrite: Boolean = False): string;
+var
+  Obj: TJSONObject;
+begin
+  Obj := TJSONObject.Create;
+  try
+    Obj.AddPair('file_id', TJSONNumber.Create(FileId));
+    Obj.AddPair('dest_path', DestPath);
+    Obj.AddPair('overwrite', TJSONBool.Create(Overwrite));
+    Result := Obj.ToJSON;
+  finally
+    Obj.Free;
+  end;
+end;
+
+function TempFilesIn(const Dir: string): Integer;
+begin
+  if not TDirectory.Exists(Dir) then
+    Exit(0);
+  Result := Length(TDirectory.GetFiles(Dir, '*.tmp'));
+end;
+
+procedure CreateJunction(const LinkPath, TargetPath: string);
+var
+  StartupInfo: TStartupInfo;
+  ProcessInfo: TProcessInformation;
+  CommandLine: string;
+  ExitCode: DWORD;
+begin
+  CommandLine := Format('cmd.exe /c mklink /J "%s" "%s"', [LinkPath, TargetPath]);
+  UniqueString(CommandLine);
+  StartupInfo := Default(TStartupInfo);
+  StartupInfo.cb := SizeOf(StartupInfo);
+  StartupInfo.dwFlags := STARTF_USESHOWWINDOW;
+  StartupInfo.wShowWindow := SW_HIDE;
+  if not CreateProcess(nil, PChar(CommandLine), nil, nil, False,
+    CREATE_NO_WINDOW, nil, nil, StartupInfo, ProcessInfo) then
+    RaiseLastOSError;
+  try
+    WaitForSingleObject(ProcessInfo.hProcess, INFINITE);
+    GetExitCodeProcess(ProcessInfo.hProcess, ExitCode);
+  finally
+    CloseHandle(ProcessInfo.hThread);
+    CloseHandle(ProcessInfo.hProcess);
+  end;
+  Check((ExitCode = 0) and TDirectory.Exists(LinkPath), 'The junction fixture exists');
+end;
+
+procedure TestDownloadFileWritesStoredBytes;
+var
+  Project: TProject;
+  Item: TItem;
+  FileTypeId: Integer;
+  GoodFile, ChangedFile: Int64;
+  Good, Changed: unit_Item.TFile;
+  Root, Dir, Dest, ChangedDest: string;
+  Response: TJSONObject;
+  Before: TRowSnapshot;
+begin
+  Root := NewDownloadRoot;
+  try
+    Project := AddProject(Notebook.Principal);
+    Item := NewItem(Project, 0, 'Download item');
+    FileTypeId := NewFileType('.vdl');
+    GoodFile := StoreFile(Item, FileTypeId, 'intact', 'intact bytes');
+    ChangedFile := StoreFile(Item, FileTypeId, 'altered', 'original bytes');
+    Good := Notebook.Manager.Find<unit_Item.TFile>(GoodFile);
+    Changed := Notebook.Manager.Find<unit_Item.TFile>(ChangedFile);
+    Notebook.Storage.WriteBytes(AttachmentRelativePath(Project.FileFolder,
+      Item.FolderName, Changed.FullName), TEncoding.UTF8.GetBytes('altered bytes!'));
+    Before := TRowSnapshot.Take;
+
+    Dir := TPath.Combine(Root, 'specimen\nested');
+    Dest := TPath.Combine(Dir, 'intact.vdl');
+    Response := Call('download_file', DownloadJSON(GoodFile, Dest));
+    try
+      Check(SameText(Response.GetValue<string>('dest_path'), Dest), 'dest_path is the full path');
+      Check(Response.GetValue<Int64>('size') = Length('intact bytes'), 'size is the stored size');
+      Check(SameText(Response.GetValue<string>('md5'), Good.Hash), 'md5 matches the upload hash');
+      Check(Response.GetValue<string>('storage_status') = 'ok', 'An intact file is ok');
+    finally
+      Response.Free;
+    end;
+    Check(System.IOUtils.TFile.ReadAllText(Dest, TEncoding.UTF8) = 'intact bytes',
+      'Missing parent folders are created and the stored bytes are written');
+
+    ChangedDest := TPath.Combine(Dir, 'altered.vdl');
+    Response := Call('download_file', DownloadJSON(ChangedFile, ChangedDest));
+    try
+      Check(Response.GetValue<string>('storage_status') = 'content_mismatch',
+        'Changed bytes report content_mismatch');
+      Check(Response.GetValue<Int64>('size') = Length('altered bytes!'),
+        'The size is that of the bytes in storage');
+      Check(not SameText(Response.GetValue<string>('md5'),
+        Response.GetValue<string>('stored_hash')), 'md5 and stored_hash differ');
+    finally
+      Response.Free;
+    end;
+    Check(System.IOUtils.TFile.ReadAllText(ChangedDest, TEncoding.UTF8) = 'altered bytes!',
+      'A mismatched file is still written');
+
+    ExpectRefused('download_file', DownloadJSON(ChangedFile, Dest), 'already exists');
+    Check(System.IOUtils.TFile.ReadAllText(Dest, TEncoding.UTF8) = 'intact bytes',
+      'overwrite false keeps the existing contents');
+    Response := Call('download_file', DownloadJSON(ChangedFile, Dest, True));
+    Response.Free;
+    Check(System.IOUtils.TFile.ReadAllText(Dest, TEncoding.UTF8) = 'altered bytes!',
+      'overwrite true replaces the file');
+
+    Check(TempFilesIn(Dir) = 0, 'No temporary file is left');
+    Check(TRowSnapshot.Take.SameAs(Before), 'download_file writes nothing to the notebook');
+  finally
+    TDirectory.Delete(Root, True);
+  end;
+end;
+
+procedure TestDownloadFileRefusals;
+var
+  Project, Foreign: TProject;
+  Item, Gone, ForeignItem: TItem;
+  FileTypeId: Integer;
+  GoodFile, MissingFile, GoneFile, ForeignFile: Int64;
+  F: unit_Item.TFile;
+  Root, Outside, Link, Dest, Missing, Hidden: string;
+  Before: TRowSnapshot;
+begin
+  Root := NewDownloadRoot;
+  Outside := TPath.Combine(TPath.GetTempPath,
+    'ELN-DownloadOutside-' + TGUID.NewGuid.ToString);
+  TDirectory.CreateDirectory(Outside);
+  Link := TPath.Combine(Root, 'link');
+  try
+    Project := AddProject(Notebook.Principal);
+    Foreign := AddProject(Notebook.Principal);
+    FileTypeId := NewFileType('.vdl');
+    Item := NewItem(Project, 0, 'Download item');
+    GoodFile := StoreFile(Item, FileTypeId, 'intact', 'intact bytes');
+    MissingFile := StoreFile(Item, FileTypeId, 'gone', 'soon gone');
+    F := Notebook.Manager.Find<unit_Item.TFile>(MissingFile);
+    Notebook.Storage.DeleteFile(AttachmentRelativePath(Project.FileFolder,
+      Item.FolderName, F.FullName));
+    Gone := NewItem(Project, 0, 'Deleted item');
+    GoneFile := StoreFile(Gone, FileTypeId, 'deleted', 'deleted bytes');
+    Gone.IsDeleted := True;
+    Notebook.Manager.Flush;
+    ForeignItem := NewItem(Foreign, 0, 'Foreign item');
+    ForeignFile := StoreFile(ForeignItem, FileTypeId, 'foreign', 'foreign bytes');
+    Before := TRowSnapshot.Take;
+
+    Dest := TPath.Combine(Root, 'out\missing.vdl');
+    ExpectRefused('download_file', DownloadJSON(MissingFile, Dest), 'storage_status missing');
+    Check(not FileExists(Dest), 'Missing bytes write no file');
+    Check(TempFilesIn(ExtractFileDir(Dest)) = 0, 'Missing bytes leave no temporary file');
+
+    ExpectRefused('download_file', DownloadJSON(GoodFile,
+      TPath.Combine(Outside, 'a.vdl')), 'outside the allowed upload root');
+    ExpectRefused('download_file', DownloadJSON(GoodFile,
+      Root + '\..\' + ExtractFileName(Outside) + '\b.vdl'), 'outside the allowed upload root');
+    CreateJunction(Link, Outside);
+    ExpectRefused('download_file', DownloadJSON(GoodFile,
+      TPath.Combine(Link, 'c.vdl')), 'reparse point');
+    Check(Length(TDirectory.GetFiles(Outside)) = 0, 'Refused paths are not written');
+
+    ExpectRefused('download_file', DownloadJSON(GoneFile,
+      TPath.Combine(Root, 'deleted.vdl')), 'deleted item');
+
+    Context.ScopedProjects := [Project.Id];
+    Prepare;
+    Missing := ExpectRefused('download_file', DownloadJSON(999999,
+      TPath.Combine(Root, 'x.vdl')), 'outside');
+    Hidden := ExpectRefused('download_file', DownloadJSON(ForeignFile,
+      TPath.Combine(Root, 'x.vdl')), 'outside');
+    Check(Missing = Hidden, 'Missing and out-of-scope files share one refusal');
+    Check(not FileExists(TPath.Combine(Root, 'x.vdl')), 'A hidden file is not written');
+
+    Context.UploadRoot := '';
+    Prepare;
+    ExpectRefused('download_file', DownloadJSON(GoodFile,
+      TPath.Combine(Root, 'y.vdl')), 'disabled');
+    Check(TRowSnapshot.Take.SameAs(Before), 'Refused downloads write nothing to the notebook');
+  finally
+    if TDirectory.Exists(Link) then
+      RemoveDir(Link);
+    TDirectory.Delete(Root, True);
+    TDirectory.Delete(Outside, True);
+  end;
+end;
+
 function TypeIdOf(const Title, Units: string): Integer;
 var
   Types: TList<TValueType>;
@@ -1279,8 +1547,1213 @@ begin
   end;
 end;
 
+const
+  EDIT_READER_ID = 'synthetic.edit-reader';
+
+function RowCount(const SQL: string): Integer;
+var
+  Statement: IDBStatement;
+  Rows: IDBResultSet;
+begin
+  Statement := Notebook.Connection.CreateStatement;
+  Statement.SetSQLCommand(SQL);
+  Rows := Statement.ExecuteQuery;
+  Check(Rows.Next, 'A count query returns one row');
+  Result := StrToInt(VarToStr(Rows.GetFieldValue(0)));
+end;
+
+function StoredSnapshot(ValueId: Integer): string;
+var
+  Statement: IDBStatement;
+  Rows: IDBResultSet;
+begin
+  Result := '';
+  Statement := Notebook.Connection.CreateStatement;
+  Statement.SetSQLCommand(Format('SELECT SettingValue FROM DBSettings WHERE ' +
+    'SettingKey = ''%s''', [TAnalysisSettingsModel.ValueKey(EDIT_READER_ID, ValueId)]));
+  Rows := Statement.ExecuteQuery;
+  if Rows.Next then
+    Result := VarToStr(Rows.GetFieldValue(0));
+end;
+
+function AuditRows(EntityType: TAuditEntityType; EntityId: Int64): TList<TAuditLog>;
+var
+  Observer: TObjectManager;
+  Rows: TList<TAuditLog>;
+  Row: TAuditLog;
+begin
+  Result := TObjectList<TAuditLog>.Create(True);
+  Observer := TObjectManager.Create(Notebook.Connection);
+  try
+    Rows := Observer.Find<TAuditLog>.Where((Linq['EntityType'] = Ord(EntityType)) and
+      (Linq['EntityId'] = EntityId)).OrderBy('Id').List;
+    try
+      for Row in Rows do
+      begin
+        Observer.Evict(Row);
+        Result.Add(Row);
+      end;
+    finally
+      Rows.Free;
+    end;
+  finally
+    Observer.Free;
+  end;
+end;
+
+function ValueExists(ValueId: Integer): Boolean;
+begin
+  Result := RowCount(Format('SELECT COUNT(*) FROM DataValues WHERE Id = %d',
+    [ValueId])) = 1;
+end;
+
+function StoredNumber(ValueId: Integer): Double;
+var
+  Observer: TObjectManager;
+begin
+  Observer := TObjectManager.Create(Notebook.Connection);
+  try
+    Result := StoredValue(Observer, ValueId).Value;
+  finally
+    Observer.Free;
+  end;
+end;
+
+procedure SignItem(ItemId: Integer);
+var
+  Signature: TSignature;
+begin
+  Signature := TSignature.Create;
+  Signature.ItemId := ItemId;
+  Signature.UserId := Notebook.Principal.Id;
+  Signature.UserName := 'Synthetic Scientist';
+  Signature.SignedDate := Now;
+  Signature.Meaning := 'Reviewed';
+  Signature.ContentHash := StringOfChar('0', 64);
+  Notebook.Manager.Save(Signature);
+  Notebook.Manager.Flush;
+end;
+
+function AddLockedHypothesis(Project: TProject; Status: THypothesisStatus): Integer;
+var
+  H: THypothesis;
+begin
+  H := AddHypothesis(Project);
+  H.Status := Status;
+  Notebook.Manager.Flush;
+  Result := H.Id;
+end;
+
+procedure AddRun(HypothesisId, ItemId: Integer);
+var
+  Run: THypothesisRun;
+begin
+  Run := THypothesisRun.Create;
+  Run.HypothesisId := HypothesisId;
+  Run.ItemId := ItemId;
+  Run.Role := hrrRun;
+  Run.AddedBy := Notebook.Principal.Id;
+  Run.AddedDate := Now;
+  Notebook.Manager.Save(Run);
+  Notebook.Manager.Flush;
+end;
+
+procedure AddValueEvidence(HypothesisId, ItemId, ValueId: Integer);
+var
+  Evidence: THypothesisEvidence;
+begin
+  Evidence := THypothesisEvidence.Create;
+  Evidence.HypothesisId := HypothesisId;
+  Evidence.ItemId := ItemId;
+  Evidence.ValueId := ValueId;
+  Evidence.AddedBy := Notebook.Principal.Id;
+  Evidence.AddedDate := Now;
+  Notebook.Manager.Save(Evidence);
+  Notebook.Manager.Flush;
+end;
+
+function SnapshotFor(FileId: Int64; const Content, Marker: string): string;
+var
+  Hash: THashMD5;
+begin
+  Hash := THashMD5.Create;
+  Hash.Update(TEncoding.UTF8.GetBytes(Content));
+  Result := Format('{"file_id":%d,"file_hash":"%s","marker":"%s"}',
+    [FileId, UpperCase(Hash.HashAsString), Marker]);
+end;
+
+function ItemListsValue(ItemId, ValueId: Integer): Boolean;
+var
+  Response: TJSONObject;
+begin
+  Response := Call('get_item', Format('{"item_id":%d}', [ItemId]));
+  try
+    Result := Assigned(FindRow(Response.GetValue<TJSONArray>('values'), 'id', ValueId));
+  finally
+    Response.Free;
+  end;
+end;
+
+function ItemValueNumber(ItemId, ValueId: Integer): Double;
+var
+  Response: TJSONObject;
+  Row: TJSONObject;
+begin
+  Response := Call('get_item', Format('{"item_id":%d}', [ItemId]));
+  try
+    Row := FindRow(Response.GetValue<TJSONArray>('values'), 'id', ValueId);
+    Check(Assigned(Row), Format('get_item must list value %d', [ValueId]));
+    Result := Row.GetValue<Double>('value');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestRemoveValueWritesItemAudit;
+var
+  Project: TProject;
+  Item: TItem;
+  TypeId, KeepId, GoneId: Integer;
+  Before: TRowSnapshot;
+  Response: TJSONObject;
+  Audit: TList<TAuditLog>;
+  Logs: TJSONArray;
+  Log: TJSONValue;
+  Found: Boolean;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Removal target');
+  TypeId := NewValueType('Synthetic step', 'nm', False, 0, 0);
+  KeepId := AddManual(Item.Id, TypeId, 10);
+  GoneId := CallId('add_value', Format('{"item_id":%d,"value_type_id":%d,' +
+    '"value":42.125,"tolerance":0.5,"description":"old fit","source_note":"lab"}',
+    [Item.Id, TypeId]));
+  Check(ItemListsValue(Item.Id, GoneId), 'The session caches the item with the value');
+  Before := TRowSnapshot.Take;
+
+  Response := Call('remove_value', Format(
+    '{"value_id":%d,"reason":"reader fix"}', [GoneId]));
+  try
+    Check(Response.GetValue<Integer>('id') = GoneId, 'The response names the removed value');
+    Check(Response.GetValue<Double>('value') = 42.125, 'The response carries the old number');
+    Check(Response.GetValue<string>('description') = 'old fit',
+      'The response carries the old description');
+    Check(Response.GetValue<TJSONArray>('dependent_derived_value_ids').Count = 0,
+      'A plain value has no dependents');
+  finally
+    Response.Free;
+  end;
+
+  Check(not ValueExists(GoneId), 'The value row is deleted');
+  Check(ValueExists(KeepId), 'Other values of the item stay');
+  Check(TRows.Count<unit_Item.TValue> = Before.Values - 1,
+    'Exactly one value row is deleted');
+  Check(TRows.Count<TAuditLog> = Before.Audits + 1, 'One audit row per removed value');
+  Audit := AuditRows(aetItem, Item.Id);
+  try
+    Check(Audit.Count = 1, 'The removal is audited on the item');
+    Check(Audit[0].Operation = aoUpdate, 'The item audit row is an update');
+    Check(Audit[0].UserId = Notebook.Principal.Id, 'The removal is attributed');
+    Check(Pos(Format('Removed value %d', [GoneId]), Audit[0].Description) > 0,
+      'The audit row names the value: ' + Audit[0].Description);
+    Check(Pos('value 42.125, tolerance 0.5', Audit[0].Description) > 0,
+      'The audit row keeps the old number: ' + Audit[0].Description);
+    Check(Pos('reason "reader fix"', Audit[0].Description) > 0,
+      'The audit row keeps the reason');
+    Check(Pos('description "old fit"', Audit[0].Description) > 0,
+      'The audit row keeps the old description');
+  finally
+    Audit.Free;
+  end;
+
+  Response := Call('get_audit_log', Format('{"entity_type":"Item","entity_id":%d}',
+    [Item.Id]));
+  try
+    Logs := Response.GetValue<TJSONArray>('audit_log');
+    Found := False;
+    for Log in Logs do
+      if Pos('value 42.125', Log.GetValue<string>('description')) > 0 then
+        Found := True;
+    Check(Found, 'get_audit_log shows the old number after the hard delete');
+  finally
+    Response.Free;
+  end;
+
+  Check(not ItemListsValue(Item.Id, GoneId), 'The cached item no longer lists the value');
+  Before := TRowSnapshot.Take;
+  ExpectRefused('remove_value', Format('{"value_id":%d}', [GoneId]),
+    'outside this session');
+  ExpectRefused('update_value', Format('{"value_id":%d,"value":1}', [GoneId]),
+    'outside this session');
+  Check(TRowSnapshot.Take.SameAs(Before), 'A removed value cannot be removed again');
+end;
+
+procedure TestValueEditRefusals;
+var
+  Project, Foreign: TProject;
+  Item, Signed, Deleted, ForeignItem, RunItem, CitedItem: TItem;
+  TypeId, ValueId, SignedId, DeletedId, ForeignId, LockedRunId, CitedId, HypId: Integer;
+  Before: TRowSnapshot;
+  Missing, Hidden: string;
+  Response: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Foreign := AddProject(Notebook.Principal);
+  TypeId := NewValueType('Synthetic step', 'nm', False, 0, 0);
+  Item := NewItem(Project, 0, 'Open item');
+  ValueId := AddManual(Item.Id, TypeId, 1);
+  Signed := NewItem(Project, 0, 'Signed item');
+  SignedId := AddManual(Signed.Id, TypeId, 2);
+  SignItem(Signed.Id);
+  Deleted := NewItem(Project, 0, 'Deleted item');
+  DeletedId := AddManual(Deleted.Id, TypeId, 3);
+  Deleted.IsDeleted := True;
+  Notebook.Manager.Flush;
+  ForeignItem := NewItem(Foreign, 0, 'Foreign item');
+  ForeignId := AddManual(ForeignItem.Id, TypeId, 4);
+  RunItem := NewItem(Project, 0, 'Run item');
+  LockedRunId := AddManual(RunItem.Id, TypeId, 5);
+  AddRun(AddLockedHypothesis(Project, hsInReview), RunItem.Id);
+  CitedItem := NewItem(Project, 0, 'Cited item');
+  CitedId := AddManual(CitedItem.Id, TypeId, 6);
+  AddValueEvidence(AddLockedHypothesis(Project, hsAccepted), CitedItem.Id, CitedId);
+  HypId := AddLockedHypothesis(Project, hsApproved);
+  AddValueEvidence(HypId, Item.Id, ValueId);
+
+  Before := TRowSnapshot.Take;
+  ExpectRefused('remove_value', Format('{"value_id":%d}', [SignedId]), 'is signed');
+  ExpectRefused('update_value', Format('{"value_id":%d,"value":9}', [SignedId]),
+    'is signed');
+  ExpectRefused('remove_value', Format('{"value_id":%d}', [DeletedId]),
+    'deleted item');
+  ExpectRefused('update_value', Format('{"value_id":%d,"value":9}', [DeletedId]),
+    'deleted item');
+  ExpectRefused('remove_value', Format('{"value_id":%d}', [LockedRunId]),
+    '(InReview)');
+  ExpectRefused('update_value', Format('{"value_id":%d,"value":9}', [LockedRunId]),
+    '(InReview)');
+  ExpectRefused('remove_value', Format('{"value_id":%d}', [CitedId]), '(Accepted)');
+  ExpectRefused('update_value', Format('{"value_id":%d,"description":"x"}', [CitedId]),
+    '(Accepted)');
+
+  Context.ScopedProjects := [Project.Id];
+  Prepare;
+  Missing := ExpectRefused('remove_value', '{"value_id":999999}', 'outside');
+  Hidden := ExpectRefused('remove_value', Format('{"value_id":%d}', [ForeignId]),
+    'outside');
+  Check(Missing = Hidden, 'Missing and out-of-scope values share one refusal');
+  Hidden := ExpectRefused('update_value', Format('{"value_id":%d,"value":9}',
+    [ForeignId]), 'outside');
+  Check(Missing = Hidden, 'update_value gives the same refusal out of scope');
+  Check(TRowSnapshot.Take.SameAs(Before), 'Refused edits write nothing');
+  Check(ValueExists(ForeignId) and (StoredNumber(SignedId) = 2),
+    'Refused values are unchanged');
+
+  Response := Call('remove_value', Format('{"value_id":%d}', [ValueId]));
+  Response.Free;
+  Check(not ValueExists(ValueId),
+    'An Approved hypothesis citing the value does not block the removal');
+end;
+
+procedure TestRemoveDerivedInputKeepsDerived;
+var
+  Project: TProject;
+  Item: TItem;
+  AreaId, ForceId, CyclesId, DerivedId: Integer;
+  Response: TJSONObject;
+  Dependents: TJSONArray;
+  Audit: TList<TAuditLog>;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Wear item');
+  AreaId := AddManual(Item.Id, AreaType, 0.004);
+  ForceId := AddManual(Item.Id, ForceType, 5);
+  CyclesId := AddManual(Item.Id, CyclesType, 1000);
+  DerivedId := CallId('add_derived_value', DerivedCall(Item.Id,
+    WEAR_RATE_FORMULA_ID, AreaId, ForceId, CyclesId));
+
+  Response := Call('remove_value', Format('{"value_id":%d}', [ForceId]));
+  try
+    Dependents := Response.GetValue<TJSONArray>('dependent_derived_value_ids');
+    Check((Dependents.Count = 1) and
+      ((Dependents.Items[0] as TJSONNumber).AsInt = DerivedId),
+      'The response names the Derived value that used the input');
+  finally
+    Response.Free;
+  end;
+  Check(ValueExists(DerivedId), 'Removing an input keeps the Derived value');
+  Check(RowCount(Format('SELECT COUNT(*) FROM DerivedValueInputs WHERE ' +
+    'ResultValueId = %d', [DerivedId])) = 3, 'The Derived value keeps its input rows');
+  Audit := AuditRows(aetItem, Item.Id);
+  try
+    Check(Pos(Format('input of Derived values %d', [DerivedId]),
+      Audit.Last.Description) > 0, 'The audit row names the dependent value');
+  finally
+    Audit.Free;
+  end;
+
+  Response := Call('remove_values', Format('{"value_ids":[%d,%d]}',
+    [CyclesId, DerivedId]));
+  try
+    Check(Response.GetValue<Integer>('count') = 2, 'Both values are removed');
+    Check(Response.GetValue<TJSONArray>('values').Items[0]
+      .GetValue<TJSONArray>('dependent_derived_value_ids').Count = 0,
+      'A Derived value removed in the same call is not a dependent');
+  finally
+    Response.Free;
+  end;
+  Check(RowCount(Format('SELECT COUNT(*) FROM DerivedValueInputs WHERE ' +
+    'ResultValueId = %d', [DerivedId])) = 0, 'A removed Derived value takes its input rows');
+  Check(ValueExists(AreaId), 'Values outside the batch stay');
+end;
+
+procedure TestRemoveValuesIsAllOrNothing;
+var
+  Project: TProject;
+  Item, Signed: TItem;
+  TypeId, A, B, C: Integer;
+  Before, After: TRowSnapshot;
+  Response: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Batch item');
+  Signed := NewItem(Project, 0, 'Signed batch item');
+  TypeId := NewValueType('Synthetic step', 'nm', False, 0, 0);
+  A := AddManual(Item.Id, TypeId, 1);
+  B := AddManual(Item.Id, TypeId, 2);
+  C := AddManual(Signed.Id, TypeId, 3);
+  SignItem(Signed.Id);
+  Before := TRowSnapshot.Take;
+  ExpectRefused('remove_values', Format('{"value_ids":[%d,999999]}', [A]),
+    'value_ids[1]');
+  ExpectRefused('remove_values', Format('{"value_ids":[%d,%d,%d]}', [A, B, C]),
+    'value_ids[2]');
+  ExpectRefused('remove_values', Format('{"value_ids":[%d,%d]}', [A, A]), 'repeats');
+  ExpectRefused('remove_values', '{"value_ids":[]}', 'empty');
+  Check(TRowSnapshot.Take.SameAs(Before), 'A refused batch removes nothing');
+
+  Response := Call('remove_values', Format('{"value_ids":[%d,%d],"reason":"retake"}',
+    [A, B]));
+  try
+    Check(Response.GetValue<Integer>('count') = 2, 'The batch reports both values');
+  finally
+    Response.Free;
+  end;
+  After := TRowSnapshot.Take;
+  Check(After.Values = Before.Values - 2, 'Two value rows are deleted');
+  Check(After.Audits = Before.Audits + 2, 'One audit row per removed value');
+  Check(not ValueExists(A) and not ValueExists(B) and ValueExists(C),
+    'Only the listed values are removed');
+end;
+
+procedure TestUpdateManualValue;
+var
+  Project: TProject;
+  Item: TItem;
+  TypeId, RangedId, ValueId, DerivedId: Integer;
+  Before: TRowSnapshot;
+  Response: TJSONObject;
+  Audit: TList<TAuditLog>;
+  Observer: TObjectManager;
+  Stored: unit_Item.TValue;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Update item');
+  TypeId := NewValueType('Synthetic step', 'nm', False, 0, 0);
+  RangedId := NewValueType('Synthetic thickness', 'm', True, 1e-9, 1e-5);
+  ValueId := CallId('add_value', Format('{"item_id":%d,"value_type_id":%d,' +
+    '"value":12.5,"tolerance":0.25,"description":"first fit","source_note":"lab"}',
+    [Item.Id, TypeId]));
+  Check(ItemValueNumber(Item.Id, ValueId) = 12.5, 'The session caches the old number');
+  Before := TRowSnapshot.Take;
+
+  Response := Call('update_value', Format(
+    '{"value_id":%d,"value":13.75,"tolerance":0.5,"description":"second fit"}',
+    [ValueId]));
+  try
+    Check(Response.GetValue<Boolean>('changed'), 'The update reports a change');
+    Check(Response.GetValue<Double>('value') = 13.75, 'The response has the new number');
+    Check(Response.GetValue<TJSONObject>('previous').GetValue<Double>('value') = 12.5,
+      'The response has the old number');
+    Check(Response.GetValue<TJSONObject>('source').GetValue<string>('kind') = 'Manual',
+      'The source kind does not change');
+  finally
+    Response.Free;
+  end;
+  Observer := TObjectManager.Create(Notebook.Connection);
+  try
+    Stored := StoredValue(Observer, ValueId);
+    Check((Stored.Value = 13.75) and (Stored.Tol = 0.5) and
+      (Stored.Description = 'second fit'), 'The new fields are stored');
+    Check(Stored.SourceNote = 'lab', 'The source fields stay');
+    Check(Stored.ModifiedBy.HasValue and (Stored.ModifiedBy.Value = Notebook.Principal.Id),
+      'The change is attributed on the row');
+  finally
+    Observer.Free;
+  end;
+  Check(TRows.Count<TAuditLog> = Before.Audits + 1, 'One audit row per update');
+  Audit := AuditRows(aetValue, ValueId);
+  try
+    Check(Audit.Last.Operation = aoUpdate, 'The update is audited on the value');
+    Check(Pos('value 12.5, tolerance 0.25', Audit.Last.Description) > 0,
+      'The audit row keeps the old number: ' + Audit.Last.Description);
+    Check(Pos('description "first fit"', Audit.Last.Description) > 0,
+      'The audit row keeps the old description');
+  finally
+    Audit.Free;
+  end;
+  Check(ItemValueNumber(Item.Id, ValueId) = 13.75, 'The cached item shows the new number');
+
+  Before := TRowSnapshot.Take;
+  Response := Call('update_value', Format('{"value_id":%d,"value":13.75}', [ValueId]));
+  try
+    Check(not Response.GetValue<Boolean>('changed'), 'An equal value is not a change');
+  finally
+    Response.Free;
+  end;
+  ExpectRefused('update_value', Format('{"value_id":%d}', [ValueId]), 'Nothing to change');
+  ExpectRefused('update_value', Format('{"value_id":%d,"source_note":"x"}', [ValueId]),
+    'remove_value plus add_value');
+  ExpectRefused('update_value', Format('{"value_id":%d,"colour":"x"}', [ValueId]),
+    'Unknown parameter colour');
+  ExpectRefused('update_value', Format('{"value_id":%d,"reader_version":"2"}', [ValueId]),
+    'only to a Reader value');
+  ExpectRefused('update_value', Format('{"value_id":%d,"value_type_id":%d}',
+    [ValueId, RangedId]), 'above_range');
+  ExpectRefused('update_value', Format('{"value_id":%d,"value_type_id":%d}',
+    [ValueId, 999999]), 'ValueType not found');
+  ExpectRefused('update_value', Format('{"value_id":%d,"rec_type":"OTHER"}', [ValueId]),
+    'Invalid rec_type');
+  Check(TRowSnapshot.Take.SameAs(Before), 'Refused and unchanged updates write nothing');
+  Check(StoredNumber(ValueId) = 13.75, 'Refused updates keep the number');
+
+  Response := Call('update_value', Format('{"value_id":%d,"value_type_id":%d,' +
+    '"rec_type":"EXP_CONDITION","confirm_out_of_range":true}', [ValueId, RangedId]));
+  try
+    Check(Codes(Response.GetValue<TJSONArray>('confirmed_issues')) = 'above_range',
+      'A confirmed update reports its issues');
+    Check(Response.GetValue<string>('rec_type') = 'EXP_CONDITION', 'rec_type changes');
+  finally
+    Response.Free;
+  end;
+
+  DerivedId := CallId('add_derived_value', DerivedCall(Item.Id, WEAR_RATE_FORMULA_ID,
+    AddManual(Item.Id, AreaType, 0.004), AddManual(Item.Id, ForceType, 5),
+    AddManual(Item.Id, CyclesType, 1000)));
+  ExpectRefused('update_value', Format('{"value_id":%d,"value":1}', [DerivedId]),
+    'add_derived_value');
+  Response := Call('update_value', Format('{"value_id":%d,"description":"wear K"}',
+    [DerivedId]));
+  try
+    Check(Response.GetValue<TJSONObject>('source').GetValue<string>('kind') = 'Derived',
+      'A Derived description can change without changing the source');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestUpdateReaderValueAfterReaderFix;
+var
+  Project: TProject;
+  Item: TItem;
+  TypeId, ValueId: Integer;
+  FileId: Int64;
+  Response: TJSONObject;
+  Audit: TList<TAuditLog>;
+  Before: TRowSnapshot;
+  Snapshot: string;
+const
+  CONTENT = 'synthetic step scan';
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Reader fix item');
+  FileId := StoreFile(Item, NewFileType('.vstep'), 'scan', CONTENT);
+  TypeId := NewValueType('Synthetic step', 'nm', False, 0, 0);
+  ValueId := CallId('add_value', Format('{"item_id":%d,"value_type_id":%d,' +
+    '"value":80,"source_file_id":%d,"reader_id":"%s","reader_version":"1",' +
+    '"key_name":"Step Height","reader_units":"nm","conversion_factor":1,' +
+    '"analysis_snapshot":%s}',
+    [Item.Id, TypeId, FileId, EDIT_READER_ID, SnapshotFor(FileId, CONTENT, 'old')]));
+  Check(Pos('"marker":"old"', StoredSnapshot(ValueId)) > 0, 'The first snapshot is stored');
+
+  Before := TRowSnapshot.Take;
+  ExpectRefused('update_value', Format('{"value_id":%d,"analysis_snapshot":%s}',
+    [ValueId, SnapshotFor(FileId, 'other bytes', 'bad')]), 'file_hash');
+  ExpectRefused('update_value', Format('{"value_id":%d,"key_name":"Other"}', [ValueId]),
+    'remove_value plus add_value');
+  Check(TRowSnapshot.Take.SameAs(Before), 'A refused snapshot writes nothing');
+  Check(Pos('"marker":"old"', StoredSnapshot(ValueId)) > 0, 'The old snapshot stays');
+
+  Response := Call('update_value', Format('{"value_id":%d,"value":92.5,' +
+    '"reader_version":"2","analysis_snapshot":%s}',
+    [ValueId, SnapshotFor(FileId, CONTENT, 'new')]));
+  try
+    Check(Response.GetValue<TJSONObject>('source').GetValue<string>('reader_version') = '2',
+      'The reader version changes');
+    Check(Response.GetValue<TJSONObject>('source').GetValue<string>('kind') = 'Reader',
+      'The value stays a Reader value');
+    Check(Response.GetValue<TJSONObject>('previous').GetValue<string>('reader_version') = '1',
+      'The response has the old reader version');
+  finally
+    Response.Free;
+  end;
+  Snapshot := StoredSnapshot(ValueId);
+  Check((Pos('"marker":"new"', Snapshot) > 0) and
+    (Pos(Format('"value_id":%d', [ValueId]), Snapshot) > 0),
+    'The new snapshot replaces the old one: ' + Snapshot);
+  Check(StoredNumber(ValueId) = 92.5, 'The new number is stored');
+  Audit := AuditRows(aetValue, ValueId);
+  try
+    Check(Pos('value 80, tolerance 0', Audit.Last.Description) > 0,
+      'The audit row keeps the old number: ' + Audit.Last.Description);
+    Check(Pos('reader version "1"', Audit.Last.Description) > 0,
+      'The audit row keeps the old reader version');
+  finally
+    Audit.Free;
+  end;
+
+  Response := Call('update_value', Format('{"value_id":%d,"analysis_snapshot":""}',
+    [ValueId]));
+  Response.Free;
+  Check(StoredSnapshot(ValueId) = '', 'An empty analysis_snapshot deletes the snapshot');
+
+  Response := Call('update_value', Format('{"value_id":%d,"analysis_snapshot":%s}',
+    [ValueId, SnapshotFor(FileId, CONTENT, 'again')]));
+  Response.Free;
+  Check(StoredSnapshot(ValueId) <> '', 'A snapshot can be stored again');
+  Response := Call('remove_value', Format('{"value_id":%d}', [ValueId]));
+  Response.Free;
+  Check(StoredSnapshot(ValueId) = '', 'remove_value deletes the analysis snapshot');
+end;
+
+function FileEntry(Arr: TJSONArray; FileId: Int64): TJSONObject;
+begin
+  Result := FindRow(Arr, 'id', FileId);
+  Check(Assigned(Result), 'File ' + IntToStr(FileId) + ' is listed');
+end;
+
+function FileDeleted(Arr: TJSONArray; FileId: Int64): Boolean;
+begin
+  Result := FileEntry(Arr, FileId).GetValue<Boolean>('is_deleted');
+end;
+
+procedure TestFileStatusShowsLiveDuplicates;
+var
+  Project: TProject;
+  Item: TItem;
+  FileTypeId: Integer;
+  First, Second: Int64;
+  Response: TJSONObject;
+  Files: TJSONArray;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Duplicate files');
+  FileTypeId := NewFileType('.vdup');
+  First := StoreFile(Item, FileTypeId, 'same', 'same bytes');
+  Second := StoreFile(Item, FileTypeId, 'same', 'same bytes');
+
+  Response := Call('list_files', Format('{"item_id":%d,"check_storage":true}', [Item.Id]));
+  try
+    Files := Response.GetValue<TJSONArray>('files');
+    Check(Files.Count = 2, 'Both duplicates are listed');
+    Check(not FileDeleted(Files, First) and not FileDeleted(Files, Second),
+      'Live duplicates are not deleted');
+    Check(FileEntry(Files, First).GetValue<string>('storage_status') = 'ok',
+      'First duplicate has bytes');
+    Check(FileEntry(Files, Second).GetValue<string>('storage_status') = 'ok',
+      'Second duplicate has bytes');
+  finally
+    Response.Free;
+  end;
+
+  Response := Call('get_item', Format('{"item_id":%d}', [Item.Id]));
+  try
+    Files := Response.GetValue<TJSONArray>('files');
+    Check(not FileDeleted(Files, First) and not FileDeleted(Files, Second),
+      'get_item shows live duplicates as not deleted');
+  finally
+    Response.Free;
+  end;
+
+  Response := Call('list_files', Format('{"item_id":%d}', [Item.Id]));
+  try
+    Files := Response.GetValue<TJSONArray>('files');
+    Check(FileEntry(Files, First).FindValue('storage_status') = nil,
+      'storage_status is absent without check_storage');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestFileStatusReportsMissingBytes;
+var
+  Project: TProject;
+  Item: TItem;
+  FileTypeId: Integer;
+  FileId: Int64;
+  F: unit_Item.TFile;
+  Response: TJSONObject;
+  Files: TJSONArray;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Missing bytes');
+  FileTypeId := NewFileType('.vmiss');
+  FileId := StoreFile(Item, FileTypeId, 'gone', 'soon gone');
+  F := Notebook.Manager.Find<unit_Item.TFile>(FileId);
+  Notebook.Storage.DeleteFile(AttachmentRelativePath(Project.FileFolder,
+    Item.FolderName, F.FullName));
+
+  Response := Call('list_files', Format('{"item_id":%d,"check_storage":true}', [Item.Id]));
+  try
+    Files := Response.GetValue<TJSONArray>('files');
+    Check(FileEntry(Files, FileId).GetValue<string>('storage_status') = 'missing',
+      'A record without bytes is missing');
+    Check(not FileDeleted(Files, FileId), 'A missing file is not deleted');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestFileStatusFollowsRecycleBin;
+var
+  Project: TProject;
+  ItemA, ParentP, ChildB: TItem;
+  FileTypeId: Integer;
+  FileA, FileB: Int64;
+  Items: TItemModel;
+  Response: TJSONObject;
+  Files: TJSONArray;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  ItemA := NewItem(Project, 0, 'Deleted item');
+  ParentP := NewItem(Project, 0, 'Deleted parent');
+  ChildB := NewItem(Project, ParentP.Id, 'Live child');
+  FileTypeId := NewFileType('.vbin');
+  FileA := StoreFile(ItemA, FileTypeId, 'on A', 'a bytes');
+  FileB := StoreFile(ChildB, FileTypeId, 'on B', 'b bytes');
+  Items := TItemModel.Create(Notebook.Manager);
+  try
+    Check(Items.DeleteItem(ItemA, Notebook.Principal.Id), 'Item A moves to the recycle bin');
+    Check(Items.DeleteItem(ParentP, Notebook.Principal.Id), 'Parent P moves to the recycle bin');
+  finally
+    Items.Free;
+  end;
+
+  Response := Call('list_files', Format('{"item_id":%d}', [ItemA.Id]));
+  try
+    Check(FileDeleted(Response.GetValue<TJSONArray>('files'), FileA),
+      'A file of a deleted item is deleted');
+  finally
+    Response.Free;
+  end;
+  Response := Call('list_files', Format('{"item_id":%d}', [ChildB.Id]));
+  try
+    Check(FileDeleted(Response.GetValue<TJSONArray>('files'), FileB),
+      'A file under a deleted ancestor is deleted');
+  finally
+    Response.Free;
+  end;
+  Response := Call('get_item', Format('{"item_id":%d}', [ChildB.Id]));
+  try
+    Files := Response.GetValue<TJSONArray>('files');
+    Check(FileDeleted(Files, FileB), 'get_item reports the ancestor deletion');
+  finally
+    Response.Free;
+  end;
+  Response := Call('get_item', Format('{"item_id":%d}', [ItemA.Id]));
+  try
+    Check(Response.GetValue<Boolean>('is_deleted'), 'Item-level is_deleted stays true');
+    Check(FileDeleted(Response.GetValue<TJSONArray>('files'), FileA),
+      'get_item reports the item deletion');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestWikiSkipsMarkdownWithoutBytes;
+var
+  Project: TProject;
+  Item: TItem;
+  MdTypeId: Integer;
+  M1Id, M2Id: Int64;
+  M1, M2: unit_Item.TFile;
+  Path1, Path2, Refusal: string;
+  Response: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Wiki duplicates');
+  MdTypeId := NewFileType('.md');
+  M1Id := StoreFile(Item, MdTypeId, 'page-old', 'stale body');
+  M2Id := StoreFile(Item, MdTypeId, 'page-live', 'live body');
+  M1 := Notebook.Manager.Find<unit_Item.TFile>(M1Id);
+  M2 := Notebook.Manager.Find<unit_Item.TFile>(M2Id);
+  Path1 := AttachmentRelativePath(Project.FileFolder, Item.FolderName, M1.FullName);
+  Path2 := AttachmentRelativePath(Project.FileFolder, Item.FolderName, M2.FullName);
+  Notebook.Storage.DeleteFile(Path1);
+
+  Response := Call('wiki_get_page', Format('{"item_id":%d}', [Item.Id]));
+  try
+    Check(Response.GetValue<string>('body_md') = 'live body',
+      'The page body comes from the markdown file that has bytes');
+  finally
+    Response.Free;
+  end;
+
+  Response := Call('wiki_update_page', Format('{"item_id":%d,"body_md":"new body"}',
+    [Item.Id]));
+  Response.Free;
+  Check(not Notebook.Storage.Exists(Path1), 'The update does not resurrect the record without bytes');
+  Check(TEncoding.UTF8.GetString(Notebook.Storage.ReadBytes(Path2)) = 'new body',
+    'The update writes the markdown file that has bytes');
+
+  Notebook.Storage.DeleteFile(Path2);
+  Refusal := ExpectRefused('wiki_get_page', Format('{"item_id":%d}', [Item.Id]),
+    'missing from storage');
+  Check(Pos(IntToStr(M1Id), Refusal) > 0, 'The refusal names the first candidate: ' + Refusal);
+end;
+
+type
+  TDeleteFixture = record
+    Item: TItem;
+    FileId: Int64;
+    ReaderA, ReaderB, ManualId: Integer;
+    Path, Hash: string;
+  end;
+
+const
+  DELETE_CONTENT = 'synthetic step scan';
+  DELETE_REAL = '{"file_id":%d,"dry_run":false%s}';
+
+procedure AddFileEvidence(HypothesisId, ItemId: Integer; FileId: Int64);
+var
+  Evidence: THypothesisEvidence;
+begin
+  Evidence := THypothesisEvidence.Create;
+  Evidence.HypothesisId := HypothesisId;
+  Evidence.ItemId := ItemId;
+  Evidence.FileId := FileId;
+  Evidence.AddedBy := Notebook.Principal.Id;
+  Evidence.AddedDate := Now;
+  Notebook.Manager.Save(Evidence);
+  Notebook.Manager.Flush;
+end;
+
+function MakeDeleteFixture(Project: TProject; FileTypeId, TypeId: Integer;
+  const Title: string): TDeleteFixture;
+var
+  F: unit_Item.TFile;
+begin
+  Result.Item := NewItem(Project, 0, Title);
+  Result.FileId := StoreFile(Result.Item, FileTypeId, 'scan', DELETE_CONTENT);
+  Result.ReaderA := CallId('add_value', Format('{"item_id":%d,"value_type_id":%d,' +
+    '"value":80,"source_file_id":%d,"reader_id":"%s","reader_version":"1",' +
+    '"key_name":"Step Height","reader_units":"nm","conversion_factor":1,' +
+    '"analysis_snapshot":%s}', [Result.Item.Id, TypeId, Result.FileId,
+    EDIT_READER_ID, SnapshotFor(Result.FileId, DELETE_CONTENT, 'a')]));
+  Result.ReaderB := CallId('add_value', Format('{"item_id":%d,"value_type_id":%d,' +
+    '"value":5,"source_file_id":%d,"reader_id":"%s","reader_version":"1",' +
+    '"key_name":"Roughness","reader_units":"nm","conversion_factor":1}',
+    [Result.Item.Id, TypeId, Result.FileId, EDIT_READER_ID]));
+  Result.ManualId := AddManual(Result.Item.Id, TypeId, 10);
+  F := Notebook.Manager.Find<unit_Item.TFile>(Result.FileId);
+  Result.Hash := F.Hash;
+  Result.Path := AttachmentRelativePath(Project.FileFolder,
+    Result.Item.FolderName, F.FullName);
+  Check(Notebook.Storage.Exists(Result.Path), 'The fixture file has bytes');
+end;
+
+function NewDeleteFixture(Project: TProject; const Title: string): TDeleteFixture;
+begin
+  Result := MakeDeleteFixture(Project, NewFileType('.vdel'),
+    NewValueType('Synthetic step', 'nm', False, 0, 0), Title);
+end;
+
+function JSONHasId(Arr: TJSONArray; Id: Integer): Boolean;
+var
+  Element: TJSONValue;
+begin
+  Result := False;
+  for Element in Arr do
+    if (Element as TJSONNumber).AsInt = Id then
+      Exit(True);
+end;
+
+function DeleteAuditCount(EntityType: TAuditEntityType; EntityId: Int64): Integer;
+var
+  Rows: TList<TAuditLog>;
+  Row: TAuditLog;
+begin
+  Result := 0;
+  Rows := AuditRows(EntityType, EntityId);
+  try
+    for Row in Rows do
+      if Row.Operation = aoDelete then
+        Inc(Result);
+  finally
+    Rows.Free;
+  end;
+end;
+
+function RefuseDelete(const Fx: TDeleteFixture; const Extra, Fragment: string): string;
+var
+  Before: TRowSnapshot;
+begin
+  Before := TRowSnapshot.Take;
+  Result := ExpectRefused('delete_file', Format(DELETE_REAL, [Fx.FileId, Extra]),
+    Fragment);
+  Check(TRowSnapshot.Take.SameAs(Before), 'A refused delete changes no row: ' + Fragment);
+  Check(Notebook.Storage.Exists(Fx.Path), 'A refused delete keeps the bytes: ' + Fragment);
+end;
+
+procedure TestDeleteFileDryRunChangesNothing;
+var
+  Project: TProject;
+  Fx: TDeleteFixture;
+  Before: TRowSnapshot;
+  Response: TJSONObject;
+  Rows: TJSONArray;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Fx := NewDeleteFixture(Project, 'Dry run');
+  Before := TRowSnapshot.Take;
+
+  Response := Call('delete_file', Format('{"file_id":%d}', [Fx.FileId]));
+  try
+    Check(Response.GetValue<Boolean>('dry_run'), 'dry_run defaults to true');
+    Check(not Response.GetValue<Boolean>('deleted'), 'A dry run deletes nothing');
+    Rows := Response.GetValue<TJSONArray>('values_to_delete');
+    Check(Rows.Count = 2, 'Exactly the two Reader values are listed');
+    Check(Assigned(FindRow(Rows, 'id', Fx.ReaderA)) and
+      Assigned(FindRow(Rows, 'id', Fx.ReaderB)), 'Both Reader values are named');
+    Check(Codes(Response.GetValue<TJSONArray>('checks_passed')) =
+      'scope,not_deleted,write_access,not_signed,no_locked_hypothesis',
+      'The checks are listed: ' + Codes(Response.GetValue<TJSONArray>('checks_passed')));
+    Check(Response.GetValue<TJSONObject>('file').GetValue<Int64>('id') = Fx.FileId,
+      'The file is described');
+    Check(Pos('Projects/', Response.ToJSON) = 0, 'No storage path is returned');
+  finally
+    Response.Free;
+  end;
+  Response := Call('delete_file', Format('{"file_id":%d,"confirm_hash":"%s"}',
+    [Fx.FileId, LowerCase(Fx.Hash)]));
+  try
+    Check(Codes(Response.GetValue<TJSONArray>('checks_passed')) =
+      'scope,not_deleted,write_access,not_signed,no_locked_hypothesis,confirm_hash',
+      'A given confirm_hash is listed');
+  finally
+    Response.Free;
+  end;
+  Check(TRowSnapshot.Take.SameAs(Before), 'A dry run changes no row');
+  Check(Notebook.Storage.Exists(Fx.Path), 'A dry run keeps the bytes');
+end;
+
+procedure TestDeleteFileRemovesRecordBytesValues;
+var
+  Project: TProject;
+  Fx: TDeleteFixture;
+  Preview, Refusal: string;
+  States: TViewerStateModel;
+  Response: TJSONObject;
+  Before: TRowSnapshot;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Fx := NewDeleteFixture(Project, 'Delete target');
+  Preview := PreviewRelativePath(Fx.Item.Id, Fx.FileId);
+  Notebook.Storage.WriteBytes(Preview, TEncoding.UTF8.GetBytes('png'));
+  States := TViewerStateModel.Create(Notebook.Manager);
+  try
+    States.SaveOrUpdate(Notebook.Principal.Id, Fx.FileId, EDIT_READER_ID, '{}');
+    Check(StoredSnapshot(Fx.ReaderA) <> '', 'The snapshot is stored');
+    Check(States.GetState(Notebook.Principal.Id, Fx.FileId) <> nil, 'The viewer state is stored');
+    Check(ItemListsValue(Fx.Item.Id, Fx.ReaderA), 'The session caches the item');
+
+    Response := Call('delete_file', Format(DELETE_REAL,
+      [Fx.FileId, ',"confirm_hash":"' + Fx.Hash + '"']));
+    try
+      Check(not Response.GetValue<Boolean>('dry_run'), 'A real call is not a dry run');
+      Check(Response.GetValue<Boolean>('deleted'), 'The file is deleted');
+      Check(Response.GetValue<string>('bytes_status') = 'removed', 'The bytes are removed');
+      Check(Response.GetValue<TJSONArray>('values_deleted').Count = 2,
+        'Two values are deleted');
+      Check(JSONHasId(Response.GetValue<TJSONArray>('values_deleted'), Fx.ReaderA) and
+        JSONHasId(Response.GetValue<TJSONArray>('values_deleted'), Fx.ReaderB),
+        'Both Reader values are named');
+      Check(Pos('Projects/', Response.ToJSON) = 0, 'No storage path is returned');
+    finally
+      Response.Free;
+    end;
+
+    Check(States.GetState(Notebook.Principal.Id, Fx.FileId) = nil,
+      'The viewer state is gone');
+  finally
+    States.Free;
+  end;
+  Check(Notebook.Manager.Find<unit_Item.TFile>(Fx.FileId) = nil, 'The file record is gone');
+  Check(not ValueExists(Fx.ReaderA) and not ValueExists(Fx.ReaderB),
+    'Both Reader values are gone');
+  Check(ValueExists(Fx.ManualId), 'The Manual value stays');
+  Check(not Notebook.Storage.Exists(Fx.Path), 'The attachment bytes are gone');
+  Check(not Notebook.Storage.Exists(Preview), 'The preview is gone');
+  Check(StoredSnapshot(Fx.ReaderA) = '', 'The analysis snapshot is gone');
+  Check(DeleteAuditCount(aetFile, Fx.FileId) = 1, 'One file delete audit row');
+  Check((DeleteAuditCount(aetValue, Fx.ReaderA) = 1) and
+    (DeleteAuditCount(aetValue, Fx.ReaderB) = 1), 'One audit row per removed value');
+  Check(DeleteAuditCount(aetValue, Fx.ManualId) = 0, 'The Manual value is not audited as deleted');
+  Check(not ItemListsValue(Fx.Item.Id, Fx.ReaderA), 'The cached item no longer lists the value');
+
+  Before := TRowSnapshot.Take;
+  Refusal := ExpectRefused('delete_file', Format(DELETE_REAL, [Fx.FileId, '']), 'outside');
+  Check(Refusal = ExpectRefused('delete_file', '{"file_id":999999,"dry_run":false}',
+    'outside'), 'A deleted file refuses like a missing one: ' + Refusal);
+  Check(TRowSnapshot.Take.SameAs(Before), 'The second call changes nothing');
+end;
+
+procedure TestDeleteFileWithoutBytes;
+var
+  Project: TProject;
+  Fx: TDeleteFixture;
+  Response: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Fx := NewDeleteFixture(Project, 'No bytes');
+  Notebook.Storage.DeleteFile(Fx.Path);
+  Response := Call('delete_file', Format(DELETE_REAL, [Fx.FileId, '']));
+  try
+    Check(Response.GetValue<Boolean>('deleted'), 'A record without bytes is deleted');
+    Check(Response.GetValue<string>('bytes_status') = 'absent', 'The bytes were absent');
+  finally
+    Response.Free;
+  end;
+  Check(Notebook.Manager.Find<unit_Item.TFile>(Fx.FileId) = nil, 'The file record is gone');
+end;
+
+procedure TestDeleteFileKeepsRecordGoneWhenBytesFail;
+var
+  Project: TProject;
+  Fx: TDeleteFixture;
+  Response: TJSONObject;
+begin
+  Prepare(TFailingDeleteStorage.Create(Notebook.Storage));
+  Project := AddProject(Notebook.Principal);
+  Fx := NewDeleteFixture(Project, 'Bytes fail');
+  Response := Call('delete_file', Format(DELETE_REAL, [Fx.FileId, '']));
+  try
+    Check(Response.GetValue<Boolean>('deleted'), 'The record is deleted');
+    Check(Response.GetValue<string>('bytes_status') = 'remaining', 'The bytes remain');
+    Check(Pos('synthetic delete failure', Response.GetValue<string>('bytes_error')) > 0,
+      'The storage error is returned');
+    Check(Pos('Projects/', Response.ToJSON) = 0, 'No storage path is returned');
+  finally
+    Response.Free;
+  end;
+  Check(Notebook.Manager.Find<unit_Item.TFile>(Fx.FileId) = nil, 'The file record is gone');
+  Check(Notebook.Storage.Exists(Fx.Path), 'The bytes are still stored');
+end;
+
+procedure ExecuteNotebookSQL(const SQL: string);
+var
+  Statement: IDBStatement;
+begin
+  Statement := Notebook.Connection.CreateStatement;
+  Statement.SetSQLCommand(SQL);
+  Statement.Execute;
+end;
+
+procedure TestDeleteFileFailureLeavesEveryRow;
+var
+  Project: TProject;
+  Fx: TDeleteFixture;
+  Before: TRowSnapshot;
+  Failure: string;
+  Response: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Fx := NewDeleteFixture(Project, 'Audit fails');
+  Check(ItemListsValue(Fx.Item.Id, Fx.ReaderA), 'The session caches the item');
+  Before := TRowSnapshot.Take;
+  ExecuteNotebookSQL('CREATE TRIGGER DeleteAuditDown BEFORE INSERT ON AuditLog ' +
+    'BEGIN SELECT RAISE(ABORT, ''synthetic audit failure''); END');
+  try
+    Failure := '';
+    try
+      Response := Call('delete_file', Format(DELETE_REAL, [Fx.FileId, '']));
+      Response.Free;
+    except
+      on E: Exception do
+        Failure := E.Message;
+    end;
+  finally
+    ExecuteNotebookSQL('DROP TRIGGER DeleteAuditDown');
+  end;
+  Check(Failure <> '', 'A failed audit write fails the call');
+  Check(TRowSnapshot.Take.SameAs(Before), 'A failed delete changes no row');
+  Check(ValueExists(Fx.ReaderA) and ValueExists(Fx.ReaderB) and ValueExists(Fx.ManualId),
+    'Every value stays');
+  Check(RowCount(Format('SELECT COUNT(*) FROM Files WHERE Id = %d', [Fx.FileId])) = 1,
+    'The file record stays');
+  Check(Notebook.Storage.Exists(Fx.Path), 'The bytes stay');
+  Check(StoredSnapshot(Fx.ReaderA) <> '', 'The analysis snapshot stays');
+  Check(DeleteAuditCount(aetFile, Fx.FileId) = 0, 'No file audit row');
+  Check(ItemListsValue(Fx.Item.Id, Fx.ReaderA), 'The cached item still lists the value');
+
+  Response := Call('delete_file', Format(DELETE_REAL, [Fx.FileId, '']));
+  try
+    Check(Response.GetValue<Boolean>('deleted'), 'The same call succeeds once the failure is gone');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestDeleteFileRefusals;
+var
+  Project, Archived, Foreign: TProject;
+  FileTypeId, TypeId: Integer;
+  Open, Signed, Run, Cited, Hash, Gone, Held, Elsewhere: TDeleteFixture;
+  Missing, Hidden: string;
+begin
+  Prepare;
+  FileTypeId := NewFileType('.vdel');
+  TypeId := NewValueType('Synthetic step', 'nm', False, 0, 0);
+  Project := AddProject(Notebook.Principal);
+  Archived := AddProject(Notebook.Principal);
+  Foreign := AddProject(Notebook.Principal);
+  Signed := MakeDeleteFixture(Project, FileTypeId, TypeId, 'Signed');
+  SignItem(Signed.Item.Id);
+  Held := MakeDeleteFixture(Archived, FileTypeId, TypeId, 'Archived');
+  Archived.IsArchived := True;
+  Notebook.Manager.Flush;
+  Run := MakeDeleteFixture(Project, FileTypeId, TypeId, 'Run');
+  AddRun(AddLockedHypothesis(Project, hsInReview), Run.Item.Id);
+  Cited := MakeDeleteFixture(Project, FileTypeId, TypeId, 'Cited');
+  AddFileEvidence(AddLockedHypothesis(Project, hsAccepted), Cited.Item.Id, Cited.FileId);
+  Hash := MakeDeleteFixture(Project, FileTypeId, TypeId, 'Hash');
+  Gone := MakeDeleteFixture(Project, FileTypeId, TypeId, 'Deleted');
+  Gone.Item.IsDeleted := True;
+  Notebook.Manager.Flush;
+  Elsewhere := MakeDeleteFixture(Foreign, FileTypeId, TypeId, 'Out of scope');
+  Open := MakeDeleteFixture(Project, FileTypeId, TypeId, 'Open');
+
+  RefuseDelete(Signed, '', 'is signed');
+  RefuseDelete(Held, '', 'archived');
+  RefuseDelete(Run, '', '(InReview)');
+  RefuseDelete(Cited, '', '(Accepted)');
+  RefuseDelete(Hash, ',"confirm_hash":"0000"', 'confirm_hash');
+  RefuseDelete(Gone, '', 'is deleted');
+
+  Context.ScopedProjects := [Project.Id];
+  Prepare;
+  Missing := ExpectRefused('delete_file', '{"file_id":999999,"dry_run":false}', 'outside');
+  Hidden := RefuseDelete(Elsewhere, '', 'outside');
+  Check(Missing = Hidden, 'Missing and out-of-scope files share one refusal');
+  Check(Notebook.Storage.Exists(Open.Path), 'An untouched file keeps its bytes');
+end;
+
+procedure TestDeleteFileRefusesMovedCitedFile;
+var
+  Project: TProject;
+  Fx: TDeleteFixture;
+  ItemB: TItem;
+  HypId: Integer;
+  H: THypothesis;
+  F: unit_Item.TFile;
+  NewPath: string;
+  Before: TRowSnapshot;
+  Response: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Fx := NewDeleteFixture(Project, 'Cited source');
+  ItemB := NewItem(Project, 0, 'Move target');
+  Response := Call('move_file', Format('{"file_id":%d,"target_item_id":%d}',
+    [Fx.FileId, ItemB.Id]));
+  Response.Free;
+  HypId := AddLockedHypothesis(Project, hsApproved);
+  AddFileEvidence(HypId, Fx.Item.Id, Fx.FileId);
+  H := Notebook.Manager.Find<THypothesis>(HypId);
+  H.Status := hsInReview;
+  Notebook.Manager.Flush;
+  F := Notebook.Manager.Find<unit_Item.TFile>(Fx.FileId);
+  NewPath := AttachmentRelativePath(Project.FileFolder, ItemB.FolderName, F.FullName);
+  Check(Notebook.Storage.Exists(NewPath), 'The moved file has bytes');
+
+  Before := TRowSnapshot.Take;
+  ExpectRefused('delete_file', Format(DELETE_REAL, [Fx.FileId, '']),
+    Format('hypothesis %d', [HypId]));
+  Check(TRowSnapshot.Take.SameAs(Before), 'The refusal changes no row');
+  Check(Notebook.Storage.Exists(NewPath), 'The refusal keeps the bytes');
+end;
+
+procedure TestDeleteFileCitedByApprovedHypothesis;
+var
+  Project: TProject;
+  Fx: TDeleteFixture;
+  HypId: Integer;
+  Response: TJSONObject;
+  Evidence: TJSONArray;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Fx := NewDeleteFixture(Project, 'Approved cites');
+  HypId := AddLockedHypothesis(Project, hsApproved);
+  AddFileEvidence(HypId, Fx.Item.Id, Fx.FileId);
+  Response := Call('delete_file', Format(DELETE_REAL, [Fx.FileId, '']));
+  try
+    Check(Response.GetValue<Boolean>('deleted'),
+      'An Approved hypothesis does not block the delete');
+  finally
+    Response.Free;
+  end;
+  Response := Call('get_hypothesis', Format('{"hypothesis_id":%d}', [HypId]));
+  try
+    Evidence := Response.GetValue<TJSONArray>('evidence');
+    Check(Evidence.Count = 1, 'The evidence row stays');
+    Check((Evidence.Items[0] as TJSONObject).GetValue<Boolean>('missing'),
+      'The evidence is flagged missing');
+  finally
+    Response.Free;
+  end;
+end;
+
 procedure RunValueSourceTests;
 begin
+  RunTest('delete_file dry run lists the Reader values and changes nothing',
+    TestDeleteFileDryRunChangesNothing);
+  RunTest('delete_file removes the record, bytes, Reader values and state',
+    TestDeleteFileRemovesRecordBytesValues);
+  RunTest('delete_file reports a file whose bytes were already absent',
+    TestDeleteFileWithoutBytes);
+  RunTest('delete_file keeps the record deletion when the bytes cannot be removed',
+    TestDeleteFileKeepsRecordGoneWhenBytesFail);
+  RunTest('delete_file failure leaves the file, values, snapshots and audit untouched',
+    TestDeleteFileFailureLeavesEveryRow);
+  RunTest('delete_file refuses signed, archived, locked, mismatched, deleted and hidden files',
+    TestDeleteFileRefusals);
+  RunTest('delete_file refuses a moved file still cited by a locked hypothesis',
+    TestDeleteFileRefusesMovedCitedFile);
+  RunTest('delete_file proceeds when only an Approved hypothesis cites the file',
+    TestDeleteFileCitedByApprovedHypothesis);
+  RunTest('list_files and get_item show live duplicates as not deleted',
+    TestFileStatusShowsLiveDuplicates);
+  RunTest('list_files reports a record without bytes as missing',
+    TestFileStatusReportsMissingBytes);
+  RunTest('file is_deleted follows the item and its ancestors',
+    TestFileStatusFollowsRecycleBin);
+  RunTest('wiki tools skip markdown records without bytes',
+    TestWikiSkipsMarkdownWithoutBytes);
   RunTest('add_value Reader source round-trips through get_values', TestReaderSourceRoundTrip);
   RunTest('add_value without source stores Unknown', TestMissingSourceStoresUnknown);
   RunTest('add_value refuses a source file from another project', TestForeignProjectSourceRefused);
@@ -1293,6 +2766,10 @@ begin
   RunTest('check_value_drift reports only changed reader output', TestValueDriftReportsOnlyChangedValue);
   RunTest('check_storage reports content mismatch and echoes the baseline',
     TestStorageCheckReportsContentMismatch);
+  RunTest('download_file writes stored bytes, reports the hash and honours overwrite',
+    TestDownloadFileWritesStoredBytes);
+  RunTest('download_file refuses missing bytes, outside paths, deleted, hidden and disabled',
+    TestDownloadFileRefusals);
   RunTest('add_derived_value computes, stores and reports the Derived source',
     TestDerivedValueThroughTools);
   RunTest('add_derived_value averages an array of wear areas',
@@ -1303,6 +2780,17 @@ begin
     TestDerivedValueNeedsStorage);
   RunTest('check_value_drift re-reads Derived inputs and reports missing inputs',
     TestDerivedDriftReaderInputs);
+  RunTest('remove_value deletes the row and audits the old number on the item',
+    TestRemoveValueWritesItemAudit);
+  RunTest('remove_value and update_value refuse signed, deleted, locked and hidden values',
+    TestValueEditRefusals);
+  RunTest('remove_value keeps a Derived value whose input it removes',
+    TestRemoveDerivedInputKeepsDerived);
+  RunTest('remove_values is all-or-nothing', TestRemoveValuesIsAllOrNothing);
+  RunTest('update_value changes fields, checks range and keeps the source',
+    TestUpdateManualValue);
+  RunTest('update_value replaces a Reader version and snapshot after a reader fix',
+    TestUpdateReaderValueAfterReaderFix);
 end;
 
 end.

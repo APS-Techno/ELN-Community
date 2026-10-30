@@ -53,7 +53,7 @@ end;
 
 function TELNDSCViewerPlugin.GetReaderVersion: string;
 begin
-  Result := '1';
+  Result := '2';
 end;
 
 function TELNDSCViewerPlugin.CreateViewerFrame: TFrame;

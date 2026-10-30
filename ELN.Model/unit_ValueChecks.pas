@@ -43,6 +43,7 @@ type
 function CheckValue(ValueType: TValueType; AValue, ATolerance,
   Factor: Double): TValueIssues;
 function IssueCode(Issue: TValueIssue): string;
+function ValueTypeNameMatches(const Title, Symbol, Name: string): Boolean;
 function DescribeValueIssues(Issues: TValueIssues; ValueType: TValueType;
   AValue, ATolerance, Factor: Double): string;
 
@@ -60,6 +61,11 @@ uses
   System.Math,
   Aurelius.Criteria.Linq,
   unit_DBSettingsModel;
+
+function ValueTypeNameMatches(const Title, Symbol, Name: string): Boolean;
+begin
+  Result := SameText(Title, Name) or SameText(Symbol, Name);
+end;
 
 function CheckValue(ValueType: TValueType; AValue, ATolerance,
   Factor: Double): TValueIssues;

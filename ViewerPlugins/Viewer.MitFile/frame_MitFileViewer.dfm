@@ -176,6 +176,21 @@ object frameMitFileViewer: TframeMitFileViewer
       TabOrder = 1
       OnClick = btnSaveClick
     end
+    object btnFit: TRzBitBtn
+      Left = 552
+      Top = 70
+      Width = 121
+      Height = 25
+      Hint = 'Show the unloading power-law fit stored by the Anton Paar software'
+      Anchors = [akTop, akRight]
+      Caption = 'Instrument fit'
+      AllowAllUp = True
+      GroupIndex = 2
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 2
+      OnClick = btnFitClick
+    end
     object serLoading: TFastLineSeries
       Title = 'Indent'
       LinePen.Color = clBlue

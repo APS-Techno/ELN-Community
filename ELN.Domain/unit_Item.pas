@@ -251,6 +251,7 @@ type
     property Item: TItem read GetItem write SetItem;
     property Version: Integer read FVersion write FVersion;
 
+    class function MakeFullName(AId: Int64; const ATitle, AExt: string): string; static;
     function FullName: string;
   end;
 
@@ -500,9 +501,14 @@ begin
 end;
 
 
+class function TFile.MakeFullName(AId: Int64; const ATitle, AExt: string): string;
+begin
+  Result := Format('[%.*d]%s%s',[4, AId, ATitle, AExt]);
+end;
+
 function TFile.FullName: string;
 begin
-  Result := Format('[%.*d]%s%s',[4, FId, Title, FFileType.Value.Ext]);
+  Result := MakeFullName(FId, Title, FFileType.Value.Ext);
 end;
 
 function TFile.GetFileType: TFileType;

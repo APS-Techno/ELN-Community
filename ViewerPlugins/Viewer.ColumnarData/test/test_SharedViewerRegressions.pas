@@ -85,7 +85,7 @@ begin
 
     Assert.IsTrue(Plugin.LoadFromFile(DataPath), 'load table');
     Schema := Provider.GetSchema;
-    Assert.AreEqual(3, Length(Schema));
+    Assert.AreEqual<NativeInt>(3, Length(Schema));
     Assert.AreEqual('y', Schema[1].Name);
     Assert.IsTrue(Schema[1].DType = cdNumeric, 'numeric column');
     Assert.IsTrue(Schema[2].DType = cdText, 'text column');
@@ -95,7 +95,7 @@ begin
     Assert.AreEqual(Double(20), Stats[0].Mean, 1E-12);
 
     Assert.IsTrue(Plugin.LoadFromFile(ProsePath), 'load prose');
-    Assert.AreEqual(0, Length(Provider.GetSchema));
+    Assert.AreEqual<NativeInt>(0, Length(Provider.GetSchema));
     Assert.AreEqual(0, Provider.GetTotalRows);
   finally
     Provider := nil;

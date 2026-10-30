@@ -243,11 +243,15 @@ type
 
 procedure RegisterViewerPlugin(APlugin: TupfVisualPlugin);
 
+procedure RegisterLoadedPackageUnits(const APackageFileName: string);
+
 const
   READER_VERSION_UNKNOWN = 'unknown';
   ANALYSIS_STATUS_NO_PLATEAU = 'no_plateau';
   ANALYSIS_STATUS_STALE_SELECTION = 'stale_selection';
   ANALYSIS_STATUS_INTERVAL_UNUSABLE = 'interval_unusable';
+  ANALYSIS_STATUS_NO_STEP_FOUND = 'no_step_found';
+  ANALYSIS_STATUS_LOW_CONFIDENCE = 'low_confidence';
 
 procedure ReaderIdentityOf(const Plugin: IViewerPlugin;
   out ReaderId, ReaderVersion: string);
@@ -268,7 +272,43 @@ var
 implementation
 
 uses
-  System.JSON, VCLTee.Chart;
+  Winapi.Windows, System.JSON, VCLTee.Chart;
+
+{$IFDEF WIN64}
+procedure RegisterUnitProc(const Name: string; NameType: TNameType;
+  Flags: Byte; Param: Pointer);
+var
+  RegisterProc: procedure;
+  UnitName: string;
+  Mangled: AnsiString;
+begin
+  if (NameType <> ntContainsUnit) or (Name = '') then
+    Exit;
+  UnitName := LowerCase(Name);
+  UnitName[1] := UpCase(UnitName[1]);
+  Mangled := AnsiString(Format('_ZN%d%s8RegisterEv', [Length(UnitName), UnitName]));
+  @RegisterProc := GetProcAddress(HMODULE(Param), PAnsiChar(Mangled));
+  if Assigned(RegisterProc) then
+    RegisterProc;
+end;
+{$ENDIF}
+
+procedure RegisterLoadedPackageUnits(const APackageFileName: string);
+{$IFDEF WIN64}
+var
+  Module: HMODULE;
+  Flags: Integer;
+begin
+  Module := GetModuleHandle(PChar(APackageFileName));
+  if Module = 0 then
+    Exit;
+  Flags := ufMainUnit or ufPackageUnit or ufWeakUnit or ufOrgWeakUnit or ufImplicitUnit;
+  GetPackageInfo(Module, Pointer(Module), Flags, RegisterUnitProc);
+end;
+{$ELSE}
+begin
+end;
+{$ENDIF}
 
 
 procedure TELNBaseViewerPlugin.upfVisualPluginCreate(Sender: TObject);

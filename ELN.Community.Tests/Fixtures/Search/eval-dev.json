@@ -1,0 +1,849 @@
+{
+ "description": "Synthetic dev queries for eval-corpus.json. Grade 2 = answers the query, grade 1 = related.",
+ "queries": [
+  {
+   "id": "d01",
+   "kind": "exact",
+   "text": "MS-0417",
+   "relevant": [
+    {
+     "item": 1,
+     "grade": 2
+    },
+    {
+     "item": 30,
+     "grade": 2
+    },
+    {
+     "item": 50,
+     "grade": 1
+    },
+    {
+     "item": 75,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d02",
+   "kind": "exact",
+   "text": "HV-PUMP-03",
+   "relevant": [
+    {
+     "item": 93,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d03",
+   "kind": "exact",
+   "text": "bl12_run_017.dat",
+   "relevant": [
+    {
+     "item": 118,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d04",
+   "kind": "exact",
+   "text": "zero_calib_0912.dat",
+   "relevant": [
+    {
+     "item": 40,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d05",
+   "kind": "exact",
+   "text": "XRR-2232",
+   "relevant": [
+    {
+     "item": 42,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d06",
+   "kind": "exact",
+   "text": "rca_protocol_v2.txt",
+   "relevant": [
+    {
+     "item": 89,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d07",
+   "kind": "paraphrase",
+   "text": "why did the coating peel off glass and what fixed it",
+   "relevant": [
+    {
+     "item": 17,
+     "grade": 2
+    },
+    {
+     "item": 69,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d08",
+   "kind": "paraphrase",
+   "text": "ways to keep the multilayer period stable at high temperature",
+   "relevant": [
+    {
+     "item": 61,
+     "grade": 2
+    },
+    {
+     "item": 84,
+     "grade": 2
+    },
+    {
+     "item": 60,
+     "grade": 1
+    },
+    {
+     "item": 66,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d09",
+   "kind": "paraphrase",
+   "text": "what protects the top silicon layer from oxidising",
+   "relevant": [
+    {
+     "item": 67,
+     "grade": 2
+    },
+    {
+     "item": 68,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d10",
+   "kind": "paraphrase",
+   "text": "detector too bright on the strongest reflection peak",
+   "relevant": [
+    {
+     "item": 34,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d11",
+   "kind": "paraphrase",
+   "text": "evidence that interface roughness agrees between two methods",
+   "relevant": [
+    {
+     "item": 49,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d12",
+   "kind": "paraphrase",
+   "text": "preparing a clean silicon wafer before coating",
+   "relevant": [
+    {
+     "item": 89,
+     "grade": 2
+    },
+    {
+     "item": 90,
+     "grade": 1
+    },
+    {
+     "item": 114,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d13",
+   "kind": "paraphrase",
+   "text": "pumps that shake the equipment nearby",
+   "relevant": [
+    {
+     "item": 93,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d14",
+   "kind": "paraphrase",
+   "text": "who takes away the leftover chemicals",
+   "relevant": [
+    {
+     "item": 116,
+     "grade": 2
+    },
+    {
+     "item": 101,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d15",
+   "kind": "russian",
+   "text": "как снизить шероховатость кремниевых слоёв при напылении",
+   "relevant": [
+    {
+     "item": 15,
+     "grade": 2
+    },
+    {
+     "item": 2,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d16",
+   "kind": "russian",
+   "text": "отслоение плёнок при высокой влажности",
+   "relevant": [
+    {
+     "item": 69,
+     "grade": 2
+    },
+    {
+     "item": 62,
+     "grade": 2
+    },
+    {
+     "item": 63,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d17",
+   "kind": "russian",
+   "text": "правила безопасной работы с кислотой",
+   "relevant": [
+    {
+     "item": 101,
+     "grade": 2
+    },
+    {
+     "item": 116,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d18",
+   "kind": "russian",
+   "text": "замена уплотнений вакуумного шлюза",
+   "relevant": [
+    {
+     "item": 103,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d19",
+   "kind": "russian",
+   "text": "сколько тратим на мишени",
+   "relevant": [
+    {
+     "item": 134,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d20",
+   "kind": "russian",
+   "text": "что делать, если сбилась юстировка образца в рефлектометре",
+   "relevant": [
+    {
+     "item": 33,
+     "grade": 2
+    },
+    {
+     "item": 52,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d21",
+   "kind": "cross-language",
+   "text": "калибровка расхода аргона массовым контроллером",
+   "relevant": [
+    {
+     "item": 98,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d22",
+   "kind": "cross-language",
+   "text": "утечка гелия через фланец окна после напуска воздуха",
+   "relevant": [
+    {
+     "item": 24,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d23",
+   "kind": "cross-language",
+   "text": "замена генератора ВЧ мощности",
+   "relevant": [
+    {
+     "item": 26,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d24",
+   "kind": "cross-language",
+   "text": "защитный слой рутения продлевает срок службы",
+   "relevant": [
+    {
+     "item": 68,
+     "grade": 2
+    },
+    {
+     "item": 67,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d25",
+   "kind": "cross-language",
+   "text": "stress in multilayer films lowered by a chromium layer and argon pressure",
+   "relevant": [
+    {
+     "item": 4,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d26",
+   "kind": "cross-language",
+   "text": "log of a failed rotation drive and bearing replacement",
+   "relevant": [
+    {
+     "item": 20,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d27",
+   "kind": "cross-language",
+   "text": "glass substrate cracked on fast heating",
+   "relevant": [
+    {
+     "item": 82,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d28",
+   "kind": "cross-language",
+   "text": "hydrofluoric acid safety rules",
+   "relevant": [
+    {
+     "item": 101,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d29",
+   "kind": "negated",
+   "text": "multilayers that did not delaminate",
+   "relevant": [
+    {
+     "item": 16,
+     "grade": 2
+    },
+    {
+     "item": 72,
+     "grade": 1
+    },
+    {
+     "item": 70,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d30",
+   "kind": "negated",
+   "text": "samples that were not annealed, kept as control",
+   "relevant": [
+    {
+     "item": 85,
+     "grade": 2
+    },
+    {
+     "item": 55,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d31",
+   "kind": "negated",
+   "text": "hydrogen exposure without blisters",
+   "relevant": [
+    {
+     "item": 72,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d32",
+   "kind": "negated",
+   "text": "storage test with no degradation",
+   "relevant": [
+    {
+     "item": 75,
+     "grade": 2
+    },
+    {
+     "item": 85,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d33",
+   "kind": "status",
+   "text": "which deposition runs were completed",
+   "relevant": [
+    {
+     "item": 5,
+     "grade": 2
+    },
+    {
+     "item": 9,
+     "grade": 2
+    },
+    {
+     "item": 22,
+     "grade": 1
+    },
+    {
+     "item": 1,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d34",
+   "kind": "status",
+   "text": "proposed experiments on storage and ageing that have not started",
+   "relevant": [
+    {
+     "item": 74,
+     "grade": 2
+    },
+    {
+     "item": 88,
+     "grade": 2
+    },
+    {
+     "item": 80,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d35",
+   "kind": "status",
+   "text": "planned depositions of new material systems",
+   "relevant": [
+    {
+     "item": 6,
+     "grade": 2
+    },
+    {
+     "item": 10,
+     "grade": 2
+    },
+    {
+     "item": 106,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d36",
+   "kind": "status",
+   "text": "has the annealing of W/B4C been done",
+   "relevant": [
+    {
+     "item": 66,
+     "grade": 2
+    },
+    {
+     "item": 65,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d37",
+   "kind": "hard-negative",
+   "text": "cryo-electron microscopy of ribosomes",
+   "irrelevant": [
+    43,
+    44,
+    80,
+    100
+   ]
+  },
+  {
+   "id": "d38",
+   "kind": "hard-negative",
+   "text": "protein purification buffer recipe",
+   "irrelevant": [
+    117,
+    79,
+    89
+   ]
+  },
+  {
+   "id": "d39",
+   "kind": "hard-negative",
+   "text": "cell culture contamination in the incubator",
+   "irrelevant": [
+    96,
+    113,
+    117
+   ]
+  },
+  {
+   "id": "d40",
+   "kind": "hard-negative",
+   "text": "gene expression analysis by RT-PCR",
+   "irrelevant": [
+    45,
+    125,
+    127
+   ]
+  },
+  {
+   "id": "d41",
+   "kind": "short",
+   "text": "Ru",
+   "relevant": [
+    {
+     "item": 67,
+     "grade": 2
+    },
+    {
+     "item": 68,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d42",
+   "kind": "short",
+   "text": "La",
+   "relevant": [
+    {
+     "item": 10,
+     "grade": 2
+    },
+    {
+     "item": 147,
+     "grade": 2
+    },
+    {
+     "item": 130,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d43",
+   "kind": "short",
+   "text": "Ni",
+   "relevant": [
+    {
+     "item": 9,
+     "grade": 2
+    },
+    {
+     "item": 62,
+     "grade": 2
+    },
+    {
+     "item": 106,
+     "grade": 1
+    },
+    {
+     "item": 84,
+     "grade": 1
+    },
+    {
+     "item": 29,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d44",
+   "kind": "short",
+   "text": "Cr",
+   "relevant": [
+    {
+     "item": 6,
+     "grade": 2
+    },
+    {
+     "item": 148,
+     "grade": 2
+    },
+    {
+     "item": 4,
+     "grade": 1
+    },
+    {
+     "item": 17,
+     "grade": 1
+    },
+    {
+     "item": 29,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d45",
+   "kind": "mixed",
+   "text": "Cauchy wafers spectra",
+   "relevant": [
+    {
+     "item": 37,
+     "grade": 2
+    },
+    {
+     "item": 36,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d46",
+   "kind": "mixed",
+   "text": "Nevot roughness degrees",
+   "relevant": [
+    {
+     "item": 58,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d47",
+   "kind": "mixed",
+   "text": "AXUV compared certificate",
+   "relevant": [
+    {
+     "item": 124,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d48",
+   "kind": "mixed",
+   "text": "tooling head recalibrated",
+   "relevant": [
+    {
+     "item": 111,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d49",
+   "kind": "context",
+   "text": "XRR result of sample MS-0417",
+   "relevant": [
+    {
+     "item": 30,
+     "grade": 2
+    },
+    {
+     "item": 57,
+     "grade": 1
+    },
+    {
+     "item": 75,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d50",
+   "kind": "context",
+   "text": "problems during the MS-0417 reflectometry measurement",
+   "relevant": [
+    {
+     "item": 33,
+     "grade": 2
+    },
+    {
+     "item": 34,
+     "grade": 2
+    },
+    {
+     "item": 52,
+     "grade": 2
+    },
+    {
+     "item": 40,
+     "grade": 1
+    },
+    {
+     "item": 30,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d51",
+   "kind": "context",
+   "text": "how to dispose of acid waste, chemical safety folder",
+   "relevant": [
+    {
+     "item": 116,
+     "grade": 2
+    },
+    {
+     "item": 101,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d52",
+   "kind": "context",
+   "text": "work recorded in the pumps and seals folder",
+   "relevant": [
+    {
+     "item": 93,
+     "grade": 2
+    },
+    {
+     "item": 103,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "d53",
+   "kind": "context",
+   "text": "failed runs recorded in the Mo/Si production runs folder",
+   "relevant": [
+    {
+     "item": 20,
+     "grade": 2
+    },
+    {
+     "item": 17,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d54",
+   "kind": "context",
+   "text": "control group of the MS-0417 stability study",
+   "relevant": [
+    {
+     "item": 85,
+     "grade": 2
+    },
+    {
+     "item": 75,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d55",
+   "kind": "context",
+   "text": "effect of annealing on the period, repeat and reference measurements folder",
+   "relevant": [
+    {
+     "item": 42,
+     "grade": 2
+    },
+    {
+     "item": 55,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d56",
+   "kind": "context",
+   "text": "tests of substrate cleanliness in the cleaning and handling folder",
+   "relevant": [
+    {
+     "item": 114,
+     "grade": 2
+    },
+    {
+     "item": 89,
+     "grade": 1
+    },
+    {
+     "item": 90,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "d57",
+   "kind": "context",
+   "text": "native oxide thickness in the optical and composition methods folder",
+   "relevant": [
+    {
+     "item": 37,
+     "grade": 2
+    },
+    {
+     "item": 36,
+     "grade": 2
+    }
+   ]
+  }
+ ]
+}

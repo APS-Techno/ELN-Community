@@ -62,6 +62,14 @@ begin
   else if Status = ANALYSIS_STATUS_INTERVAL_UNUSABLE then
     Result := 'The analysis interval cannot be used for this file; ' +
       'interval-based values were not extracted.' + sLineBreak
+  else if Status = ANALYSIS_STATUS_NO_STEP_FOUND then
+    Result := 'No step and no wear groove were found in this scan; Step Height and ' +
+      'Wear Area were not extracted. Check the scan, or select the two flat regions ' +
+      'in the viewer.' + sLineBreak
+  else if Status = ANALYSIS_STATUS_LOW_CONFIDENCE then
+    Result := 'The Step Height was extracted but is weak (low step-to-noise ratio or ' +
+      'an unclear edge). Check the regions in the viewer before you store it.' +
+      sLineBreak
   else
     Result := 'Analysis status: ' + Status + sLineBreak;
 end;

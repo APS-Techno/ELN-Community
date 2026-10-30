@@ -29,6 +29,7 @@ type
     PlaneC: Double;
     StepHeight: Double;
     StepHeightStd: Double;
+    LowConfidence: Boolean;
   end;
 
   TFIBPSWearResult = record
@@ -50,6 +51,8 @@ type
     ProfileStd: TArray<Double>;
     ProfileMeasured: TArray<Integer>;
   end;
+
+  TFIBPSStepOutcome = (fsoNone, fsoLowConfidence, fsoNoStepFound);
 
   TFIBPSData = class
   private
@@ -76,7 +79,23 @@ type
     property Recipe: TFIBPSRecipe read FRecipe;
   end;
 
+function FIBPSStepOutcome(StepExtracted, StepAvailable, Automatic, LowConfidence,
+  HasWear, Loaded: Boolean): TFIBPSStepOutcome;
+
 implementation
+
+function FIBPSStepOutcome(StepExtracted, StepAvailable, Automatic, LowConfidence,
+  HasWear, Loaded: Boolean): TFIBPSStepOutcome;
+begin
+  Result := fsoNone;
+  if StepExtracted then
+  begin
+    if Automatic and LowConfidence then
+      Result := fsoLowConfidence;
+  end
+  else if Loaded and Automatic and not StepAvailable and not HasWear then
+    Result := fsoNoStepFound;
+end;
 
 function TFIBPSRecipe.TryGetMagnification(out Value: Double): Boolean;
 const
@@ -883,16 +902,193 @@ begin
   WearAreaStd := Res.WearAreaStd;
 end;
 
+type
+  TMat4 = array[0..3, 0..3] of Double;
+  TVec4 = array[0..3] of Double;
+  TStepFit = record
+    A, B, C, D: Double;
+    CountA, CountB: Integer;
+    MeanA, MeanB, VarA, VarB: Double;
+  end;
+
+const
+  StepMarginDivisors: array[0..3] of Integer = (20, 12, 8, 6);
+  StepSpanDivisor = 6;
+  StepRobustPasses = 3;
+  StepRejectSigmas = 3.5;
+  StepMinSigmaUm = 0.0005;
+  StepMinSamples = 20;
+  StepMinSnr = 2.5;
+  StepLowConfidenceSnr = 6.0;
+  StepSecondJumpRatio = 0.4;
+
+function WindowJump(const D: TArray<Double>; X, W: Integer): Double;
+var
+  K: Integer;
+  After, Before: Double;
+begin
+  After := 0;
+  Before := 0;
+  for K := 1 to W do
+  begin
+    After := After + D[X + K];
+    Before := Before + D[X - K + 1];
+  end;
+  Result := Abs(After - Before) / W;
+end;
+
+function SolveLinear4(var M: TMat4; var V: TVec4): Boolean;
+var
+  I, J, K, Piv: Integer;
+  F, T: Double;
+begin
+  Result := False;
+  for I := 0 to 3 do
+  begin
+    Piv := I;
+    for J := I + 1 to 3 do
+      if Abs(M[J, I]) > Abs(M[Piv, I]) then
+        Piv := J;
+    if Abs(M[Piv, I]) < 1E-12 then
+      Exit;
+    if Piv <> I then
+    begin
+      for K := 0 to 3 do
+      begin
+        T := M[I, K];
+        M[I, K] := M[Piv, K];
+        M[Piv, K] := T;
+      end;
+      T := V[I];
+      V[I] := V[Piv];
+      V[Piv] := T;
+    end;
+    for J := I + 1 to 3 do
+    begin
+      F := M[J, I] / M[I, I];
+      for K := I to 3 do
+        M[J, K] := M[J, K] - F * M[I, K];
+      V[J] := V[J] - F * V[I];
+    end;
+  end;
+  for I := 3 downto 0 do
+  begin
+    T := V[I];
+    for K := I + 1 to 3 do
+      T := T - M[I, K] * V[K];
+    V[I] := T / M[I, I];
+  end;
+  Result := True;
+end;
+
+function FitStepModel(const Xs, Ys, Zs: TArray<Double>; const Side: TArray<Byte>;
+  Count: Integer; out Fit: TStepFit): Boolean;
+var
+  Keep: TArray<Boolean>;
+  Res, Buf: TArray<Double>;
+  M: TMat4;
+  V, Row: TVec4;
+  Pass, I, J, K, N, CntA, CntB: Integer;
+  Med, Sigma, SumA, SumB, R: Double;
+begin
+  Fit := Default(TStepFit);
+  Result := False;
+  SetLength(Keep, Count);
+  SetLength(Res, Count);
+  SetLength(Buf, Count);
+  for I := 0 to Count - 1 do
+    Keep[I] := True;
+  for Pass := 0 to StepRobustPasses do
+  begin
+    M := Default(TMat4);
+    V := Default(TVec4);
+    CntA := 0;
+    CntB := 0;
+    for I := 0 to Count - 1 do
+      if Keep[I] then
+      begin
+        Row[0] := Xs[I];
+        Row[1] := Ys[I];
+        Row[2] := 1;
+        Row[3] := Side[I];
+        for J := 0 to 3 do
+        begin
+          V[J] := V[J] + Row[J] * Zs[I];
+          for K := 0 to 3 do
+            M[J, K] := M[J, K] + Row[J] * Row[K];
+        end;
+        if Side[I] = 0 then
+          Inc(CntA)
+        else
+          Inc(CntB);
+      end;
+    if (CntA < StepMinSamples) or (CntB < StepMinSamples) then
+      Exit;
+    if not SolveLinear4(M, V) then
+      Exit;
+    if Pass = StepRobustPasses then
+      Break;
+    N := 0;
+    for I := 0 to Count - 1 do
+    begin
+      Res[I] := Zs[I] - (V[0] * Xs[I] + V[1] * Ys[I] + V[2] + V[3] * Side[I]);
+      if Keep[I] then
+      begin
+        Buf[N] := Res[I];
+        Inc(N);
+      end;
+    end;
+    Med := MedianOfSlice(Buf, N);
+    for I := 0 to N - 1 do
+      Buf[I] := Abs(Buf[I] - Med);
+    Sigma := Max(1.4826 * MedianOfSlice(Buf, N), StepMinSigmaUm);
+    for I := 0 to Count - 1 do
+      Keep[I] := Abs(Res[I] - Med) < StepRejectSigmas * Sigma;
+  end;
+  Fit.A := V[0];
+  Fit.B := V[1];
+  Fit.C := V[2];
+  Fit.D := V[3];
+  Fit.CountA := CntA;
+  Fit.CountB := CntB;
+  SumA := 0;
+  SumB := 0;
+  for I := 0 to Count - 1 do
+    if Keep[I] then
+    begin
+      R := Zs[I] - (V[0] * Xs[I] + V[1] * Ys[I] + V[2]);
+      if Side[I] = 0 then
+        SumA := SumA + R
+      else
+        SumB := SumB + R;
+    end;
+  Fit.MeanA := SumA / CntA;
+  Fit.MeanB := SumB / CntB;
+  for I := 0 to Count - 1 do
+    if Keep[I] then
+    begin
+      R := Zs[I] - (V[0] * Xs[I] + V[1] * Ys[I] + V[2]);
+      if Side[I] = 0 then
+        Fit.VarA := Fit.VarA + Sqr(R - Fit.MeanA)
+      else
+        Fit.VarB := Fit.VarB + Sqr(R - Fit.MeanB);
+    end;
+  Fit.VarA := Fit.VarA / CntA;
+  Fit.VarB := Fit.VarB / CntB;
+  Result := True;
+end;
+
 function TFIBPSData.TryCalcStepHeightEx(out Res: TFIBPSStepResult): Boolean;
 var
   W, H, ValidTotal, I, Orient, SW, SH, R, X, K, ColCnt, Rad, Cnt: Integer;
-  SLo, SHi, XStep, Y1, Y2, AX1, AX2, BX1, BX2, LLo, LHi, RLo, RHi: Integer;
-  SubX1, SubX2, SubCnt, CntA, CntB, WTrans, NX1, NX2, NearCnt1, NearCnt2: Integer;
+  XStep, SLo, SHi, Y1, Y2, AX1, AX2, BX1, BX2, Margin, Span, MI, SampCnt: Integer;
+  WTrans, NX1, NX2, NearCnt1, NearCnt2: Integer;
   ColInvalid: Boolean;
-  Z, MedG, BestGrad, LeftLvl, RightLvl, AS0, BS0, CS0: Double;
-  SX, SY, SZ, SXX, SXY, SYY, SXZ, SYZ: Double;
-  MeanA, MeanB, VarA, VarB, StepUm, StdUm, NearJump, SNR, BestSNR: Double;
-  ColMed, ColBuf, SmCol, Grad, NearBuf1, NearBuf2: TArray<Double>;
+  Z, MedG, BestGrad, MainJump, SecondJump, AS0, BS0, CS0, YMid: Double;
+  StepUm, StdUm, NearJump, SNR, BestSNR: Double;
+  Fit: TStepFit;
+  ColMed, ColBuf, SmCol, Grad, Detr, NearBuf1, NearBuf2, SampX, SampY, SampZ: TArray<Double>;
+  SampSide: TArray<Byte>;
 
   function SurfVal(RowIdx, ColIdx: Integer): Single;
   begin
@@ -988,179 +1184,136 @@ begin
 
     Y1 := Trunc(0.10 * SH);
     Y2 := Trunc(0.90 * SH);
-    LLo := Trunc(0.15 * XStep);
-    LHi := Max(LLo, Trunc(0.75 * XStep) - 1);
-    LeftLvl := 0;
-    for X := LLo to LHi do
-      LeftLvl := LeftLvl + (SmCol[X] - MedG * X);
-    LeftLvl := LeftLvl / (LHi - LLo + 1);
-
-    RLo := XStep + Trunc(0.25 * (SW - XStep));
-    RHi := Max(RLo, XStep + Trunc(0.85 * (SW - XStep)) - 1);
-    RightLvl := 0;
-    for X := RLo to RHi do
-      RightLvl := RightLvl + (SmCol[X] - MedG * X);
-    RightLvl := RightLvl / (RHi - RLo + 1);
-
-    if RightLvl <= LeftLvl then
-    begin
-      AX1 := Trunc(0.15 * XStep);
-      AX2 := Trunc(0.45 * XStep);
-      BX1 := XStep + Trunc(0.25 * (SW - XStep));
-      BX2 := XStep + Trunc(0.85 * (SW - XStep));
-      SubX1 := BX1;
-      SubX2 := BX2;
-    end
-    else
-    begin
-      AX1 := Trunc(0.15 * XStep);
-      AX2 := Trunc(0.75 * XStep);
-      BX1 := XStep + Trunc(0.55 * (SW - XStep));
-      BX2 := XStep + Trunc(0.85 * (SW - XStep));
-      SubX1 := AX1;
-      SubX2 := AX2;
-    end;
-
-    if (AX2 <= AX1 + 2) or (BX2 <= BX1 + 2) or (Y2 <= Y1 + 2) then
+    if Y2 <= Y1 + 2 then
       Continue;
-
-    SubCnt := 0;
-    SX := 0; SY := 0; SZ := 0; SXX := 0; SXY := 0; SYY := 0; SXZ := 0; SYZ := 0;
-    for R := Y1 to Y2 do
-      for X := SubX1 to SubX2 do
-      begin
-        Z := SurfVal(R, X);
-        if not IsNan(Z) then
-        begin
-          Inc(SubCnt);
-          SX := SX + X;
-          SY := SY + R;
-          SZ := SZ + Z;
-          SXX := SXX + Double(X) * X;
-          SXY := SXY + Double(X) * R;
-          SYY := SYY + Double(R) * R;
-          SXZ := SXZ + X * Z;
-          SYZ := SYZ + R * Z;
-        end;
-      end;
-    if SubCnt < 20 then
-      Continue;
-
-    FitPlane3x3(SX, SY, SZ, SXX, SXY, SYY, SXZ, SYZ, SubCnt, AS0, BS0, CS0);
-
-    CntA := 0;
-    MeanA := 0;
-    for R := Y1 to Y2 do
-      for X := AX1 to AX2 do
-      begin
-        Z := SurfVal(R, X);
-        if not IsNan(Z) then
-        begin
-          MeanA := MeanA + (Z - (AS0 * X + BS0 * R + CS0));
-          Inc(CntA);
-        end;
-      end;
-    CntB := 0;
-    MeanB := 0;
-    for R := Y1 to Y2 do
-      for X := BX1 to BX2 do
-      begin
-        Z := SurfVal(R, X);
-        if not IsNan(Z) then
-        begin
-          MeanB := MeanB + (Z - (AS0 * X + BS0 * R + CS0));
-          Inc(CntB);
-        end;
-      end;
-    if (CntA < 20) or (CntB < 20) then
-      Continue;
-    MeanA := MeanA / CntA;
-    MeanB := MeanB / CntB;
-
-    VarA := 0;
-    for R := Y1 to Y2 do
-      for X := AX1 to AX2 do
-      begin
-        Z := SurfVal(R, X);
-        if not IsNan(Z) then
-          VarA := VarA + Sqr((Z - (AS0 * X + BS0 * R + CS0)) - MeanA);
-      end;
-    VarA := VarA / CntA;
-
-    VarB := 0;
-    for R := Y1 to Y2 do
-      for X := BX1 to BX2 do
-      begin
-        Z := SurfVal(R, X);
-        if not IsNan(Z) then
-          VarB := VarB + Sqr((Z - (AS0 * X + BS0 * R + CS0)) - MeanB);
-      end;
-    VarB := VarB / CntB;
-
-    StepUm := Abs(MeanA - MeanB);
-    StdUm := Sqrt(VarA + VarB);
-
+    YMid := 0.5 * (Y1 + Y2);
+    Span := Max(8, SW div StepSpanDivisor);
     WTrans := Max(4, SW div 10);
     NX1 := Max(0, XStep - WTrans);
     NX2 := Min(SW - 1, XStep + WTrans);
-    SetLength(NearBuf1, (Y2 - Y1 + 1) * (Max(NX1, XStep - 3) - NX1 + 1));
-    SetLength(NearBuf2, (Y2 - Y1 + 1) * (NX2 - Min(SW - 1, XStep + 2) + 1));
-    NearCnt1 := 0;
-    NearCnt2 := 0;
-    for R := Y1 to Y2 - 1 do
-    begin
-      for X := NX1 to Max(NX1, XStep - 3) do
-      begin
-        Z := SurfVal(R, X);
-        if not IsNan(Z) then
-        begin
-          NearBuf1[NearCnt1] := Z - (AS0 * X + BS0 * R + CS0);
-          Inc(NearCnt1);
-        end;
-      end;
-      for X := Min(SW - 1, XStep + 2) to NX2 do
-      begin
-        Z := SurfVal(R, X);
-        if not IsNan(Z) then
-        begin
-          NearBuf2[NearCnt2] := Z - (AS0 * X + BS0 * R + CS0);
-          Inc(NearCnt2);
-        end;
-      end;
-    end;
-    if (NearCnt1 = 0) or (NearCnt2 = 0) then
+    SetLength(Detr, SW);
+    for X := 0 to SW - 1 do
+      Detr[X] := SmCol[X] - MedG * X;
+    MainJump := WindowJump(Detr, XStep, WTrans);
+    SecondJump := 0;
+    for X := WTrans - 1 to SW - WTrans - 1 do
+      if (X < XStep - WTrans) or (X > XStep + WTrans) then
+        SecondJump := Max(SecondJump, WindowJump(Detr, X, WTrans));
+    if SecondJump >= StepSecondJumpRatio * MainJump then
       Continue;
-    NearJump := Abs(MedianOfSlice(NearBuf1, NearCnt1) - MedianOfSlice(NearBuf2, NearCnt2));
 
-    if (StepUm >= 0.010) and (StepUm >= 4.0 * StdUm) and (NearJump >= 0.5 * StepUm) then
+    for MI := Low(StepMarginDivisors) to High(StepMarginDivisors) do
     begin
-      SNR := StepUm / Max(StdUm, 1E-6);
-      if SNR > BestSNR then
+      Margin := Max(2, SW div StepMarginDivisors[MI]);
+      AX1 := Max(0, XStep - Margin - Span);
+      AX2 := XStep - Margin;
+      BX1 := XStep + Margin + 1;
+      BX2 := Min(SW - 1, XStep + Margin + Span);
+      if (AX2 <= AX1 + 2) or (BX2 <= BX1 + 2) then
+        Continue;
+
+      SetLength(SampX, (Y2 - Y1 + 1) * (AX2 - AX1 + BX2 - BX1 + 2));
+      SetLength(SampY, Length(SampX));
+      SetLength(SampZ, Length(SampX));
+      SetLength(SampSide, Length(SampX));
+      SampCnt := 0;
+      for R := Y1 to Y2 do
       begin
-        BestSNR := SNR;
-        Res.MeanA := MeanA;
-        Res.MeanB := MeanB;
-        Res.CountA := CntA;
-        Res.CountB := CntB;
-        Res.StepHeight := StepUm;
-        Res.StepHeightStd := StdUm;
-        if Orient = 0 then
+        for X := AX1 to AX2 do
         begin
-          Res.RectA := Rect(AX1, Y1, AX2, Y2);
-          Res.RectB := Rect(BX1, Y1, BX2, Y2);
-          Res.PlaneA := AS0;
-          Res.PlaneB := BS0;
-          Res.PlaneC := CS0;
-        end
-        else
-        begin
-          Res.RectA := Rect(Y1, AX1, Y2, AX2);
-          Res.RectB := Rect(Y1, BX1, Y2, BX2);
-          Res.PlaneA := BS0;
-          Res.PlaneB := AS0;
-          Res.PlaneC := CS0;
+          Z := SurfVal(R, X);
+          if not IsNan(Z) then
+          begin
+            SampX[SampCnt] := X - XStep;
+            SampY[SampCnt] := R - YMid;
+            SampZ[SampCnt] := Z;
+            SampSide[SampCnt] := 0;
+            Inc(SampCnt);
+          end;
         end;
-        Result := True;
+        for X := BX1 to BX2 do
+        begin
+          Z := SurfVal(R, X);
+          if not IsNan(Z) then
+          begin
+            SampX[SampCnt] := X - XStep;
+            SampY[SampCnt] := R - YMid;
+            SampZ[SampCnt] := Z;
+            SampSide[SampCnt] := 1;
+            Inc(SampCnt);
+          end;
+        end;
+      end;
+      if not FitStepModel(SampX, SampY, SampZ, SampSide, SampCnt, Fit) then
+        Continue;
+
+      StepUm := Abs(Fit.MeanA - Fit.MeanB);
+      StdUm := Sqrt(Fit.VarA + Fit.VarB);
+      AS0 := Fit.A;
+      BS0 := Fit.B;
+      CS0 := Fit.C - Fit.A * XStep - Fit.B * YMid;
+
+      SetLength(NearBuf1, (Y2 - Y1 + 1) * (Max(NX1, XStep - 3) - NX1 + 1));
+      SetLength(NearBuf2, (Y2 - Y1 + 1) * (NX2 - Min(SW - 1, XStep + 2) + 1));
+      NearCnt1 := 0;
+      NearCnt2 := 0;
+      for R := Y1 to Y2 - 1 do
+      begin
+        for X := NX1 to Max(NX1, XStep - 3) do
+        begin
+          Z := SurfVal(R, X);
+          if not IsNan(Z) then
+          begin
+            NearBuf1[NearCnt1] := Z - (AS0 * X + BS0 * R + CS0);
+            Inc(NearCnt1);
+          end;
+        end;
+        for X := Min(SW - 1, XStep + 2) to NX2 do
+        begin
+          Z := SurfVal(R, X);
+          if not IsNan(Z) then
+          begin
+            NearBuf2[NearCnt2] := Z - (AS0 * X + BS0 * R + CS0);
+            Inc(NearCnt2);
+          end;
+        end;
+      end;
+      if (NearCnt1 = 0) or (NearCnt2 = 0) then
+        Continue;
+      NearJump := Abs(MedianOfSlice(NearBuf1, NearCnt1) - MedianOfSlice(NearBuf2, NearCnt2));
+
+      if (StepUm >= 0.010) and (StepUm >= StepMinSnr * StdUm) and (NearJump >= 0.5 * StepUm) then
+      begin
+        SNR := StepUm / Max(StdUm, 1E-6);
+        if SNR > BestSNR then
+        begin
+          BestSNR := SNR;
+          Res.MeanA := Fit.MeanA;
+          Res.MeanB := Fit.MeanB;
+          Res.CountA := Fit.CountA;
+          Res.CountB := Fit.CountB;
+          Res.StepHeight := StepUm;
+          Res.StepHeightStd := StdUm;
+          Res.LowConfidence := (MI > Low(StepMarginDivisors)) or (SNR < StepLowConfidenceSnr);
+          if Orient = 0 then
+          begin
+            Res.RectA := Rect(AX1, Y1, AX2, Y2);
+            Res.RectB := Rect(BX1, Y1, BX2, Y2);
+            Res.PlaneA := AS0;
+            Res.PlaneB := BS0;
+            Res.PlaneC := CS0;
+          end
+          else
+          begin
+            Res.RectA := Rect(Y1, AX1, Y2, AX2);
+            Res.RectB := Rect(Y1, BX1, Y2, BX2);
+            Res.PlaneA := BS0;
+            Res.PlaneB := AS0;
+            Res.PlaneC := CS0;
+          end;
+          Result := True;
+        end;
+        Break;
       end;
     end;
   end;

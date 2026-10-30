@@ -5,7 +5,8 @@ interface
 uses
   System.SysUtils, System.Classes, System.Generics.Collections,
   Aurelius.Engine.ObjectManager,
-  unit_DataModel, unit_ItemTreeVM, unit_Item, unit_LabEntry, unit_FileType;
+  unit_DataModel, unit_ItemTreeVM, unit_Item, unit_LabEntry, unit_FileType,
+  unit_FilePaths;
 
 type
   TBatchTargetKind = (btItem, btFile, btNote);
@@ -449,7 +450,7 @@ end;
 
 class function TItemTreeBatch.PreviewStoragePath(ItemId: Integer; FileId: Int64): string;
 begin
-  Result := Format('previews/[1000]/%.*d_%.*d.png', [5, ItemId, 5, FileId]);
+  Result := PreviewRelativePath(ItemId, FileId);
 end;
 
 function TItemTreeBatch.PlanMoveItems(const Targets: TArray<TBatchTarget>): TBatchPlan;

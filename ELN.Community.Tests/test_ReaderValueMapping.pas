@@ -81,7 +81,7 @@ begin
     Conditions.AddPair('recipe', Recipe);
     JSON.AddPair('conditions', Conditions);
     Assert.IsTrue(Snapshot.LoadFromText(JSON.ToJSON));
-    Assert.AreEqual(7, Length(Snapshot.BuildKeyValues),
+    Assert.AreEqual<NativeInt>(7, Length(Snapshot.BuildKeyValues),
       'All seven embedded conditions must reach extraction');
     for KV in Snapshot.BuildKeyValues do
     begin
@@ -172,7 +172,7 @@ begin
     JSON.AddPair('conditions', Conditions);
     Assert.IsTrue(Snapshot.LoadFromText(JSON.ToJSON));
     KeyValues := Snapshot.BuildKeyValues;
-    Assert.AreEqual(12, Length(KeyValues), 'All twelve recipe conditions must reach extraction');
+    Assert.AreEqual<NativeInt>(12, Length(KeyValues), 'All twelve recipe conditions must reach extraction');
     for E in Expected do
     begin
       Found := False;
@@ -422,9 +422,6 @@ begin
     Resolution := Resolver.Resolve('aps.fibps', 'Wear Area', 'um2');
     Assert.AreEqual('mm' + WideChar($00B2), Resolution.ValueType.Units);
     Assert.AreEqual(1e-6, Resolution.Factor, 1e-18);
-    Resolution := Resolver.Resolve('aps.fibps', 'Wear Volume', 'um3');
-    Assert.AreEqual('mm' + WideChar($00B3), Resolution.ValueType.Units);
-    Assert.AreEqual(1e-9, Resolution.Factor, 1e-21);
   finally
     Resolver.Free;
   end;

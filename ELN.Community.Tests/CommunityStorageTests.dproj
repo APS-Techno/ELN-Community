@@ -1,7 +1,7 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Config Condition="'$(Config)'==''">Debug</Config>
-    <Platform Condition="'$(Platform)'==''">Win32</Platform>
+    <Platform Condition="'$(Platform)'==''">Win64</Platform>
     <ELN_ProductRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..'))</ELN_ProductRoot>
     <ELN_OutputRoot>$(ELN_ProductRoot)\_OUT\CommunityTests\$(Platform)\$(Config)</ELN_OutputRoot>
     <ELN_TmsRoot Condition="'$(ELN_TmsRoot)'==''">$(ELN_TMS_ROOT)</ELN_TmsRoot>
@@ -23,7 +23,7 @@
     <AppType>Console</AppType>
     <MainSource>CommunityStorageTests.dpr</MainSource>
     <Config Condition="'$(Config)'==''">Debug</Config>
-    <Platform Condition="'$(Platform)'==''">Win32</Platform>
+    <Platform Condition="'$(Platform)'==''">Win64</Platform>
     <TargetedPlatforms>3</TargetedPlatforms>
     <DCC_Namespace>System;Winapi</DCC_Namespace>
     <DCC_UsePackage></DCC_UsePackage>
@@ -67,6 +67,9 @@
     <DCCReference Include="..\ViewerPlugins\Viewer.Deposition\unit_DepositionData.pas"/>
     <DCCReference Include="test_FileIdentity.pas"/>
     <DCCReference Include="test_MCPFileDiscovery.pas"/>
+    <DCCReference Include="test_SearchDoubles.pas"/>
+    <DCCReference Include="test_SemanticSearchTool.pas"/>
+    <DCCReference Include="test_SemanticSearchDialog.pas"/>
     <DCCReference Include="test_ProjectTreeIdentity.pas"/>
     <DCCReference Include="test_ViewerParsers.pas"/>
     <DCCReference Include="test_ViewerValues.pas"/>
@@ -86,6 +89,64 @@
   <ItemGroup Condition="'$(MainSource)'=='AuthorizationTests.dpr'">
     <DCCReference Include="unit_AuthorizationTestSupport.pas"/>
     <DCCReference Include="test_ValueSourceTools.pas"/>
+    <DCCReference Include="test_ItemLevelTools.pas"/>
+  </ItemGroup>
+  <ItemGroup Condition="'$(MainSource)'=='SearchTests.dpr' Or '$(MainSource)'=='SearchHarness.dpr' Or '$(MainSource)'=='SearchIndexTests.dpr'">
+    <DCCReference Include="..\ELN.Search\unit_NativeLibrary.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_OnnxRuntimeApi.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_UnigramTokenizer.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_TextEmbedder.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_VectorSearch.pas"/>
+    <DCCReference Include="unit_SearchTestSupport.pas"/>
+  </ItemGroup>
+  <ItemGroup Condition="'$(MainSource)'=='SearchTests.dpr'">
+    <DCCReference Include="..\ELN.Search\unit_SearchArtifacts.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_CrossEncoder.pas"/>
+    <DCCReference Include="test_SearchEmbedding.pas"/>
+  </ItemGroup>
+  <ItemGroup Condition="'$(MainSource)'=='SearchIndexTests.dpr' Or '$(MainSource)'=='SearchHarness.dpr'">
+    <DCCReference Include="..\ELN.Search\unit_SearchPassages.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_PassageContext.pas"/>
+    <DCCReference Include="..\ELN.Model\unit_SearchDocumentProvider.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_SemanticSearchApi.pas"/>
+    <DCCReference Include="..\ELN.Model\unit_SemanticSearchFilter.pas"/>
+    <DCCReference Include="..\ELN.Model\unit_SearchVisibility.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_SearchIndexStore.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_SearchIndexer.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_HybridSearch.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_SearchMetrics.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_SearchArtifacts.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_SearchArtifactInstall.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_TarGz.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_PdfiumApi.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_TextExtractors.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_MarkupEntities.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_TextStreamDecoder.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_XmlTextScanner.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_OpenXmlPackage.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_OfficeTextExtractors.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_MarkupTextExtractors.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_JsonTextExtractor.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_RtfTextExtractor.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_TextExtractorRegistry.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_FileTextStage.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_CrossEncoder.pas"/>
+  </ItemGroup>
+  <ItemGroup Condition="'$(MainSource)'=='SearchIndexTests.dpr'">
+    <DCCReference Include="..\ELN.Search\unit_SemanticSearchService.pas"/>
+    <DCCReference Include="..\ELN.Search\unit_LocalSemanticSearch.pas"/>
+    <DCCReference Include="..\ELN.Desktop\Units\unit_MainThreadSearchSource.pas"/>
+    <DCCReference Include="test_SearchArtifacts.pas"/>
+    <DCCReference Include="test_SearchDoubles.pas"/>
+    <DCCReference Include="test_SearchStore.pas"/>
+    <DCCReference Include="test_PassageContextBuild.pas"/>
+    <DCCReference Include="test_SearchIndex.pas"/>
+    <DCCReference Include="test_PassageContext.pas"/>
+    <DCCReference Include="test_SemanticSearchFilter.pas"/>
+    <DCCReference Include="test_TextExtractors.pas"/>
+    <DCCReference Include="test_TextFormatExtractors.pas"/>
+    <DCCReference Include="test_SemanticSearchService.pas"/>
+    <DCCReference Include="test_SearchMetrics.pas"/>
   </ItemGroup>
   <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets"/>
 </Project>

@@ -33,7 +33,7 @@ requires
   vclimg,
   vclwinx,
   RaizeComponentsVcl,
-  TMSVCLPluginFrameworkPkgCoreDXE16,
+  TMSVCLPluginFrameworkPkgCore,
   ELNPluginCore,
   SynEditDR;
 

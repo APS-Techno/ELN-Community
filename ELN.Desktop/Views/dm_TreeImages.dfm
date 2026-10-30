@@ -594,6 +594,11 @@ object dmTreeImages: TdmTreeImages
         CollectionIndex = 68
         CollectionName = 'Menu\Reload Draft'
         Name = 'Reload Draft'
+      end
+      item
+        CollectionIndex = 69
+        CollectionName = 'Menu\Semantic Search'
+        Name = 'Semantic Search'
       end>
     ImageCollection = MenuImageCollection
     Width = 40

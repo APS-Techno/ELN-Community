@@ -43,6 +43,7 @@ type
     procedure upfPluginManagerPackageOnLoadError(Sender: TObject; AFilename, AMsg:
         string);
     procedure upfPluginManagerPluginRegistered(Sender, APlugin: TObject);
+    procedure upfPluginManagerAfterPackageLoaded(Sender: TObject; AFilename: string);
   private
     Frames: array of TViewerFrameRec;
     BlankCard: TCard;
@@ -322,9 +323,16 @@ begin
   // the DLL search path; otherwise Windows can't resolve the inter-plugin
   // dependency and LoadPackage fails silently with "missing module".
   SetDllDirectory(PChar(ExcludeTrailingPathDelimiter(PluginsDir)));
+  upfPluginManager.OnAfterPackageLoaded := upfPluginManagerAfterPackageLoaded;
   upfPluginManager.LoadPlugins;
 
   Cards.ActiveCard := BlankCard;
+end;
+
+procedure TframeContentViewer.upfPluginManagerAfterPackageLoaded(Sender: TObject;
+    AFilename: string);
+begin
+  RegisterLoadedPackageUnits(AFilename);
 end;
 
 procedure TframeContentViewer.upfPluginManagerPackageOnLoadError(Sender: TObject;

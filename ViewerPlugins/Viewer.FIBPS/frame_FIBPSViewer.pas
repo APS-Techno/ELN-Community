@@ -1891,9 +1891,17 @@ end;
 function TframeFIBPSViewer.GetAnalysisStatus: string;
 var
   Analysis: TFIBPSStepAnalysis;
+  Extracted: Boolean;
 begin
-  StepForExtraction(Analysis);
+  Extracted := StepForExtraction(Analysis);
   Result := Analysis.Status;
+  if Result <> '' then
+    Exit;
+  case FIBPSStepOutcome(Extracted, Analysis.Available, Analysis.Mode = fsmAutomatic,
+    Analysis.Step.LowConfidence, FHasWear, FData.PixW > 0) of
+    fsoLowConfidence: Result := ANALYSIS_STATUS_LOW_CONFIDENCE;
+    fsoNoStepFound: Result := ANALYSIS_STATUS_NO_STEP_FOUND;
+  end;
 end;
 
 function TframeFIBPSViewer.CanApplyShared: Boolean;

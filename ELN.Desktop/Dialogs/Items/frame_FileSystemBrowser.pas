@@ -15,6 +15,9 @@ type
     procedure Cancel;
   end;
 
+  TBrowserFileIconEvent = procedure(Sender: TObject; const AFileName: string;
+    var AIconName: string) of object;
+
   TframeFileSystemBrowser = class(TFrame)
     pnlNavigation: TRzPanel;
     btnBack: TRzButton;
@@ -54,6 +57,7 @@ type
     FDescending, FRendering, FSelectingTree, FClosing, FLoading: Boolean;
     FCurrentNode: TTreeNode;
     FOnDirectoryChanged, FOnSelectionChanged, FOnStatusChanged: TNotifyEvent;
+    FOnGetFileIconName: TBrowserFileIconEvent;
     procedure StartNavigation(const APath: string; AKind: TBrowserNavigation);
     procedure RenderEntries;
     procedure UpdateNavigation;
@@ -70,6 +74,7 @@ type
     procedure Navigate(const APath: string);
     procedure Refresh;
     procedure SetFilter(const AMasks: string);
+    procedure AddIcons(ACollection: TImageCollection);
     property CurrentDirectory: string read GetCurrentDirectory;
     property SelectedPaths: TArray<string> read GetSelectedPaths;
     property StatusText: string read FStatusText;
@@ -78,6 +83,7 @@ type
     property OnDirectoryChanged: TNotifyEvent read FOnDirectoryChanged write FOnDirectoryChanged;
     property OnSelectionChanged: TNotifyEvent read FOnSelectionChanged write FOnSelectionChanged;
     property OnStatusChanged: TNotifyEvent read FOnStatusChanged write FOnStatusChanged;
+    property OnGetFileIconName: TBrowserFileIconEvent read FOnGetFileIconName write FOnGetFileIconName;
   end;
 
 function BrowserKnownFolder(const AFolder: TGUID): string;
@@ -419,6 +425,24 @@ begin
     StartNavigation(CurrentDirectory, bnRefresh);
 end;
 
+procedure TframeFileSystemBrowser.AddIcons(ACollection: TImageCollection);
+var
+  Source, Target: TImageCollectionItem;
+  I: Integer;
+begin
+  for I := 0 to ACollection.Images.Count - 1 do
+  begin
+    Source := ACollection.Images[I];
+    if (Source.Name = '') or (Source.SourceImages.Count = 0) or
+      (BrowserIcons.GetIndexByName(Source.Name) >= 0) then
+      Continue;
+    Target := BrowserImages.Images.Add;
+    Target.Name := Source.Name;
+    Target.SourceImages.Add.Image.Assign(Source.SourceImages[0].Image);
+    BrowserIcons.Add(Source.Name, Source.Name);
+  end;
+end;
+
 procedure TframeFileSystemBrowser.SetFilter(const AMasks: string);
 begin
   if FMasks = AMasks then Exit;
@@ -445,6 +469,8 @@ var
   Item: TListItem;
   Path: string;
   I: Integer;
+  IconName: string;
+  IconIndex: Integer;
 begin
   Visible := TList<string>.Create;
   Selection := TStringList.Create;
@@ -473,7 +499,15 @@ begin
         end
         else
         begin
-          Item.ImageIndex := 1;
+          IconName := '';
+          if Assigned(FOnGetFileIconName) then
+            FOnGetFileIconName(Self, Entry.Name, IconName);
+          IconIndex := -1;
+          if IconName <> '' then
+            IconIndex := BrowserIcons.GetIndexByName(IconName);
+          if IconIndex < 0 then
+            IconIndex := 1;
+          Item.ImageIndex := IconIndex;
           Item.SubItems.Add(ExtractFileExt(Entry.Name));
           Item.SubItems.Add(FormatFloat('#,##0', Entry.Size) + ' B');
         end;

@@ -12,6 +12,9 @@ uses
 function IsItemCitedByLockedHypothesis(Manager: TObjectManager; ItemId: Integer;
   out AHypothesisId: Integer; out AStatus: THypothesisStatus): Boolean;
 
+function IsFileCitedByLockedHypothesis(Manager: TObjectManager; FileId: Int64;
+  out AHypothesisId: Integer; out AStatus: THypothesisStatus): Boolean;
+
 implementation
 
 uses
@@ -61,6 +64,25 @@ begin
     Runs.Free;
   end;
   Ev := Manager.Find<THypothesisEvidence>.Where(Linq['ItemId'] = ItemId).List;
+  try
+    for E in Ev do
+      if CheckOne(Manager, E.HypothesisId, AHypothesisId, AStatus) then
+        Exit(True);
+  finally
+    Ev.Free;
+  end;
+  Result := False;
+end;
+
+function IsFileCitedByLockedHypothesis(Manager: TObjectManager; FileId: Int64;
+  out AHypothesisId: Integer; out AStatus: THypothesisStatus): Boolean;
+var
+  Ev: TList<THypothesisEvidence>;
+  E: THypothesisEvidence;
+begin
+  AHypothesisId := 0;
+  AStatus := hsProposed;
+  Ev := Manager.Find<THypothesisEvidence>.Where(Linq['FileId'] = FileId).List;
   try
     for E in Ev do
       if CheckOne(Manager, E.HypothesisId, AHypothesisId, AStatus) then

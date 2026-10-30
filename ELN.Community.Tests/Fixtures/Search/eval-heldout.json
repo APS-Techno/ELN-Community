@@ -1,0 +1,647 @@
+{
+ "description": "Synthetic held-out queries for eval-corpus.json. Not to be used for tuning.",
+ "queries": [
+  {
+   "id": "h01",
+   "kind": "exact",
+   "text": "MS-0430",
+   "relevant": [
+    {
+     "item": 22,
+     "grade": 2
+    },
+    {
+     "item": 57,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h02",
+   "kind": "exact",
+   "text": "HV-PUMP-01",
+   "relevant": [
+    {
+     "item": 94,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h03",
+   "kind": "exact",
+   "text": "rocking_mo110.dat",
+   "relevant": [
+    {
+     "item": 53,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h04",
+   "kind": "exact",
+   "text": "XRR-2231",
+   "relevant": [
+    {
+     "item": 41,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h05",
+   "kind": "exact",
+   "text": "mo_pressure_series.csv",
+   "relevant": [
+    {
+     "item": 3,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h06",
+   "kind": "exact",
+   "text": "recipes_v3.csv",
+   "relevant": [
+    {
+     "item": 29,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h07",
+   "kind": "paraphrase",
+   "text": "does sputtering pressure change film density and smoothness",
+   "relevant": [
+    {
+     "item": 3,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h08",
+   "kind": "paraphrase",
+   "text": "what goes wrong when the shutter of the deposition controller is slow",
+   "relevant": [
+    {
+     "item": 8,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h09",
+   "kind": "paraphrase",
+   "text": "keeping the cryopump working: when to warm it up",
+   "relevant": [
+    {
+     "item": 95,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h10",
+   "kind": "paraphrase",
+   "text": "holding fragile wafers: tape or vacuum chuck",
+   "relevant": [
+    {
+     "item": 59,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h11",
+   "kind": "paraphrase",
+   "text": "an oxygen-rich atmosphere makes the surface oxide thicker when heated",
+   "relevant": [
+    {
+     "item": 81,
+     "grade": 2
+    },
+    {
+     "item": 67,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h12",
+   "kind": "paraphrase",
+   "text": "computer model that replaces slow reflectivity simulations",
+   "relevant": [
+    {
+     "item": 127,
+     "grade": 2
+    },
+    {
+     "item": 128,
+     "grade": 1
+    },
+    {
+     "item": 129,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h13",
+   "kind": "paraphrase",
+   "text": "uncertainty of reflectivity numbers and its sources",
+   "relevant": [
+    {
+     "item": 143,
+     "grade": 2
+    },
+    {
+     "item": 51,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h14",
+   "kind": "paraphrase",
+   "text": "keeping the cooling water circuit from stopping the sputter guns",
+   "relevant": [
+    {
+     "item": 99,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h15",
+   "kind": "russian",
+   "text": "расписание занятости установки напыления",
+   "relevant": [
+    {
+     "item": 131,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h16",
+   "kind": "russian",
+   "text": "как хранить новые мишени до установки",
+   "relevant": [
+    {
+     "item": 109,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h17",
+   "kind": "russian",
+   "text": "как называть образцы в журнале",
+   "relevant": [
+    {
+     "item": 142,
+     "grade": 2
+    },
+    {
+     "item": 145,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h18",
+   "kind": "russian",
+   "text": "нейросеть для подгонки кривых отражения",
+   "relevant": [
+    {
+     "item": 128,
+     "grade": 2
+    },
+    {
+     "item": 127,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h19",
+   "kind": "russian",
+   "text": "анализ остаточных газов после прогрева",
+   "relevant": [
+    {
+     "item": 97,
+     "grade": 2
+    },
+    {
+     "item": 96,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h20",
+   "kind": "russian",
+   "text": "поставщик подложек из кварца и их шероховатость",
+   "relevant": [
+    {
+     "item": 92,
+     "grade": 2
+    },
+    {
+     "item": 91,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h21",
+   "kind": "cross-language",
+   "text": "калибровка щелей на канале пучка",
+   "relevant": [
+    {
+     "item": 120,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h22",
+   "kind": "cross-language",
+   "text": "износ сопла лазерного источника",
+   "relevant": [
+    {
+     "item": 122,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h23",
+   "kind": "cross-language",
+   "text": "кристаллическая текстура в слое молибдена",
+   "relevant": [
+    {
+     "item": 39,
+     "grade": 2
+    },
+    {
+     "item": 53,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h24",
+   "kind": "cross-language",
+   "text": "плазменный очиститель: замена кварцевой трубки",
+   "relevant": [
+    {
+     "item": 108,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h25",
+   "kind": "cross-language",
+   "text": "thermal conductivity across multilayer interfaces",
+   "relevant": [
+    {
+     "item": 86,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h26",
+   "kind": "cross-language",
+   "text": "round-robin test between two labs of reflectivity",
+   "relevant": [
+    {
+     "item": 136,
+     "grade": 2
+    },
+    {
+     "item": 137,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h27",
+   "kind": "cross-language",
+   "text": "paper structure and who writes which section",
+   "relevant": [
+    {
+     "item": 139,
+     "grade": 2
+    },
+    {
+     "item": 140,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h28",
+   "kind": "cross-language",
+   "text": "radiation resistance under electron irradiation",
+   "relevant": [
+    {
+     "item": 71,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h29",
+   "kind": "negated",
+   "text": "tests where nothing changed after solvent cleaning",
+   "relevant": [
+    {
+     "item": 79,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h30",
+   "kind": "negated",
+   "text": "wafers with scratches were not accepted",
+   "relevant": [
+    {
+     "item": 35,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h31",
+   "kind": "negated",
+   "text": "annealing in vacuum rather than in oxygen",
+   "relevant": [
+    {
+     "item": 60,
+     "grade": 2
+    },
+    {
+     "item": 81,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h32",
+   "kind": "negated",
+   "text": "corrosion test that destroyed uncapped samples but is not a worry",
+   "relevant": [
+    {
+     "item": 83,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h33",
+   "kind": "status",
+   "text": "is the 2025 beamtime accepted yet",
+   "relevant": [
+    {
+     "item": 132,
+     "grade": 2
+    },
+    {
+     "item": 133,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h34",
+   "kind": "status",
+   "text": "completed measurement of reflectivity at EUV wavelength",
+   "relevant": [
+    {
+     "item": 50,
+     "grade": 2
+    },
+    {
+     "item": 51,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h35",
+   "kind": "status",
+   "text": "has the in situ heating stage been built",
+   "relevant": [
+    {
+     "item": 133,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h36",
+   "kind": "status",
+   "text": "proposed purchases that were not yet ordered",
+   "relevant": [
+    {
+     "item": 105,
+     "grade": 2
+    },
+    {
+     "item": 106,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h37",
+   "kind": "hard-negative",
+   "text": "clinical trial patient recruitment",
+   "irrelevant": [
+    135,
+    100,
+    131
+   ]
+  },
+  {
+   "id": "h38",
+   "kind": "hard-negative",
+   "text": "mass spectrometry of peptides",
+   "irrelevant": [
+    97,
+    96
+   ]
+  },
+  {
+   "id": "h39",
+   "kind": "hard-negative",
+   "text": "lithium battery cathode cycling",
+   "irrelevant": [
+    13,
+    110
+   ]
+  },
+  {
+   "id": "h40",
+   "kind": "hard-negative",
+   "text": "weather forecast ensemble model",
+   "irrelevant": [
+    127,
+    129,
+    125
+   ]
+  },
+  {
+   "id": "h41",
+   "kind": "short",
+   "text": "Ar",
+   "relevant": [
+    {
+     "item": 18,
+     "grade": 2
+    },
+    {
+     "item": 104,
+     "grade": 2
+    },
+    {
+     "item": 3,
+     "grade": 1
+    },
+    {
+     "item": 98,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h42",
+   "kind": "short",
+   "text": "eV",
+   "relevant": [
+    {
+     "item": 73,
+     "grade": 1
+    },
+    {
+     "item": 77,
+     "grade": 1
+    },
+    {
+     "item": 104,
+     "grade": 1
+    },
+    {
+     "item": 18,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h43",
+   "kind": "short",
+   "text": "mm",
+   "relevant": [
+    {
+     "item": 28,
+     "grade": 2
+    },
+    {
+     "item": 107,
+     "grade": 1
+    },
+    {
+     "item": 13,
+     "grade": 1
+    },
+    {
+     "item": 110,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h44",
+   "kind": "short",
+   "text": "Mo",
+   "relevant": [
+    {
+     "item": 3,
+     "grade": 2
+    },
+    {
+     "item": 14,
+     "grade": 2
+    },
+    {
+     "item": 39,
+     "grade": 2
+    },
+    {
+     "item": 46,
+     "grade": 2
+    },
+    {
+     "item": 53,
+     "grade": 2
+    },
+    {
+     "item": 13,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "h45",
+   "kind": "mixed",
+   "text": "thermocouple oven controller",
+   "relevant": [
+    {
+     "item": 64,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h46",
+   "kind": "mixed",
+   "text": "detector hot pixels dynamic",
+   "relevant": [
+    {
+     "item": 144,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h47",
+   "kind": "mixed",
+   "text": "tracking partner sealed",
+   "relevant": [
+    {
+     "item": 149,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "h48",
+   "kind": "mixed",
+   "text": "CCD pitch focus",
+   "relevant": [
+    {
+     "item": 121,
+     "grade": 2
+    }
+   ]
+  }
+ ]
+}

@@ -123,9 +123,11 @@ begin
       Add('aps.zrw', 'Stroke', 'mm', 'Stroke', 'mm', 1);
       Add('aps.zrw', 'Speed', 'mm/s', 'Speed', 'mm/s', 1);
       Add('aps.zrw', 'COF', '', 'COF', '', 1);
+      Add('aps.zrw', 'I', 'A', 'Current', 'A', 1);
+      Add('aps.zrw', 'R', 'Ohm', 'Resistance', 'Ohm', 1);
+      Add('aps.zrw', 'V', 'V', 'Voltage', 'V', 1);
       Add('aps.fibps', 'Step Height', 'um', 'Thickness', 'm', 1e-6);
       Add('aps.fibps', 'Wear Area', 'um2', 'Wear area', 'mm' + #$00B2, 1e-6);
-      Add('aps.fibps', 'Wear Volume', 'um3', 'Wear volume', 'mm' + #$00B3, 1e-9);
       Add('aps.mit', 'Hardness', 'GPa', 'Hardness', 'GPa', 1);
       Add('aps.mit', 'Modulus', 'GPa', 'Modulus', 'GPa', 1);
       Add('aps.deposition', 'Duration', 's', 'Time', 's', 1);

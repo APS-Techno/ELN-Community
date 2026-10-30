@@ -104,7 +104,8 @@ type
       // Refreshes Item after the attempt, but never flushes unrelated drafts.
       // False means signed/stale refusal; other failures raise.
       function UpdateItemDurable(Item: TItem; UserId: Integer;
-        const Relocator: IFileRelocator): Boolean;
+        const Relocator: IFileRelocator;
+        const AuditTexts: TArray<string> = nil): Boolean;
       function UpdateEntry(Entry: TLabEntry; UserId: Integer): Boolean;
       function UpdateFile(AFile: TFile; UserId: Integer): Boolean;
       function MoveFile(AFile: TFile; NewParentId, UserId: Integer): Boolean;
@@ -127,6 +128,7 @@ uses
   System.Generics.Defaults,
   unit_AuditHelper,
   unit_AnalysisSettingsModel,
+  unit_ViewerStateModel,
   Aurelius.Commands.Exceptions,
   unit_ConflictHandler,
   unit_SignatureModel,
@@ -551,6 +553,7 @@ var
   ReaderIds: TArray<string>;
   I: Integer;
   Analysis: TAnalysisSettingsModel;
+  States: TViewerStateModel;
 begin
   Result := False;
   if IsItemSignedCheck(FManager, Item.Id) then
@@ -586,8 +589,12 @@ begin
   finally
     Analysis.Free;
   end;
-  if Assigned(Model) then
-    Model.ViewerStates.DeleteForFile(FileId);
+  States := TViewerStateModel.Create(FManager);
+  try
+    States.DeleteForFile(FileId);
+  finally
+    States.Free;
+  end;
   Result := True;
 end;
 
@@ -689,7 +696,7 @@ begin
 end;
 
 function TItemModel.UpdateItemDurable(Item: TItem; UserId: Integer;
-  const Relocator: IFileRelocator): Boolean;
+  const Relocator: IFileRelocator; const AuditTexts: TArray<string>): Boolean;
 var
   Operation: TObjectManager;
   Transaction: IDBTransaction;
@@ -699,6 +706,7 @@ var
   Moves: TFileMoveJournal;
   OldFolder: string;
   Committed: Boolean;
+  AuditText: string;
 begin
   Result := False;
   if Item = nil then
@@ -741,8 +749,12 @@ begin
         end;
         Moves.Execute;
         Operation.Flush;
-        RecordAudit(Operation, aetItem, Current.Id, aoUpdate, UserId,
-          'Updated item "' + Current.Title + '"');
+        if Length(AuditTexts) = 0 then
+          RecordAudit(Operation, aetItem, Current.Id, aoUpdate, UserId,
+            'Updated item "' + Current.Title + '"')
+        else
+          for AuditText in AuditTexts do
+            RecordAudit(Operation, aetItem, Current.Id, aoUpdate, UserId, AuditText);
         Transaction.Commit;
         Committed := True;
         Result := True;

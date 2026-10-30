@@ -6,10 +6,10 @@ APS-owned source, scientific templates, artwork, resources and documentation are
 
 ## Install ELN Community
 
-The latest Windows release is [ELN Community 2.2.2.51](https://github.com/APS-Techno/ELN-Community/releases/tag/v2.2.2.51).
-Download `ELNCommunitySetup-2.2.2.51.exe` from that release.
+The latest Windows release is [ELN Community 2.3.0.55](https://github.com/APS-Techno/ELN-Community/releases/tag/v2.3.0.55).
+Download `ELNCommunitySetup-2.3.0.55.exe` from that release.
 The installer is unsigned. Use the release's `SHA256SUMS.txt` to check the download.
-The installer contains the Win32 Desktop application, its selected viewers and the MCP server (`ELNCommunityMCP.exe`).
+The installer contains the Win64 Desktop application, its selected viewers and the MCP server (`ELNCommunityMCP.exe`).
 
 Windows 10 or later is required. Browser-based viewers and Help also require
 the [Microsoft WebView2 Evergreen Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
@@ -44,7 +44,8 @@ Penkov, O. V. and Shen, B. (2026). *Value-level data provenance in an electronic
 - `ELN.Domain`, neutral `ELN.Model` and `ELN.DB`: shared scientific records and implementation.
 - `ELN.Community`: local notebook, identity, access policy and working-file service.
 - `ELN.Community.Desktop` and `ELN.Community.MCP`: local VCL and stdio hosts.
-- `ELN.Community.Tests`: local storage/notebook/gate/authorization/file suites and the canonical report fixture.
+- `ELN.Community.Tests`: local storage/notebook/gate/authorization/file suites, search embedding tests and harness, and the canonical report fixture.
+- `ELN.Search`: semantic search (ONNX Runtime binding, XLM-RoBERTa Unigram tokenizer, E5 embedder, exact vector search, passage store, indexer, hybrid searcher and headless attachment text extractors for PDF, Office, HTML, JSON, XML, CSV, RTF, Markdown and text). The Desktop Search dialog and the MCP `search_semantic` tool use it through the interface `ISemanticSearch`, with a local index (`TLocalSemanticSearch`) or a search server (`TRemoteSemanticSearch`, HTTP contract in `docs/search-remote-api.md`); the Community hosts use the local index. The models, ONNX Runtime and PDFium are downloaded after install (about 666 MB, 697,877,392 bytes in the Win64 manifest: 549 MB required parts and 117 MB optional parts). PDFium and the reranker model are optional: search works without them, but without PDFium PDF text is not read. The search core and its tests also build for Linux64; the hosts do not. See `docs/search-embedding-foundation.md`, `docs/search-index-stage-2.md`, `docs/search-stage-3.md`, `docs/search-stage-4.md` and `docs/search-stage-7.md`.
 - Selected `ELN.Desktop` files: original scientific VCL surface, dialogs, assets and helpers.
 - Selected `ELN.MCPServer` files: neutral transport and scientific tools, not private identity/server composition.
 - `ViewerPlugins`: Core/Core.Protocol, the Markdown Editor and 26 viewers: Image, HTML, Markdown, ColumnarData, PDF, Protocol, JSON, Note, OLE, File, LAMMPS, XRDML, DM3, OPJU, XRayCalc, XRFX, Deposition, ProcessLog, Recipe, DSC, DSR, ZRW, MIT, FIBPS, Tribo (plain-text tribometer `.raw`) and VK4.
@@ -57,7 +58,7 @@ The standalone Domain and Model package projects overlap unit ownership. Do not 
 
 Use valid external Delphi/component installations. Do not copy vendor source, DCUs, DCPs, BPLs, keys or installers into this tree.
 
-Copy `tools/build-dependencies.example.psd1` to ignored `build-dependencies.local.psd1`, then set each path to the matching installed dependency. The fields are `RsVarsPath`, `MSBuildPath`, `ShellPath`, `Dcc32Path`, `TmsRoot` and `ExternalUnitPaths`. External unit entries may use `{Platform}` and `{Configuration}`. Paths must be absolute. `-DependencyConfig` or `ELN_BUILD_DEPENDENCIES` can select the file explicitly.
+Copy `tools/build-dependencies.example.psd1` to ignored `build-dependencies.local.psd1`, then set each path to the matching installed dependency. The fields are `RsVarsPath`, `MSBuildPath`, `ShellPath`, `Dcc32Path`, `TmsRoot` and `ExternalUnitPaths`; `LinuxSdkRoot` is necessary only for Linux64 builds. External unit entries may use `{Platform}` and `{Configuration}`. The optional `PlatformExternalUnitPaths` table (`Win32 = @(...)`, `Win64 = @(...)`, `Linux64 = @(...)`) adds entries for one platform only, for dependencies whose folders differ per platform. Paths must be absolute. `-DependencyConfig` or `ELN_BUILD_DEPENDENCIES` can select the file explicitly.
 
 Requirements include Delphi 13, Aurelius/BCL, TMS Plugin Framework, KSVC/Raize, TeeChart, VirtualTreeView, SynEdit, JAM ShellBrowser (File viewer), DUnitX, Python/Pillow and Windows SDK `rc.exe`. Developer coverage and official-binary redistribution rights are separate checks.
 
@@ -72,7 +73,28 @@ pwsh -NoProfile -File tools/build-community.ps1 -Target CommunityDesktop
 pwsh -NoProfile -File tools/build-community.ps1 -Target CommunityMCP
 ```
 
-Other test targets are `StorageSmoke`, `NotebookTests`, `GateTests`, `AuthorizationTests` and `LocalFileTests`. The default is Win32 Debug. Hosts are never launched by `-RunTests`. Build package targets sequentially because Delphi can generate source-adjacent package resource files. Generated output belongs under `_OUT/<Target>/<Platform>/<Configuration>`. The exception is `CommunityDesktop`: the executable, its core BPLs, `Icons`, `CSV` and `Help` go directly to `_OUT/CommunityDesktop`, and compiler intermediates go to `_OUT/CommunityDesktop/Intermediate/<Platform>/<Configuration>`. The last Desktop build replaces the previous one, whatever its platform or configuration.
+Other test targets are `StorageSmoke`, `NotebookTests`, `GateTests`, `AuthorizationTests` and `LocalFileTests`. `SearchTests` and `SearchIndexTests` (`-RunTests`) and the `SearchHarness` console program (`--notebook <copy of a notebook>` indexes and queries a notebook copy) need the external search artifacts from `tools/Get-SearchArtifacts.ps1`; see `docs/search-embedding-foundation.md` and `docs/search-index-stage-2.md`. The default is Win64 Debug; pass `-Platform Win32` for the 32-bit build. Hosts are never launched by `-RunTests`. Build package targets sequentially because Delphi can generate source-adjacent package resource files. Generated output belongs under `_OUT/<Target>/<Platform>/<Configuration>`. The exception is `CommunityDesktop`: the executable, its core BPLs, `Icons`, `CSV` and `Help` go directly to `_OUT/CommunityDesktop`, and compiler intermediates go to `_OUT/CommunityDesktop/Intermediate/<Platform>/<Configuration>`. The last Desktop build replaces the previous one, whatever its platform or configuration.
+
+`SearchHarness` also measures search quality on the synthetic evaluation corpus. See `docs/search-stage-5.md`. Options: `--eval FILE` (the query file `eval-dev.json` or `eval-heldout.json`), `--eval-corpus FILE`, `--modes`, `--per-query FILE`, `--compare FILE` (queries that changed against an earlier `--per-query` file), `--export-candidates FILE` (the top 20 hybrid item groups of each query, with passage texts), and the tuning flags `--rrf-k N`, `--candidates N`, `--list-weight NAME=X` and `--field-weight NAME=X`. The script `tools/search-reference/rerank_study.py` runs the reranker study on the exported candidates. See `docs/search-stage-5-reranker.md`.
+
+**Linux64 search targets.** `SearchTests`, `SearchIndexTests` and `SearchHarness` also build for Linux64 (x86-64) with `-Platform Linux64`. Other targets refuse Linux64. The build links on this PC against a local SDK sysroot; it does not use PAServer or an IDE connection profile. The output is an ELF file without an extension in `_OUT/<Target>/Linux64/<Configuration>`. The prerequisites are:
+
+- The Delphi 13 Linux platform. Install it with the IDE platform manager or with `bin\GetItCmd.exe -if=delphi_linux -ae` (as administrator, with the IDE closed). It supplies `dcclinux64.exe` and `lib\linux64`.
+- An Ubuntu 22.04 SDK sysroot (`ubuntu22.04.sdk` from the IDE SDK Manager). Set `LinuxSdkRoot` in the dependency configuration to its absolute path.
+- The TMS BCL and Aurelius DCUs for Linux64 in `<TmsRoot>\<product>\packages\d13\Linux64\<Configuration>`, for `SearchIndexTests` and `SearchHarness`. Build them from the TMS source with MSBuild (platform `Linux64`, the same `DCC_SysLibRoot` and `DCC_LibraryPath` as the helper, and `bin\binlinux64` added to the library path for the runtime packages) or with TMS Smart Setup.
+- `PlatformExternalUnitPaths.Linux64`. A Linux64 build does not use `ExternalUnitPaths`, because these are Windows component libraries. Put the Linux64 unit folders in this list, for example the Aurelius `source\drivers` and BCL `source\extra` folders.
+- For `-RunTests`: WSL 2 with the distribution `Ubuntu-22.04`, the same release as the server image. If WSL runs in NAT mode, it cannot use a Windows localhost proxy. Copy files into the distribution from Windows; do not download them in the distribution.
+- For the search tests and `SearchHarness` on Linux: the search artifacts in the distribution. The Linux programs read them from `$XDG_DATA_HOME/APS-ELN/search-artifacts`, or from `~/.local/share/APS-ELN/search-artifacts` when `XDG_DATA_HOME` is not set. `ELN_SEARCH_ARTIFACTS` overrides the folder. The manifest `ELN.Search/search-artifacts-linux.json` has the same models as `search-artifacts.json` and the Linux archives of ONNX Runtime and PDFium. The Linux programs use the system SQLite `libsqlite3.so.0`; `ELN_SQLITE_LIBRARY` selects another file.
+
+```powershell
+pwsh -NoProfile -File tools/Get-SearchArtifacts.ps1 -Manifest ELN.Search/search-artifacts-linux.json -Destination '\\wsl.localhost\Ubuntu-22.04\home\eln\.local\share\APS-ELN\search-artifacts'
+pwsh -NoProfile -File tools/build-community.ps1 -Target SearchTests -Platform Linux64 -RunTests
+./tools/run-linux-tests.ps1 -Executable '_OUT/SearchHarness/Linux64/Release/SearchHarness' -Arguments '--eval', 'eval-dev.json' -PathEnvironment @{ ELN_SOURCE_ROOT = '.' }
+```
+
+Copy the model folders into the distribution before the first line if they are already on Windows; the script then downloads only the two Linux archives. The search tests and `SearchHarness` find the repository files (fixtures and manifests) above the program file, or in the folder that `ELN_SOURCE_ROOT` gives. The runner copies only the program, so on Linux `-RunTests` sets `ELN_SOURCE_ROOT` to the source root. On Linux, the tests that need the Windows local notebook storage, the Delphi memory manager state, WinSock or the unload of a DLL are not compiled. `SearchHarness --notebook` is Windows only. `docs/search-stage-7.md` lists these tests and gives the full Linux test procedure, the Linux artifacts and the SQLite facts.
+
+Run `tools/run-linux-tests.ps1` in a PowerShell 7 session, as in the last line above, because `pwsh -File` cannot pass a hashtable to `-Environment` or `-PathEnvironment`. The script makes a new folder under `/tmp/eln-linux-tests` in the distribution and copies the ELF file and the `.so` files into it. `-Library` accepts files and folders; from a folder it copies each `*.so` and `*.so.N` file. The script sets `LD_LIBRARY_PATH` to the folder, runs the program there with `-Arguments` and the `-Environment` variables, and returns the exit code of the program. The values of `-PathEnvironment` are Windows paths; the script changes them to distribution paths with `wslpath`. It removes the folder after the run; `-Keep` keeps it. If the removal fails, the script fails with a message that gives the folder and the exit code of the program. `-Distro` selects another distribution. Each `wsl.exe` call can show the warning "A localhost proxy configuration was detected but not mirrored into WSL". This warning has no effect on the run.
 
 Build Community applications and installers only in this standalone repository.
 Commercial's pinned `Community/` checkout supplies shared source and regression
@@ -99,7 +121,7 @@ For direct IDE builds, set `ELN_EXTERNAL_UNIT_PATHS` and `ELN_TMS_ROOT` explicit
 
 ## Local runtime layout
 
-A source build is not a standalone installer. Supply SQLite and WebView2 from the approved external installations. The `CommunityDesktop` target reads `WebView2Runtime` from the ignored root `installer-runtime.local.psd1`, or from `-RuntimeConfig` with an absolute path. That loader must match the build platform; for Win32 it is the x86 `WebView2Loader.dll`. Keep proprietary runtime BPLs external and process-local. Do not copy a legacy installer `_REDIST` tree.
+A source build is not a standalone installer. Supply SQLite and WebView2 from the approved external installations. The `CommunityDesktop` target reads `WebView2Runtime` from the ignored root `installer-runtime.local.psd1`, or from `-RuntimeConfig` with an absolute path. That loader must match the build platform: the x64 `WebView2Loader.dll` for Win64 (the default), the x86 one for Win32. Keep proprietary runtime BPLs external and process-local. Do not copy a legacy installer `_REDIST` tree.
 
 For a developer run, the Desktop output directory needs:
 
@@ -149,6 +171,26 @@ Without `--notebook`, Desktop reopens the last successfully opened notebook from
 `File → Recent Notebooks` lists up to eight notebooks that opened successfully, the most recent first, from the `RecentNotebook1` to `RecentNotebook8` keys of the selected settings file. The active notebook has a check mark. Selecting another entry switches to it with the same validation as Open Notebook. A missing entry can be removed from the list; Clear Recent List removes all entries.
 
 When no notebook is open, the welcome message and New/Open buttons are centered as one block in the workspace. Resizing and display scaling preserve their relative spacing and keep the block centered.
+
+## Version 2.3.0.55
+
+Search by meaning: the Search dialog finds items and attached files by meaning as well as by words, in many languages. Help → Semantic Search Setup downloads the models, ONNX Runtime and PDFium once (about 666 MB). The index reads the text of PDF, Office (Word, Excel, PowerPoint), HTML, JSON, XML, CSV, RTF, Markdown and text attachments. Results are grouped by item, can be filtered by project, item type and creation date (the MCP tool also by value), and can be reranked. The Search window floats, keeps a query history with autocomplete and shows the full match text in a bottom panel. The MCP tool `search_semantic` gives the same search to an assistant.
+Desktop, MCP and the installer are Win64 only.
+New MCP tools: `download_file`, `update_value`, `remove_value` and `remove_values`; `update_item` can change the level of an item.
+The ZRW reader opens Tribo Tester packages (`force.raw`, `resistance.tsv`, `test.json`), and the ZRW viewer can smooth the logger channel curve with a moving median.
+The status bar shows the version of the program. Show Archived in the Projects tree is kept between program starts. Notebook settings with non-ASCII text are kept.
+
+## Version 2.2.2.54
+
+The build uses the TMS Smart Setup package names `TMSVCLPluginFrameworkPkgCore` and `TMSVCLPluginFrameworkPkgMgr` (runtime files `…370.bpl`). The installer takes these runtime files from the configured plugin framework package folder. On Win64, Desktop and MCP register the units of each viewer package after the package loads.
+
+## Version 2.2.2.53
+
+The Items tree and the file browser share one list of file type icons. The file browser can show an icon for each file type in its list through the `OnGetFileIconName` event; without a handler it shows the generic document icon as before.
+
+## Version 2.2.2.52
+
+MCP `delete_file` deletes a file permanently with the Reader values that came from it; see MCP below. The MIT viewer plots measured force-depth curves from the stored contact point, with frame compliance and an instrument fit overlay, and reads TStandardIndentation records (reader `aps.mit` version 3). The MIT viewer force axis always starts at zero. The MIT reader reads TSinusIndentation records: it searches the whole record for the indenter and reads data blocks of up to 50M rows. FIBPS Step Height comes from a joint plane-and-step fit on both plateaus (algorithm 2); `analysis_status` can be `no_step_found` or `low_confidence`. The unused `aps.fibps` Wear Volume mapping seed is removed. The DSC reader `aps.dsc` version 2 gives unique key names (`Time.Cleaning`, `Time.Si`) and takes the pulse unit from the script command. MCP `update_value`, `remove_value` and `remove_values` change or hard-delete stored values; they refuse signed items, deleted items and items that are a run of, or are cited by, a hypothesis in review or accepted. `list_files` and `get_item` show whether a file is deleted, `list_files` can check the stored bytes, and Wiki read and update skip a page record whose bytes are missing.
 
 ## Version 2.2.2.51
 
@@ -283,6 +325,29 @@ source kind Derived. On a database without the format-5 objects,
 `get_values`, `get_item` and `query_values` show the formula ID, version and
 inputs. Deleting or editing an input does not delete the Derived value.
 
+MCP `update_value` changes a stored value in place: `value`, `tolerance`,
+`description`, `rec_type` and `value_type_id`, and for a Reader value also
+`reader_version` and `analysis_snapshot`. The source kind and the other source
+fields stay; the number of a Derived value cannot be changed. New numbers go
+through the `add_value` range checks. `remove_value` and `remove_values` (up to
+200, all or nothing) delete values and their analysis snapshots. A Derived
+value that used a removed input stays, and the response lists it. Both refuse
+values of signed or deleted items and of items that are a run of, or are cited
+by, a hypothesis in review or accepted. An update is audited on the value; a
+removal is audited on its item, so `get_audit_log` still shows the old number
+after the row is gone.
+
+MCP `delete_file` deletes a file permanently, with the Reader values from the file
+and their analysis snapshots, in one database transaction. It needs write access.
+`dry_run` is `true` by default; read `values_to_delete` first. An optional
+`confirm_hash` must match the stored hash from `list_files`. It refuses signed or
+deleted items and files or items that are a run of, or are cited by, a hypothesis
+in review or accepted. `bytes_status` is `removed`, `absent` or `remaining`.
+`list_files` and `get_item` show `is_deleted` (true when the item or an ancestor
+is in the Recycle Bin); `list_files` with `check_storage` adds `storage_status`
+(`ok`, `missing`, `content_mismatch`, `no_hash` or `error`). Wiki read and update
+skip a page record whose bytes are missing.
+
 `check_value_drift` and Desktop `Check Value Sources...` also check Derived values.
 Reader inputs are re-read through their readers with the saved factor, Derived
 inputs are recomputed recursively, and Manual or Unknown inputs use their
@@ -315,7 +380,10 @@ confirmation; MCP `add_value` and `add_values` refuse unless
 Reader values with their source file, `report_value_issues` lists range and
 tolerance problems, and `check_storage` compares stored bytes with the recorded
 MD5. `check_storage` accepts an optional `baseline` list of earlier findings and
-reports their current status in `previously_reported`.
+reports their current status in `previously_reported`. `download_file` copies
+the stored bytes of one file to a path under the MCP upload root (`--upload-root`)
+and reports `size`, `md5` and `storage_status` (`ok`, `content_mismatch` or
+`no_hash`); missing bytes write nothing, and `overwrite` defaults to false.
 The shared additive updater does not require a file-identity width migration.
 It leaves existing column types unchanged; each host retains its schema-update
 workflow and stored-column limits.
@@ -339,9 +407,9 @@ only if the local file does not already exist. Set four absolute paths:
 | Field | Required input |
 | --- | --- |
 | `IsccPath` | Installed Inno Setup `ISCC.exe` |
-| `RuntimeBplRoot` | Approved installed Win32 component runtime BPL directory |
-| `SQLiteRuntime` | Approved Win32 `sqlite3.dll` |
-| `WebView2Runtime` | Approved Win32 `WebView2Loader.dll` |
+| `RuntimeBplRoot` | Approved installed Win64 component runtime BPL directory |
+| `SQLiteRuntime` | Approved Win64 `sqlite3.dll` with FTS5 (for example the Delphi `bin64` copy) |
+| `WebView2Runtime` | Approved Win64 (x64) `WebView2Loader.dll` |
 
 The installed WebView2 Evergreen browser runtime is also required for browser
 viewers and Help. The package contains its loader, not the browser runtime.
@@ -357,16 +425,20 @@ Build the host and 27 selected viewers sequentially, stage the runtime,
 and compile the installer locally:
 
 ```powershell
-pwsh -NoProfile -File tools/build-installer.ps1 -Platform Win32 -Configuration Release
+pwsh -NoProfile -File tools/build-installer.ps1 -Platform Win64 -Configuration Release
 ```
 
 Use `-DependencyConfig` and `-RuntimeConfig` to select explicit absolute
-configuration files. Installer builds default to Win32 Release; this does
-not change the developer helper's Win32 Debug default.
+configuration files. The installer is Win64 only and builds Win64 Release by default. The
+Delphi runtime BPLs come from the `bin64` folder next to the `bin` folder that
+holds `rsvars.bat`. The installer does not contain the search model or ONNX
+Runtime. The first semantic search setup downloads them into
+`%LOCALAPPDATA%\APS-ELN\search-artifacts` from the URLs in
+`search-artifacts.json`, which the installer places beside the application.
 
 The generated installer is
-`_OUT/Installer/Win32/Release/Output/ELNCommunitySetup-<version>.exe`.
-The stage and build log remain under `_OUT/Installer/Win32/Release`,
+`_OUT/Installer/Win64/Release/Output/ELNCommunitySetup-<version>.exe`.
+The stage and build log remain under `_OUT/Installer/Win64/Release`,
 not in installer source directories.
 
 Installation is per-user, under the user's `Programs/ELN Community`

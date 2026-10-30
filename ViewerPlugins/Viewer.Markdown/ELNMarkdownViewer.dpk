@@ -34,7 +34,7 @@ requires
   vclwinx,
   vcledge,
   RaizeComponentsVcl,
-  TMSVCLPluginFrameworkPkgCoreDXE16,
+  TMSVCLPluginFrameworkPkgCore,
   ELNPluginCore;
 
 contains

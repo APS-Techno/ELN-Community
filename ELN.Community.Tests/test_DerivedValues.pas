@@ -355,7 +355,7 @@ begin
     Assert.AreEqual(4e-7, Model.Compute(Item, WEAR_RATE_FORMULA_ID, [Ref('area', ChildArea),
       Ref('normal_force', Force), Ref('cycles', Cycles)]).Number, 1e-20,
       'An input of a descendant item is accepted');
-    Assert.AreEqual(2, Length(Model.Candidates(Item, WearRateFormula.Roles[0])),
+    Assert.AreEqual<NativeInt>(2, Length(Model.Candidates(Item, WearRateFormula.Roles[0])),
       'Only values of the role type and unit in the subtree are offered');
   finally
     Model.Free;
@@ -385,7 +385,7 @@ begin
     Assert.AreEqual(1, Source.FormulaVersion);
     Assert.AreEqual<Double>(0, Stored.Tol, 'A Derived value has no tolerance');
     Assert.AreEqual('Wear rate', Stored.ValueType.Title);
-    Assert.AreEqual(3, Stored.DerivedInputs.Count);
+    Assert.AreEqual<NativeInt>(3, Stored.DerivedInputs.Count);
     Assert.AreEqual('area', Stored.DerivedInputs[0].Role);
     Assert.AreEqual(Area, Stored.DerivedInputs[0].InputValueId);
     Assert.AreEqual(0.004, Stored.DerivedInputs[0].InputValue, 1e-15);
@@ -454,7 +454,7 @@ begin
   Derived := Derive(Item, WEAR_RATE_FORMULA_ID, [Ref('area', A1), Ref('area', A2),
     Ref('area', A3), Ref('normal_force', Force), Ref('cycles', Cycles)]);
   Assert.AreEqual(4e-7, Derived.Value, 1e-20, 'The mean area 0.004 is used');
-  Assert.AreEqual(5, Derived.DerivedInputs.Count, 'Every input is stored');
+  Assert.AreEqual<NativeInt>(5, Derived.DerivedInputs.Count, 'Every input is stored');
   Count := 0;
   for Link in Derived.DerivedInputs do
     if Link.Role = 'area' then
@@ -476,7 +476,7 @@ begin
       Assert.IsTrue(vdfValueChanged in Row.Flags);
       Assert.AreEqual(6e-7, Row.CurrentValue, 1e-20,
         'The mean of the current areas (0.006) is used');
-      Assert.AreEqual(5, Length(Row.Inputs), 'Every input has a drift entry');
+      Assert.AreEqual<NativeInt>(5, Length(Row.Inputs), 'Every input has a drift entry');
       Exit;
     end;
   Assert.Fail('The Derived value must be reported');

@@ -5,11 +5,11 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.StdCtrls,
-  Vcl.Buttons,
+  Vcl.Buttons, Vcl.Menus,
   VclTee.TeeGDIPlus, VCLTee.TeEngine, VCLTee.Series, VCLTee.TeeProcs, VCLTee.Chart,
   RzPanel, RzButton,
   unit_ELNPluginCore, unit_ELNPluginTypes, unit_ZRWData, unit_ZRWPlateau,
-  unit_ZRWAnalysis;
+  unit_ZRWAnalysis, unit_ZRWForce, unit_ZRWPackage;
 
 type
 
@@ -29,11 +29,19 @@ type
     chkThroughEnd: TCheckBox;
     btnApply: TButton;
     btnReload: TButton;
+    btnSmoothing: TButton;
     Chart: TChart;
     btnCopy: TRzBitBtn;
     btnSave: TRzBitBtn;
+    pmSmoothing: TPopupMenu;
+    miSmoothOff: TMenuItem;
+    miSmooth5: TMenuItem;
+    miSmooth11: TMenuItem;
+    miSmooth21: TMenuItem;
+    miSmooth51: TMenuItem;
     SeriesBand: TAreaSeries;
     Series1: TFastLineSeries;
+    SeriesChannel: TFastLineSeries;
     procedure btnCopyClick(Sender: TObject);
     procedure btnSaveClick(Sender: TObject);
     procedure ModeButtonClick(Sender: TObject);
@@ -41,8 +49,12 @@ type
     procedure chkThroughEndClick(Sender: TObject);
     procedure btnApplyClick(Sender: TObject);
     procedure btnReloadClick(Sender: TObject);
+    procedure btnSmoothingClick(Sender: TObject);
+    procedure SmoothingItemClick(Sender: TObject);
   private
     FCurve: TZRWCurve;
+    FPackage: TZRWPackage;
+    FIsPackage: Boolean;
     FStatusBase: string;
     FLoadError: string;
     FContext: TAnalysisContext;
@@ -63,6 +75,10 @@ type
     FDraftError: string;
     FDraftTouched: Boolean;
     function Analysis: TZRWAnalysis;
+    function ForceAlgorithm: string;
+    function SmoothingWindow: Integer;
+    procedure FillChannel;
+    procedure ShowChannelAxis;
     function LastCycle: Double;
     function SharedStale: Boolean;
     function DraftMode: TZRWSelectionMode;
@@ -118,7 +134,77 @@ procedure TframeZRWViewer.UpdateStatus;
 begin
   FStatusBase := Format('Stroke: %s mm  |  Speed: %s mm/s  |  Load: %s  |  Cycles: %s  |  Points: %d',
     [FCurve.Header.Stroke, FCurve.Header.Speed, FCurve.Header.Load, FCurve.Header.Cycles, Series1.Count]);
+  if FIsPackage then
+    FStatusBase := FStatusBase + '  |  ' + PackageStatusLine(FPackage);
   Status.SimpleCaption := FStatusBase;
+end;
+
+function TframeZRWViewer.ForceAlgorithm: string;
+begin
+  if FIsPackage then
+    Result := ZRWForceAlgorithmVersion
+  else
+    Result := '';
+end;
+
+procedure TframeZRWViewer.ShowChannelAxis;
+var
+  Show: Boolean;
+begin
+  Show := FIsPackage and (SeriesChannel.Count > 0);
+  SeriesChannel.Active := Show;
+  Chart.RightAxis.Visible := Show;
+  Chart.RightAxis.Labels := Show;
+  Chart.RightAxis.LabelsFormat.Visible := Show;
+  Chart.RightAxis.Title.Visible := Show;
+  if Show then
+  begin
+    Chart.RightAxis.Title.Caption := FPackage.Channel.Name + ', ' + FPackage.Channel.Units;
+    if SmoothingWindow > 1 then
+      Chart.RightAxis.Title.Caption := Chart.RightAxis.Title.Caption +
+        Format(' (median of %d cycles)', [SmoothingWindow]);
+  end
+  else
+    Chart.RightAxis.Title.Caption := '';
+  if SmoothingWindow > 1 then
+    btnSmoothing.Caption := Format('Median: %d', [SmoothingWindow])
+  else
+    btnSmoothing.Caption := 'Median: off';
+  btnSmoothing.Visible := Show;
+end;
+
+function TframeZRWViewer.SmoothingWindow: Integer;
+var
+  I: Integer;
+begin
+  for I := 0 to pmSmoothing.Items.Count - 1 do
+    if pmSmoothing.Items[I].Checked then
+      Exit(pmSmoothing.Items[I].Tag);
+  Result := 1;
+end;
+
+procedure TframeZRWViewer.FillChannel;
+var
+  Sample: TZRWSample;
+begin
+  SeriesChannel.Clear;
+  for Sample in MovingMedian(FPackage.ChannelCurve, SmoothingWindow).Samples do
+    SeriesChannel.AddXY(Sample.Cycle, Sample.COF);
+end;
+
+procedure TframeZRWViewer.btnSmoothingClick(Sender: TObject);
+var
+  P: TPoint;
+begin
+  P := btnSmoothing.ClientToScreen(Point(0, btnSmoothing.Height));
+  pmSmoothing.Popup(P.X, P.Y);
+end;
+
+procedure TframeZRWViewer.SmoothingItemClick(Sender: TObject);
+begin
+  (Sender as TMenuItem).Checked := True;
+  FillChannel;
+  ShowChannelAxis;
 end;
 
 procedure TframeZRWViewer.LoadFromFile(const FileName: string);
@@ -126,6 +212,9 @@ var
   Sample: TZRWSample;
 begin
   FCurve := Default(TZRWCurve);
+  FPackage := Default(TZRWPackage);
+  FIsPackage := False;
+  SeriesChannel.Clear;
   FContext := Default(TAnalysisContext);
   FAnalysisResolved := False;
   FDetectedFound := False;
@@ -141,7 +230,15 @@ begin
   Series1.BeginUpdate;
   try
     try
-      FCurve := LoadZRWFile(FileName);
+      if DetectZRWContainer(FileName) = zcPackage then
+      begin
+        FPackage := LoadZRWPackage(FileName);
+        FIsPackage := True;
+        FCurve := FPackage.Curve;
+        FillChannel;
+      end
+      else
+        FCurve := LoadZRWFile(FileName);
       for Sample in FCurve.Samples do
         Series1.AddXY(Sample.Cycle, Sample.COF);
       FDetectedFound := DetectPlateau(FCurve, FDetected) = zdrFound;
@@ -149,6 +246,9 @@ begin
       on E: Exception do
       begin
         FCurve := Default(TZRWCurve);
+        FPackage := Default(TZRWPackage);
+        FIsPackage := False;
+        SeriesChannel.Clear;
         FDetectedFound := False;
         FDetected := Default(TZRWInterval);
         FLoadError := E.Message;
@@ -167,7 +267,9 @@ begin
     finally
       SeriesBand.ParentChart := Chart;
       Chart.ExchangeSeries(SeriesBand, Series1);
+      Chart.ExchangeSeries(SeriesChannel, Series1);
     end;
+    ShowChannelAxis;
     Chart.AutoRepaint := True;
     Chart.Repaint;
   end;
@@ -180,7 +282,7 @@ function TframeZRWViewer.Analysis: TZRWAnalysis;
 begin
   if not FAnalysisResolved then
   begin
-    FAnalysis := ResolveZRWAnalysis(FCurve, FContext);
+    FAnalysis := ResolveZRWAnalysis(FCurve, FContext, ZRWKeyCof, ForceAlgorithm);
     FAnalysisResolved := True;
   end;
   Result := FAnalysis;
@@ -601,7 +703,11 @@ function TframeZRWViewer.GetAnalysisSnapshot(const KeyName: string): string;
 begin
   Result := '';
   if SameText(KeyName, ZRWKeyCof) or SameText(KeyName, ZRWKeyCofStd) then
-    Result := Analysis.Snapshot;
+    Result := Analysis.Snapshot
+  else if FIsPackage and (SameText(KeyName, FPackage.Channel.Name) or
+    SameText(KeyName, FPackage.Channel.Name + ' STD')) then
+    Result := ResolveZRWAnalysis(FCurve, FContext, FPackage.Channel.Name,
+      ForceAlgorithm).Snapshot;
 end;
 
 function TframeZRWViewer.GetAnalysisStatus: string;
@@ -717,6 +823,7 @@ var
   KV: TPluginKeyValue;
   V: Double;
   Computed: TZRWAnalysis;
+  ChannelStats: TZRWStats;
   Origin: string;
 
   function ParseWithUnit(const S: string; const DefaultUnits: string;
@@ -801,6 +908,28 @@ begin
       KV.IsKey := False;
       List.Add(KV);
     end;
+    if Computed.Available and FIsPackage and (Length(FPackage.ChannelCurve.Samples) > 0) then
+    begin
+      try
+        ChannelStats := IntervalStats(FPackage.ChannelCurve, Computed.Interval);
+        KV.Units := FPackage.Channel.Units;
+        KV.RecType := prResult;
+        KV.Description := 'Mean ' + FPackage.Channel.Name + ', cycles ' +
+          NumberText(Computed.Interval.StartCycle) + #$2013 +
+          NumberText(Computed.Interval.EndCycle) + ' (' + Origin + ')';
+        KV.Name := FPackage.Channel.Name;
+        KV.Value := ChannelStats.Mean;
+        KV.IsKey := True;
+        List.Add(KV);
+        KV.Name := FPackage.Channel.Name + ' STD';
+        KV.Value := ChannelStats.PopulationStd;
+        KV.IsKey := False;
+        List.Add(KV);
+      except
+        on EZRWFormatError do
+          ;
+      end;
+    end;
     Result := List.ToArray;
   finally
     List.Free;
@@ -820,6 +949,15 @@ begin
     J.AddPair('pause', FCurve.Header.Pause);
     J.AddPair('samplingRate', FCurve.Header.SamplingRate);
     J.AddPair('dataPoints', TJSONNumber.Create(Series1.Count));
+    if FIsPackage then
+    begin
+      J.AddPair('package_status', FPackage.Status);
+      J.AddPair('channel', FPackage.Channel.Name);
+      J.AddPair('channel_units', FPackage.Channel.Units);
+      J.AddPair('instrument', FPackage.Channel.Idn);
+      J.AddPair('channel_readings', TJSONNumber.Create(Length(FPackage.Channel.Value)));
+      J.AddPair('gaps', TJSONNumber.Create(Length(FPackage.Clock.Gaps)));
+    end;
     Result := J.ToJSON;
   finally
     J.Free;

@@ -33,7 +33,7 @@ requires
   vclimg,
   vclwinx,
   RaizeComponentsVcl,
-  TMSVCLPluginFrameworkPkgCoreDXE16,
+  TMSVCLPluginFrameworkPkgCore,
   ELNPluginCore,
   Tee;
 
@@ -42,6 +42,8 @@ contains
   frame_ZRWViewer in 'frame_ZRWViewer.pas' {frameZRWViewer: TFrame},
   unit_ZRWData in 'unit_ZRWData.pas',
   unit_ZRWPlateau in 'unit_ZRWPlateau.pas',
-  unit_ZRWAnalysis in 'unit_ZRWAnalysis.pas';
+  unit_ZRWAnalysis in 'unit_ZRWAnalysis.pas',
+  unit_ZRWForce in 'unit_ZRWForce.pas',
+  unit_ZRWPackage in 'unit_ZRWPackage.pas';
 
 end.

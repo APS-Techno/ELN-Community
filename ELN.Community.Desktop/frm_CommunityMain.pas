@@ -8,7 +8,8 @@ uses
   Vcl.ExtCtrls, Vcl.Menus, Vcl.Dialogs, RzCommon, RzPanel, RzSplit, RzStatus,
   frame_ProjectsPanel, frame_ItemTree, frame_ContentViewer, frame_Dashboard,
   unit_ELNThumbnailList, unit_PreviewMessages, unit_LocalNotebook,
-  unit_NotebookSettings, unit_ELNPluginCore;
+  unit_NotebookSettings, unit_ELNPluginCore, unit_SearchPassages,
+  unit_SemanticSearchApi, unit_SemanticSearchService;
 
 type
   TWorkingFile = record
@@ -87,6 +88,7 @@ type
     miSaveDraft: TMenuItem;
     miReloadDraft: TMenuItem;
     miPreferences: TMenuItem;
+    miSemanticSearch: TMenuItem;
     miHelp: TMenuItem;
     miContents: TMenuItem;
     miShortcuts: TMenuItem;
@@ -94,6 +96,7 @@ type
     StatusBar: TRzStatusBar;
     StatusNotebook: TRzStatusPane;
     StatusFile: TRzStatusPane;
+    StatusVersion: TRzStatusPane;
     spMain: TRzSplitter;
     spCenter: TRzSplitter;
     spRight: TRzSplitter;
@@ -122,6 +125,7 @@ type
     procedure ExitClick(Sender: TObject);
     procedure CommandClick(Sender: TObject);
     procedure PreferencesClick(Sender: TObject);
+    procedure SemanticSearchClick(Sender: TObject);
     procedure pnlWelcomeResize(Sender: TObject);
   private
     FNotebook: TLocalNotebook;
@@ -140,6 +144,15 @@ type
     FEditorCloseEvent: TCloseEvent;
     FEditorCloseAccepted: Boolean;
     FEditorCloseFree: Boolean;
+    FSemanticSearch: TSemanticSearchService;
+    FLocalSearch: ISemanticSearch;
+    FSearchSource: ISearchDocumentSource;
+    FSearchReader: IFileContentReader;
+    FSearchSetupError: string;
+    procedure StartSemanticSearch;
+    procedure ReleaseSemanticSearch;
+    procedure OpenSearch;
+    function SemanticIndexText: string;
     procedure EditorClosing(Sender: TObject; var Action: TCloseAction);
     procedure SetNotebookUI(Opened: Boolean);
     procedure WireCommands;
@@ -173,6 +186,9 @@ type
     procedure WMImageContext(var Msg: TMessage); message WM_ELN_IMAGECONTEXT;
     procedure WMFileSelected(var Msg: TMessage); message WM_ELN_FILESELECTED;
     procedure WMFileChanged(var Msg: TMessage); message WM_ELN_FILECHANGED;
+  public
+    procedure RefreshSemanticIndex;
+    property SemanticSearch: TSemanticSearchService read FSemanticSearch;
   end;
 
 var
@@ -194,7 +210,9 @@ uses
   dlg_PackageImport, dlg_ProtocolReview, dlg_AuditLog, dlg_AuditRuleEditor,
   dlg_AuditReport, dlg_ExperimentTemplate, dlg_RecycleBin, dlg_TagManager,
   dlg_Search, dlg_GoToItem, dlg_UnitConverter, dlg_HelpViewer, dlg_About,
-  frm_Analysis;
+  dlg_SearchSetup, unit_TextEmbedder, unit_SearchArtifacts, unit_SearchDocumentProvider,
+  unit_PdfiumApi, unit_CrossEncoder, unit_MainThreadSearchSource, unit_SearchVisibility,
+  unit_LocalSemanticSearch, unit_SemanticSearchFilter, frm_Analysis;
 
 const
   RecentNotebookLimit = 8;
@@ -241,6 +259,7 @@ var
   I: Integer;
   Key, Value: string;
 begin
+  StatusVersion.Caption := GetExeVersion;
   FFiles := TDictionary<Int64, TWorkingFile>.Create;
   FRecentNotebooks := TStringList.Create;
   ConfigPath := TPath.Combine(GetEnvironmentVariable('LOCALAPPDATA'),
@@ -469,6 +488,7 @@ begin
     if FSettings.ShowDashboard then frmContentViewer.ShowDashboard;
     FSettings.SaveUIString('CommunityMain', 'LastNotebook', FDatabasePath);
     AddRecentNotebook(FDatabasePath);
+    StartSemanticSearch;
   except
     // The caller still owns the notebook if binding fails.
     FNotebook := nil;
@@ -521,8 +541,107 @@ begin
   end;
 end;
 
+procedure TfrmCommunityMain.StartSemanticSearch;
+var
+  Root: string;
+  Reranker: TCrossEncoderFactory;
+begin
+  if (Model = nil) or (FSemanticSearch <> nil) or not SearchArtifactsReady then
+    Exit;
+  FSearchSetupError := '';
+  Root := SearchArtifactRoot;
+  Reranker := nil;
+  if CrossEncoderInstalled(Root) then
+    Reranker := CrossEncoderFactory(Root);
+  try
+    FSearchSource := TMainThreadSearchSource.Create(TNotebookDocumentProvider.Create(Model.Manager));
+    FSearchReader := TStorageFileReader.Create(Model.Storage);
+    FSemanticSearch := TSemanticSearchService.Create(
+      ChangeFileExt(FDatabasePath, '') + '.search.sqlite',
+      E5EmbedderFactory(Root), Reranker, FSearchSource, SearchPdfiumLibraryPath);
+    FLocalSearch := TLocalSemanticSearch.Create(FSemanticSearch,
+      MainThreadFilterResolver(SemanticFilterResolver(Model.Manager)),
+      MainThreadLimitDescriber(ValueLimitDescriber(Model.Manager)));
+    RefreshSemanticIndex;
+  except
+    on E: Exception do
+    begin
+      FSearchSetupError := E.Message;
+      ReleaseSemanticSearch;
+    end;
+  end;
+end;
+
+procedure TfrmCommunityMain.ReleaseSemanticSearch;
+begin
+  TdlgSearch.ReleaseSemantic;
+  FLocalSearch := nil;
+  FreeAndNil(FSemanticSearch);
+  ReleasePdfiumApi;
+  FSearchSource := nil;
+  FSearchReader := nil;
+end;
+
+procedure TfrmCommunityMain.RefreshSemanticIndex;
+begin
+  if (FSemanticSearch = nil) or (FSemanticSearch.Status.State = ssSyncing) then
+    Exit;
+  FSearchSetupError := '';
+  try
+    FSemanticSearch.StartSync(FSearchSource.ReadSnapshot(nil), FSearchReader, nil,
+      procedure(Status: TSemanticSearchStatus)
+      begin
+      end);
+  except
+    on E: Exception do
+      FSearchSetupError := E.Message;
+  end;
+end;
+
+function TfrmCommunityMain.SemanticIndexText: string;
+var
+  Status: TSemanticSearchStatus;
+begin
+  if FSearchSetupError <> '' then
+    Exit('Failed: ' + FSearchSetupError);
+  if FSemanticSearch = nil then
+  begin
+    if Model = nil then
+      Exit('No notebook is open');
+    Exit('Not active');
+  end;
+  Status := FSemanticSearch.Status;
+  case Status.State of
+    ssSyncing:
+      if Status.Phase = spExtracting then
+        Result := Format('Reading files%s %d/%d', [#$2026, Status.FilesDone, Status.FilesTotal])
+      else
+        Result := Format('Indexing %d passages pending', [Status.PendingPassages]);
+    ssFailed: Result := 'Failed: ' + Status.LastError;
+  else
+    Result := Format('%d passages indexed', [Status.IndexedPassages]);
+  end;
+end;
+
+procedure TfrmCommunityMain.SemanticSearchClick(Sender: TObject);
+begin
+  TdlgSearchSetup.Execute(ReleaseSemanticSearch, StartSemanticSearch, SemanticIndexText);
+end;
+
+procedure TfrmCommunityMain.OpenSearch;
+var
+  ProjectIds: TArray<Integer>;
+begin
+  RefreshSemanticIndex;
+  ProjectIds := SearchVisibleProjectIds(Model.Manager, Model.Access, Model.User);
+  TdlgSearch.Execute(NavigateItem, FLocalSearch, ProjectIds);
+end;
+
 procedure TfrmCommunityMain.ReleaseNotebook;
 begin
+  TdlgSearch.CloseInstance;
+  ReleaseSemanticSearch;
+  FSearchSetupError := '';
   frmContentViewer.ResetSession;
   frmDashboard.ClearEntities;
   frmItems.ResetSession;
@@ -1060,7 +1179,7 @@ begin
     16: TedTemplates.ShowManager(HtmlPlugin);
     17: TdlgExperimentTemplate.ManageTemplates;
     18: if TdlgTagManager.ShowTagEditor then frmItems.btnRefreshClick(Self);
-    20: TdlgSearch.Execute(NavigateItem);
+    20: OpenSearch;
     21: TdlgGoToItem.Execute;
     22: begin frmDashboard.LoadData(Model.User.Role); frmContentViewer.ShowDashboard; end;
     23: begin

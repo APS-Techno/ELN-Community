@@ -15,7 +15,7 @@ $StandardPackages = @('rtl370.bpl', 'vcl370.bpl', 'vclimg370.bpl', 'vclwinx370.b
   'vcledge370.bpl', 'xmlrtl370.bpl', 'bindengine370.bpl', 'dbrtl370.bpl', 'vcldb370.bpl',
   'vclactnband370.bpl', 'vclx370.bpl', 'Tee9370.bpl')
 $ComponentPackages = @('RaizeComponentsVcl370.bpl', 'SynEditDR370.bpl',
-  'TMSVCLPluginFrameworkPkgCoreDXE16.bpl', 'TMSVCLPluginFrameworkPkgMgrDXE16.bpl', 'JamShellBrowserRuntime.bpl')
+  'TMSVCLPluginFrameworkPkgCore370.bpl', 'TMSVCLPluginFrameworkPkgMgr370.bpl', 'JamShellBrowserRuntime.bpl')
 $Passed = 0
 $Failed = 0
 function Assert([bool]$Condition, [string]$Message) {
@@ -34,8 +34,9 @@ function Write-FixtureFile([string]$Path, [string]$Content = 'synthetic runtime 
 function New-StageFixture([switch]$WithoutCompiledInput) {
   $root = Join-Path ([IO.Path]::GetTempPath()) ('ELN-Community-Stage-Test-' + [guid]::NewGuid())
   $repo = Join-Path $root 'Community'
-  $destination = Join-Path $repo '_OUT/Installer/Win32/Release/Stage'
+  $destination = Join-Path $repo '_OUT/Installer/Win64/Release/Stage'
   $toolBin = Join-Path $root 'Toolchain/bin'
+  $toolBin64 = Join-Path $root 'Toolchain/bin64'
   $bplRoot = Join-Path $root 'InstalledBpl'
   $runtimeRoot = Join-Path $root 'InstalledRuntime'
   [void][IO.Directory]::CreateDirectory($repo)
@@ -47,6 +48,8 @@ function New-StageFixture([switch]$WithoutCompiledInput) {
     [void][IO.Directory]::CreateDirectory((Split-Path $target -Parent))
     Copy-Item -LiteralPath $source -Destination $target -Recurse
   }
+  [void][IO.Directory]::CreateDirectory((Join-Path $repo 'ELN.Search'))
+  Copy-Item -LiteralPath (Join-Path $SourceRoot 'ELN.Search/search-artifacts.json') -Destination (Join-Path $repo 'ELN.Search/search-artifacts.json')
   foreach ($name in @('LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md')) {
     Copy-Item -LiteralPath (Join-Path $SourceRoot $name) -Destination (Join-Path $repo $name)
   }
@@ -60,18 +63,19 @@ function New-StageFixture([switch]$WithoutCompiledInput) {
     Assert $declaration.Success "Missing fixture package identity: $directory"
     if (-not $WithoutCompiledInput) {
       $relative = if ($directory -like 'Core*') { $declaration.Groups[1].Value + '.bpl' } else { 'Plugins/' + $declaration.Groups[1].Value + '.bpl' }
-      Write-FixtureFile (Join-Path $repo "_OUT/ViewerPackages/Win32/Release/$relative")
+      Write-FixtureFile (Join-Path $repo "_OUT/ViewerPackages/Win64/Release/$relative")
     }
   }
   if (-not $WithoutCompiledInput) {
     foreach ($name in @('ELNCommunity.exe', 'ELNPluginCore.bpl', 'ELNProtocolCore.bpl', 'Icons/ELNIcons.dll')) {
       Write-FixtureFile (Join-Path $repo "_OUT/CommunityDesktop/$name")
     }
-    Write-FixtureFile (Join-Path $repo '_OUT/CommunityMCP/Win32/Release/ELNCommunityMCP.exe')
+    Write-FixtureFile (Join-Path $repo '_OUT/CommunityMCP/Win64/Release/ELNCommunityMCP.exe')
   }
-  foreach ($name in @('rsvars.bat', 'dcc32.exe', 'msbuild.exe', 'cmd.exe') + $StandardPackages) {
+  foreach ($name in @('rsvars.bat', 'dcc32.exe', 'msbuild.exe', 'cmd.exe')) {
     Write-FixtureFile (Join-Path $toolBin $name)
   }
+  foreach ($name in $StandardPackages) { Write-FixtureFile (Join-Path $toolBin64 $name) }
   foreach ($name in $ComponentPackages) { Write-FixtureFile (Join-Path $bplRoot $name) }
   $sqlite = Join-Path $runtimeRoot 'sqlite3.dll'
   $webview = Join-Path $runtimeRoot 'WebView2Loader.dll'
@@ -97,7 +101,7 @@ function New-StageFixture([switch]$WithoutCompiledInput) {
   [pscustomobject]@{
     Root = $root; RepoRoot = $repo; Destination = $destination; SQLiteRuntime = $sqlite
     StageSentinel = $stageSentinel; SourceSentinel = $sourceSentinel
-    Arguments = @{ RepoRoot = $repo; Platform = 'Win32'; Configuration = 'Release'; Destination = $destination
+    Arguments = @{ RepoRoot = $repo; Platform = 'Win64'; Configuration = 'Release'; Destination = $destination
       DependencyConfig = $dependencies; RuntimeConfig = $runtimeConfig }
   }
 }
@@ -219,6 +223,20 @@ Run-TestCase 'DemoReferencesResolve' {
   $pairs = @($links | ForEach-Object { "$($_.Equipment)/$($_.ActionType)" })
   $expected = @('Demo Furnace/Annealing', 'Demo Diffractometer/XRD', 'Demo Balance/Mass', 'Demo Deposition System/Deposition')
   Assert (@(Compare-Object $expected $pairs).Count -eq 0) 'Demo assignments differ from the approved set'
+}
+Run-TestCase 'StageIsWin64WithSearchManifest' {
+  param($f)
+  $arguments = $f.Arguments.Clone()
+  $arguments.Remove('Platform')
+  & $StageScript @arguments
+  $manifest = Join-Path $f.Destination 'Program/search-artifacts.json'
+  Assert (Test-Path -LiteralPath $manifest -PathType Leaf) 'Stage has no search manifest'
+  $expected = (Get-FileHash -LiteralPath (Join-Path $f.RepoRoot 'ELN.Search/search-artifacts.json')).Hash
+  Assert ((Get-FileHash -LiteralPath $manifest).Hash -eq $expected) 'Stage manifest differs from the repository file'
+  foreach ($name in $StandardPackages) {
+    Assert (Test-Path -LiteralPath (Join-Path $f.Destination "Program/$name") -PathType Leaf) "Missing runtime package: $name"
+  }
+  Assert-Throws { & $StageScript @arguments -Platform Win32 } 'Platform'
 }
 Write-Host "$Passed passed; $Failed failed"
 if ($Failed) { exit 1 }

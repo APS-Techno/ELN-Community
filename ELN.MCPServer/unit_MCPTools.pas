@@ -8,7 +8,9 @@ uses
   unit_PluginHost,
   unit_NotebookStorage,
   unit_ProjectAccessPolicy,
-  unit_User;
+  unit_User,
+  unit_SemanticSearchApi,
+  unit_SemanticSearchService;
 
 type
   // Unclassified tools fail closed under a scope; new tools need an explicit classification.
@@ -35,6 +37,12 @@ type
     /// <summary>Optional session attribution id, or zero for a local session.
     /// Recorded on hypotheses and their history.</summary>
     DeviceId: Integer;
+    /// <summary>Semantic search, local or remote, or nil when the host has none.
+    /// Owned by the host.</summary>
+    SemanticSearch: ISemanticSearch;
+    /// <summary>Local index that the tool syncs before a local search, or nil.
+    /// Owned by the host.</summary>
+    SemanticIndex: TSemanticSearchService;
   end;
 
   TToolHandler = reference to function(const Params: TJSONObject;

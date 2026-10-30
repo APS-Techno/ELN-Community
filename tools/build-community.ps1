@@ -2,12 +2,12 @@ param(
   [ValidateSet('StorageTests', 'StorageSmoke', 'NotebookTests', 'GateTests',
     'AuthorizationTests', 'LocalFileTests', 'ScientificTests', 'DesktopRegressionTests',
     'MarkdownEditorAttachmentTests', 'MarkdownLauncherTests', 'ViewerPackages',
-    'CommunityDesktop', 'CommunityMCP')]
+    'CommunityDesktop', 'CommunityMCP', 'SearchTests', 'SearchHarness', 'SearchIndexTests')]
   [string]$Target = 'StorageTests',
   [ValidateSet('Debug', 'Release')]
   [string]$Configuration = 'Debug',
-  [ValidateSet('Win32', 'Win64')]
-  [string]$Platform = 'Win32',
+  [ValidateSet('Win32', 'Win64', 'Linux64')]
+  [string]$Platform = 'Win64',
   [switch]$RunTests,
   [string]$SourceRoot = (Split-Path $PSScriptRoot -Parent),
   [string]$ViewerRoot,
@@ -18,6 +18,11 @@ param(
 $ErrorActionPreference = 'Stop'
 if ($RunTests -and $Target -in @('CommunityDesktop', 'CommunityMCP', 'ViewerPackages')) {
   throw 'RunTests is only supported for test targets; this helper never launches a host.'
+}
+$linux = $Platform -eq 'Linux64'
+$linuxTargets = @('SearchTests', 'SearchIndexTests', 'SearchHarness')
+if ($linux -and $Target -notin $linuxTargets) {
+  throw "Linux64 is supported only for $($linuxTargets -join ', ')."
 }
 $sourceRoot = [IO.Path]::GetFullPath($SourceRoot)
 if (-not $ViewerRoot) { $ViewerRoot = Join-Path $sourceRoot 'ViewerPlugins' }
@@ -42,6 +47,20 @@ foreach ($required in @($rsvarsPath, $msbuildPath, $shellPath, $dcc32Path)) {
     throw "Required configured build tool missing or not absolute: $required"
   }
 }
+if ($linux) {
+  if (-not $dependencies.ContainsKey('LinuxSdkRoot')) { throw 'Dependency configuration key missing: LinuxSdkRoot' }
+  $linuxSdkRoot = [string]$dependencies.LinuxSdkRoot
+  $linuxGccRoot = Join-Path $linuxSdkRoot 'usr\lib\gcc\x86_64-linux-gnu'
+  if ($linuxSdkRoot -notmatch '^(?:[A-Za-z]:[\\/]|\\\\[^\\]+\\[^\\]+)' -or
+      -not (Test-Path -LiteralPath $linuxGccRoot -PathType Container)) {
+    throw "Linux SDK missing or not absolute: $linuxSdkRoot"
+  }
+  $linuxGcc = Get-ChildItem -LiteralPath $linuxGccRoot -Directory |
+    Sort-Object { [int]($_.Name -replace '\D.*$', '') } | Select-Object -Last 1
+  if (-not $linuxGcc) { throw "Linux SDK has no GCC library directory: $linuxGccRoot" }
+  $linuxLibraryPaths = @($linuxGcc.FullName, (Join-Path $linuxSdkRoot 'usr\lib\x86_64-linux-gnu'),
+    (Join-Path $linuxSdkRoot 'lib\x86_64-linux-gnu'), (Join-Path $linuxSdkRoot 'lib64'))
+}
 # Resolve standard RTL/VCL paths before MSBuild evaluates command-line properties.
 # rsvars does not supply BDSLIB and clears PLATFORM.
 $studioRoot = Split-Path (Split-Path $dcc32Path -Parent) -Parent
@@ -52,7 +71,13 @@ foreach ($required in @($delphiLibraryPath, $delphiDebugDcuPath)) {
     throw "Standard Delphi library directory missing: $required"
   }
 }
-$externalPaths = @($dependencies.ExternalUnitPaths | ForEach-Object {
+$platformPaths = @()
+if ($dependencies.ContainsKey('PlatformExternalUnitPaths') -and
+    $dependencies.PlatformExternalUnitPaths.ContainsKey($Platform)) {
+  $platformPaths = @($dependencies.PlatformExternalUnitPaths[$Platform])
+}
+$baseExternalPaths = if ($linux) { @() } else { @($dependencies.ExternalUnitPaths) }
+$externalPaths = @($baseExternalPaths + $platformPaths | ForEach-Object {
   ([string]$_).Replace('{Platform}', $Platform).Replace('{Configuration}', $Configuration)
 })
 foreach ($dependency in $externalPaths) {
@@ -61,7 +86,7 @@ foreach ($dependency in $externalPaths) {
     throw "Configured external dependency missing or not absolute: $dependency"
   }
 }
-if ($Target -notin @('StorageTests', 'StorageSmoke', 'MarkdownEditorAttachmentTests')) {
+if ($Target -notin @('StorageTests', 'StorageSmoke', 'MarkdownEditorAttachmentTests', 'SearchTests')) {
   foreach ($product in @('tms.biz.aurelius', 'tms.biz.bcl')) {
     $dependency = "$tmsRoot\$product\packages\d13\$Platform\$Configuration"
     if ($dependency -notmatch '^(?:[A-Za-z]:[\\/]|\\\\[^\\]+\\[^\\]+)' -or
@@ -108,6 +133,9 @@ $sourceName = switch ($Target) {
   'DesktopRegressionTests' { 'DesktopRegressionTests.dpr' }
   'MarkdownEditorAttachmentTests' { 'test_MarkdownEditorAttachments.dpr' }
   'MarkdownLauncherTests' { 'MarkdownLauncherTests.dpr' }
+  'SearchTests' { 'SearchTests.dpr' }
+  'SearchIndexTests' { 'SearchIndexTests.dpr' }
+  'SearchHarness' { 'SearchHarness.dpr' }
   'CommunityDesktop' { 'ELNCommunity.dpr' }
   'CommunityMCP' { 'ELNCommunityMCP.dpr' }
 }
@@ -121,7 +149,7 @@ $unitPaths = @(
   $sourceRoot, "$sourceRoot\ELN.Model", "$sourceRoot\ELN.Domain",
   "$sourceRoot\ELN.Community", "$sourceRoot\ELN.DB",
   "$sourceRoot\ELN.Model\ViewModels", "$sourceRoot\ELN.Community.Tests",
-  "$sourceRoot\ELN.Desktop\Units"
+  "$sourceRoot\ELN.Desktop\Units", "$sourceRoot\ELN.Search"
 )
 if ($Target -in @('DesktopRegressionTests', 'MarkdownLauncherTests')) {
   $unitPaths += @("$viewerRoot\Viewer.ColumnarData", "$viewerRoot\Viewer.Markdown",
@@ -233,11 +261,16 @@ $arguments = @(
 if ($Target -in @('DesktopRegressionTests', 'MarkdownLauncherTests')) {
   $arguments += '"/p:DCC_Namespace=Winapi%3BSystem.Win%3BSystem%3BXml%3BData%3BVcl%3BVcl.Imaging%3BVcl.Samples%3BVcl.Shell"'
 }
+if ($linux) {
+  # Local link against the SDK sysroot: no PAServer profile and no IDE-registered SDK.
+  $arguments += @('/p:Profile=', '/p:PlatformSDK=', "`"/p:DCC_SysLibRoot=$linuxSdkRoot`"",
+    "`"/p:DCC_LibraryPath=$($linuxLibraryPaths -join '%3B')`"")
+}
 if ($viewerTarget) {
   # upfManager belongs to the externally installed manager package, not Core.
   $packages = @(
-    'rtl', 'vcl', 'vcledge', 'TMSVCLPluginFrameworkPkgCoreDXE16',
-    'TMSVCLPluginFrameworkPkgMgrDXE16', 'ELNPluginCore', 'ELNProtocolCore',
+    'rtl', 'vcl', 'vcledge', 'TMSVCLPluginFrameworkPkgCore',
+    'TMSVCLPluginFrameworkPkgMgr', 'ELNPluginCore', 'ELNProtocolCore',
     'vclimg', 'vclwinx', 'Tee', 'RaizeComponentsVcl'
   ) -join '%3B'
   $arguments += "`"/p:DCC_UsePackage=$packages`""
@@ -252,6 +285,7 @@ if ($desktopTarget) {
   if ($LASTEXITCODE -ne 0) { throw "Icon resource build failed with exit code $LASTEXITCODE" }
   $catalogSource = Join-Path $sourceRoot 'ELN.Desktop\Assets\Runtime\CSV'
   Copy-Item -LiteralPath $catalogSource -Destination $outputRoot -Recurse -Force
+  Copy-Item -LiteralPath (Join-Path $sourceRoot 'ELN.Search\search-artifacts.json') -Destination $outputRoot -Force
   $helpSource = Join-Path $sourceRoot 'ELN.Desktop\Assets\Runtime\Help'
   $helpTarget = Join-Path $outputRoot 'Help'
   if (Test-Path -LiteralPath $helpTarget) { Remove-Item -LiteralPath $helpTarget -Recurse -Force }
@@ -259,11 +293,19 @@ if ($desktopTarget) {
   & (Join-Path $PSScriptRoot 'Build-HelpIndex.ps1') -HelpRoot $helpTarget
   Copy-Item -LiteralPath $webView2Loader -Destination $outputRoot -Force
 }
+if ($Target -eq 'CommunityMCP') {
+  Copy-Item -LiteralPath (Join-Path $sourceRoot 'ELN.Search\search-artifacts.json') -Destination $outputRoot -Force
+}
 if ($RunTests) {
-  $executable = Join-Path $outputRoot ([IO.Path]::ChangeExtension($sourceName, '.exe'))
+  $executableName = if ($linux) { [IO.Path]::GetFileNameWithoutExtension($sourceName) }
+    else { [IO.Path]::ChangeExtension($sourceName, '.exe') }
+  $executable = Join-Path $outputRoot $executableName
   if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
     throw "Expected test executable missing: $executable"
   }
-  & $executable
+  if ($linux) {
+    & (Join-Path $PSScriptRoot 'run-linux-tests.ps1') -Executable $executable -PathEnvironment @{ ELN_SOURCE_ROOT = $sourceRoot }
+  }
+  else { & $executable }
   if ($LASTEXITCODE -ne 0) { throw "Tests failed with exit code $LASTEXITCODE" }
 }

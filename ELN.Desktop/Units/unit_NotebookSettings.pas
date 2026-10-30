@@ -164,6 +164,32 @@ begin
     FRegistry.WriteString(Name, Val);
 end;
 
+procedure EnsureUnicodeIniFile(const FileName: string);
+var
+  Bytes: TBytes;
+  Encoding: TEncoding;
+  Lines: TStringList;
+begin
+  if FileExists(FileName) then
+  begin
+    Bytes := TFile.ReadAllBytes(FileName);
+    if (Length(Bytes) >= 2) and (Bytes[0] = $FF) and (Bytes[1] = $FE) then
+      Exit;
+  end;
+  Lines := TStringList.Create;
+  try
+    if FileExists(FileName) then
+    begin
+      Encoding := nil;
+      TEncoding.GetBufferEncoding(Bytes, Encoding, TEncoding.ANSI);
+      Lines.LoadFromFile(FileName, Encoding);
+    end;
+    Lines.SaveToFile(FileName, TEncoding.Unicode);
+  finally
+    Lines.Free;
+  end;
+end;
+
 constructor TIniWorker.Create(const FileName, Section: string);
 var
   Directory: string;
@@ -172,6 +198,7 @@ begin
   Directory := ExtractFileDir(FileName);
   if (Directory <> '') and not ForceDirectories(Directory) then
     raise EInOutError.Create('Could not create notebook preferences directory');
+  EnsureUnicodeIniFile(FileName);
   FIni := TIniFile.Create(FileName);
   FSection := Section;
 end;

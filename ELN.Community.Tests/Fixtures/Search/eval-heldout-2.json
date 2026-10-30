@@ -1,0 +1,513 @@
+{
+ "description": "Synthetic held-out queries for eval-corpus.json, written for search stage 6. Not to be used for tuning. No grade 2 item and no information need in common with eval-dev.json or eval-heldout.json.",
+ "queries": [
+  {
+   "id": "k01",
+   "kind": "exact",
+   "text": "pipeline_readme.txt",
+   "relevant": [
+    {
+     "item": 125,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k02",
+   "kind": "exact",
+   "text": "rate_drift_week12.csv",
+   "relevant": [
+    {
+     "item": 21,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k03",
+   "kind": "exact",
+   "text": "sample_inventory.csv",
+   "relevant": [
+    {
+     "item": 102,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k04",
+   "kind": "exact",
+   "text": "MS-0440",
+   "relevant": [
+    {
+     "item": 25,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k05",
+   "kind": "paraphrase",
+   "text": "safe way to transport liquefied cryogenic gas in the lab",
+   "relevant": [
+    {
+     "item": 100,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k06",
+   "kind": "paraphrase",
+   "text": "how clean must the air of the work area be",
+   "relevant": [
+    {
+     "item": 113,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k07",
+   "kind": "paraphrase",
+   "text": "does a cooled holder reduce the mixing at the interfaces",
+   "relevant": [
+    {
+     "item": 11,
+     "grade": 2
+    },
+    {
+     "item": 87,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "k08",
+   "kind": "paraphrase",
+   "text": "in what order should the parameters of a many-layer stack be fitted",
+   "relevant": [
+    {
+     "item": 32,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k09",
+   "kind": "paraphrase",
+   "text": "intensity errors at grazing angles when the sample is shorter than the beam",
+   "relevant": [
+    {
+     "item": 56,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k10",
+   "kind": "paraphrase",
+   "text": "which ratio of the absorber to the period gives the highest reflectivity at 13.5 nm",
+   "relevant": [
+    {
+     "item": 19,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k11",
+   "kind": "russian",
+   "text": "как готовили тонкие срезы для электронного микроскопа",
+   "relevant": [
+    {
+     "item": 44,
+     "grade": 2
+    },
+    {
+     "item": 43,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "k12",
+   "kind": "russian",
+   "text": "в какой версии конвейера нормировка была неверной",
+   "relevant": [
+    {
+     "item": 126,
+     "grade": 2
+    },
+    {
+     "item": 125,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "k13",
+   "kind": "russian",
+   "text": "настройка дифракционной решётки и разрешение монохроматора",
+   "relevant": [
+    {
+     "item": 123,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k14",
+   "kind": "russian",
+   "text": "из-за чего потеряли время на синхротроне",
+   "relevant": [
+    {
+     "item": 119,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k15",
+   "kind": "cross-language",
+   "text": "silicon nitride barrier made by reactive sputtering in nitrogen",
+   "relevant": [
+    {
+     "item": 12,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k16",
+   "kind": "cross-language",
+   "text": "correlation length of the roughness from diffuse scattering maps",
+   "relevant": [
+    {
+     "item": 38,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k17",
+   "kind": "cross-language",
+   "text": "rate calibration with a quartz microbalance compared with reflectometry thickness",
+   "relevant": [
+    {
+     "item": 7,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k18",
+   "kind": "cross-language",
+   "text": "calculated thickness profiles of a broadband mirror, not yet verified by experiment",
+   "relevant": [
+    {
+     "item": 23,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k19",
+   "kind": "cross-language",
+   "text": "рентгенофлуоресцентный контроль состава слоёв",
+   "relevant": [
+    {
+     "item": 47,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k20",
+   "kind": "negated",
+   "text": "composition methods that cannot resolve single layers",
+   "relevant": [
+    {
+     "item": 78,
+     "grade": 2
+    },
+    {
+     "item": 47,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k21",
+   "kind": "negated",
+   "text": "samples cut for neutron measurements where reflectometry was not planned",
+   "relevant": [
+    {
+     "item": 112,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k22",
+   "kind": "negated",
+   "text": "a power cut that did not damage the vacuum system",
+   "relevant": [
+    {
+     "item": 115,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k23",
+   "kind": "status",
+   "text": "tests that are prepared but have not been started",
+   "relevant": [
+    {
+     "item": 25,
+     "grade": 2
+    },
+    {
+     "item": 48,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "k24",
+   "kind": "status",
+   "text": "have the students completed the training",
+   "relevant": [
+    {
+     "item": 135,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k25",
+   "kind": "status",
+   "text": "is the poster finished",
+   "relevant": [
+    {
+     "item": 138,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k26",
+   "kind": "hard-negative",
+   "text": "bacterial growth curve in nutrient broth",
+   "relevant": [],
+   "irrelevant": [
+    87,
+    62,
+    117
+   ]
+  },
+  {
+   "id": "k27",
+   "kind": "hard-negative",
+   "text": "wedding venue budget and catering",
+   "relevant": [],
+   "irrelevant": [
+    143,
+    134,
+    149
+   ]
+  },
+  {
+   "id": "k28",
+   "kind": "hard-negative",
+   "text": "airline flight delay compensation rules",
+   "relevant": [],
+   "irrelevant": [
+    101,
+    92,
+    142
+   ]
+  },
+  {
+   "id": "k29",
+   "kind": "short",
+   "text": "py",
+   "relevant": [
+    {
+     "item": 45,
+     "grade": 2
+    },
+    {
+     "item": 125,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "k30",
+   "kind": "mixed",
+   "text": "Mo5Si3 papers time",
+   "relevant": [
+    {
+     "item": 87,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k31",
+   "kind": "mixed",
+   "text": "nightly backup raw figures",
+   "relevant": [
+    {
+     "item": 141,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k32",
+   "kind": "context",
+   "text": "analysis after annealing in the W/B4C stacks folder",
+   "relevant": [
+    {
+     "item": 76,
+     "grade": 2
+    },
+    {
+     "item": 66,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "k33",
+   "kind": "context",
+   "text": "analysis after annealing in the Mo/Si stacks folder",
+   "relevant": [
+    {
+     "item": 78,
+     "grade": 2
+    },
+    {
+     "item": 60,
+     "grade": 1
+    },
+    {
+     "item": 61,
+     "grade": 1
+    },
+    {
+     "item": 81,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "k34",
+   "kind": "context",
+   "text": "measurements on substrates in the stock and purchases folder",
+   "relevant": [
+    {
+     "item": 91,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k35",
+   "kind": "context",
+   "text": "interdiffusion in the models and summaries folder",
+   "relevant": [
+    {
+     "item": 77,
+     "grade": 2
+    },
+    {
+     "item": 87,
+     "grade": 1
+    },
+    {
+     "item": 84,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "k36",
+   "kind": "context",
+   "text": "cathode in the vacuum system folder",
+   "relevant": [
+    {
+     "item": 110,
+     "grade": 2
+    },
+    {
+     "item": 99,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "k37",
+   "kind": "context",
+   "text": "preparation before use in the targets and cathodes folder",
+   "relevant": [
+    {
+     "item": 27,
+     "grade": 2
+    },
+    {
+     "item": 13,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "k38",
+   "kind": "context",
+   "text": "thermal stress on glass in the software and modelling folder",
+   "relevant": [
+    {
+     "item": 146,
+     "grade": 2
+    }
+   ]
+  },
+  {
+   "id": "k39",
+   "kind": "context",
+   "text": "instruction kept in the publications and data rules folder",
+   "relevant": [
+    {
+     "item": 145,
+     "grade": 2
+    },
+    {
+     "item": 142,
+     "grade": 1
+    },
+    {
+     "item": 141,
+     "grade": 1
+    }
+   ]
+  },
+  {
+   "id": "k40",
+   "kind": "context",
+   "text": "contamination found in the vacuum system folder",
+   "relevant": [
+    {
+     "item": 96,
+     "grade": 2
+    },
+    {
+     "item": 97,
+     "grade": 1
+    }
+   ]
+  }
+ ]
+}

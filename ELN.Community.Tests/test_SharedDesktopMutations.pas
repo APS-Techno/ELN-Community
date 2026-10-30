@@ -236,11 +236,11 @@ begin
     Draft.ProtocolType := ptNote;
     Draft.FormData := 'Do not persist';
     Assert.IsFalse(FVM.AddNote(Draft, FItem));
-    Assert.AreEqual(0, FItem.Entries.Count);
+    Assert.AreEqual<NativeInt>(0, FItem.Entries.Count);
     Model.Manager.Flush;
     Fresh := TObjectManager.Create(Model.Connection);
     try
-      Assert.AreEqual(0, Fresh.Find<TItem>(FItem.Id).Entries.Count);
+      Assert.AreEqual<NativeInt>(0, Fresh.Find<TItem>(FItem.Id).Entries.Count);
     finally
       Fresh.Free;
     end;
@@ -289,11 +289,11 @@ begin
     Draft.ProtocolType := ptExperiment;
     Draft.FormData := '{"result":42}';
     Assert.IsFalse(FVM.AddProtocol(Draft, FItem));
-    Assert.AreEqual(0, FItem.Entries.Count);
+    Assert.AreEqual<NativeInt>(0, FItem.Entries.Count);
     Model.Manager.Flush;
     Fresh := TObjectManager.Create(Model.Connection);
     try
-      Assert.AreEqual(0, Fresh.Find<TItem>(FItem.Id).Entries.Count);
+      Assert.AreEqual<NativeInt>(0, Fresh.Find<TItem>(FItem.Id).Entries.Count);
     finally
       Fresh.Free;
     end;
@@ -324,7 +324,7 @@ begin
     Before := TValueFields.Read(VM.Item.Values[0]);
     VM.Item.Values[0].Value := 310;
     VM.ValueEdited(VM.Item.Values[0], Before);
-    Assert.AreEqual(1, Length(VM.ValueRows));
+    Assert.AreEqual<NativeInt>(1, Length(VM.ValueRows));
     Assert.AreEqual('T', VM.ValueRows[0].Quantity);
     Assert.AreEqual('Condition', VM.ValueRows[0].Kind);
     Assert.AreEqual('draft', VM.ValueRows[0].Note);
@@ -335,7 +335,7 @@ begin
     Assert.AreEqual('Custom action', Target.Title);
     Assert.AreEqual('Keep description', Target.Description);
     Assert.AreEqual('{"operator":"Synthetic"}', Target.Properties);
-    Assert.AreEqual(1, Target.Values.Count);
+    Assert.AreEqual<NativeInt>(1, Target.Values.Count);
     Assert.AreEqual<Double>(310.0, Target.Values[0].Value);
     Assert.IsTrue(Target.Values[0].Item = Target);
   finally
@@ -437,7 +437,7 @@ begin
       else if (Form.Components[I] is TButton) and
         (TButton(Form.Components[I]).Caption = 'OK') then
         Ok := TButton(Form.Components[I]);
-    Assert.AreEqual(3, Length(Edits));
+    Assert.AreEqual<NativeInt>(3, Length(Edits));
     Assert.IsNotNull(Ok);
     Edits[0].Text := 'Synthetic model';
     Edits[2].Text := 'Synthetic lab';
@@ -583,7 +583,7 @@ begin
     FVM.LoadItemData;
     Rows := FVM.Items;
     try
-      Assert.AreEqual(2, Rows.Count,
+      Assert.AreEqual<NativeInt>(2, Rows.Count,
         'Project root must include both canonical and legacy root rows');
     finally
       Rows.Free;

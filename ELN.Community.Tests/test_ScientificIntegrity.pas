@@ -490,9 +490,9 @@ begin
       '{"folder":{"title":"Wiki","children":[{"folder":{"title":"Goals",'+
       '"children":[{"item":{"title":"Readme"}}]}}]}}', FNotebook.Principal.Id);
     Project := FNotebook.Manager.Find<TProject>(FProjectId);
-    Assert.AreEqual(0, Project.Folders.Count, 'Preload the collection used by the tree');
+    Assert.AreEqual<NativeInt>(0, Project.Folders.Count, 'Preload the collection used by the tree');
     Created := Templates.ApplyTemplate(Template.Id, FProjectId, 0, FNotebook.Principal.Id);
-    Assert.AreEqual(2, Project.Folders.Count,
+    Assert.AreEqual<NativeInt>(2, Project.Folders.Count,
       'The already-loaded host project must expose committed template folders');
     Assert.IsNotNull(Project.GetFolder(Created.FolderID));
     Assert.AreEqual('Goals', Project.GetFolder(Created.FolderID).Title);
@@ -521,13 +521,13 @@ begin
       FNotebook.Principal.Id);
     DraftItem := NewItem;
     Project := FNotebook.Manager.Find<TProject>(FProjectId);
-    Assert.AreEqual(1, Project.Folders.Count);
+    Assert.AreEqual<NativeInt>(1, Project.Folders.Count);
     ExistingFolder := Project.Folders[0];
     Project.Description := 'Unflushed project draft';
     ExistingFolder.Description := 'Unflushed folder draft';
     DraftItem.Description := 'Unflushed item draft';
     Templates.ApplyTemplate(Template.Id, FProjectId, 0, FNotebook.Principal.Id);
-    Assert.AreEqual(2, Project.Folders.Count);
+    Assert.AreEqual<NativeInt>(2, Project.Folders.Count);
     Assert.AreEqual('Unflushed project draft', Project.Description);
     Assert.AreEqual('Unflushed folder draft', ExistingFolder.Description);
     Assert.AreEqual('Unflushed item draft', DraftItem.Description);
@@ -587,11 +587,11 @@ begin
     Observer := TObjectManager.Create(FNotebook.Connection);
     try
       Items := Observer.Find<TItem>.List;
-      try Assert.AreEqual(0, Items.Count); finally Items.Free; end;
+      try Assert.AreEqual<NativeInt>(0, Items.Count); finally Items.Free; end;
       Folders := Observer.Find<TFolder>.List;
-      try Assert.AreEqual(0, Folders.Count); finally Folders.Free; end;
+      try Assert.AreEqual<NativeInt>(0, Folders.Count); finally Folders.Free; end;
       Audits := Observer.Find<TAuditLog>.List;
-      try Assert.AreEqual(AuditCount, Audits.Count); finally Audits.Free; end;
+      try Assert.AreEqual<NativeInt>(AuditCount, Audits.Count); finally Audits.Free; end;
     finally
       Observer.Free;
     end;
@@ -649,7 +649,7 @@ begin
     Assert.IsNotNull(Applied);
     Children := FNotebook.Manager.Find<TItem>.List;
     try
-      Assert.AreEqual(4, Children.Count);
+      Assert.AreEqual<NativeInt>(4, Children.Count);
       for Applied in Children do
       begin
         Assert.IsNotNull(Applied.ActionType);
@@ -710,7 +710,7 @@ begin
     begin
       Ids := Signatures.GetSignedItemIds(FProjectId, RootContext);
       try
-        Assert.AreEqual(2, Ids.Count);
+        Assert.AreEqual<NativeInt>(2, Ids.Count);
         Assert.IsTrue(Ids.Contains(LegacyRoot.Id));
         Assert.IsTrue(Ids.Contains(CanonicalRoot.Id));
       finally
@@ -719,7 +719,7 @@ begin
     end;
     Ids := Signatures.GetSignedItemIds(FProjectId, 7);
     try
-      Assert.AreEqual(1, Ids.Count);
+      Assert.AreEqual<NativeInt>(1, Ids.Count);
       Assert.IsTrue(Ids.Contains(Nested.Id));
     finally
       Ids.Free;
@@ -768,7 +768,7 @@ begin
     Assert.AreEqual(0, Created.FolderID);
     Children := FNotebook.Manager.Find<TItem>.Where(Linq['ParentID'] = Created.Id).List;
     try
-      Assert.AreEqual(1, Children.Count);
+      Assert.AreEqual<NativeInt>(1, Children.Count);
       Assert.AreEqual(0, Children[0].FolderID);
     finally
       Children.Free;
@@ -795,7 +795,7 @@ begin
     Assert.IsTrue(Outcome.Success, Outcome.ErrorMessage);
     Items := FNotebook.Manager.Find<TItem>.List;
     try
-      Assert.AreEqual(1, Items.Count);
+      Assert.AreEqual<NativeInt>(1, Items.Count);
       Assert.AreEqual(0, Items[0].FolderID);
     finally
       Items.Free;

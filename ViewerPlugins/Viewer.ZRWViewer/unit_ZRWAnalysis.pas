@@ -10,6 +10,7 @@ const
   ZRWReaderVersion = '2';
   ZRWAlgorithmVersion = '3';
   ZRWKeyCof = 'COF';
+  ZRWForceAlgorithmVersion = '1';
   ZRWKeyCofStd = 'COF STD';
 
 type
@@ -22,8 +23,8 @@ type
     Snapshot: string;
   end;
 
-function ResolveZRWAnalysis(const Curve: TZRWCurve;
-  const Context: TAnalysisContext): TZRWAnalysis;
+function ResolveZRWAnalysis(const Curve: TZRWCurve; const Context: TAnalysisContext;
+  const KeyName: string = ZRWKeyCof; const ForceAlgorithm: string = ''): TZRWAnalysis;
 
 implementation
 
@@ -38,8 +39,8 @@ type
   end;
 
 function BuildSnapshot(const Context: TAnalysisContext; Mode: TZRWSelectionMode;
-  const Interval: TZRWInterval; Count: Integer;
-  const Shared: TSharedOrigin): string;
+  const Interval: TZRWInterval; Count: Integer; const Shared: TSharedOrigin;
+  const KeyName, ForceAlgorithm: string): string;
 var
   Obj: TJSONObject;
 begin
@@ -49,7 +50,9 @@ begin
     Obj.AddPair('reader_id', ZRWReaderId);
     Obj.AddPair('reader_version', ZRWReaderVersion);
     Obj.AddPair('algorithm_version', ZRWAlgorithmVersion);
-    Obj.AddPair('key_name', ZRWKeyCof);
+    Obj.AddPair('key_name', KeyName);
+    if ForceAlgorithm <> '' then
+      Obj.AddPair('force_algorithm', ForceAlgorithm);
     Obj.AddPair('file_id', TJSONNumber.Create(Context.FileId));
     Obj.AddPair('file_hash', Context.FileHash);
     Obj.AddPair('mode', SelectionModeName(Mode));
@@ -143,8 +146,8 @@ begin
   end;
 end;
 
-function ResolveZRWAnalysis(const Curve: TZRWCurve;
-  const Context: TAnalysisContext): TZRWAnalysis;
+function ResolveZRWAnalysis(const Curve: TZRWCurve; const Context: TAnalysisContext;
+  const KeyName: string; const ForceAlgorithm: string): TZRWAnalysis;
 var
   Selection: TZRWSelection;
   Shared: TSharedOrigin;
@@ -197,7 +200,7 @@ begin
     end;
   end;
   Result.Snapshot := BuildSnapshot(Context, Result.Mode, Result.Interval,
-    Result.Stats.Count, Shared);
+    Result.Stats.Count, Shared, KeyName, ForceAlgorithm);
   Result.Available := True;
 end;
 

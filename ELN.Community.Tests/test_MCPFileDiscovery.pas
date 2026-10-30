@@ -279,7 +279,7 @@ begin
   Response := CallSearch('DEPO.JSON', FProject.Id);
   try
     Rows := Response.GetValue<TJSONArray>('results');
-    Assert.AreEqual(2, Rows.Count);
+    Assert.AreEqual<NativeInt>(2, Rows.Count);
     FirstSeen := False;
     SecondSeen := False;
     for Row in Rows do
@@ -334,7 +334,7 @@ begin
   Response := CallSearch('run_two depo.json', FProject.Id);
   try
     Rows := Response.GetValue<TJSONArray>('results');
-    Assert.AreEqual(1, Rows.Count);
+    Assert.AreEqual<NativeInt>(1, Rows.Count);
     Assert.AreEqual('Item', Rows.Items[0].GetValue<string>('kind'));
     Assert.IsNull(Rows.Items[0].FindValue('file_id'));
   finally
@@ -370,7 +370,7 @@ begin
     Response := CallSearch('[9007199254740993]run_one.depo.json', FProject.Id);
     try
       Rows := Response.GetValue<TJSONArray>('results');
-      Assert.AreEqual(1, Rows.Count);
+      Assert.AreEqual<NativeInt>(1, Rows.Count);
       Assert.AreEqual(FileId, Rows.Items[0].GetValue<Int64>('file_id'));
       Assert.AreEqual('[9007199254740993]run_one.depo.json',
         Rows.Items[0].GetValue<string>('full_name'));
@@ -460,7 +460,7 @@ begin
     Response := CallSearch(Query, FProject.Id);
     try
       Rows := Response.GetValue<TJSONArray>('results');
-      Assert.AreEqual(1, Rows.Count);
+      Assert.AreEqual<NativeInt>(1, Rows.Count);
       Assert.AreEqual(FileRow.Id, Rows.Items[0].GetValue<Int64>('file_id'));
     finally
       Response.Free;

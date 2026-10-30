@@ -49,13 +49,13 @@ begin
           Data.Authors, Data.History, Data.Items, Data.ProjectGroups);
         try
           Rows := VM.GetProjects(Foreign.Id);
-          try Assert.AreEqual(0, Rows.Count, 'Selecting an owner must not grant its authority');
+          try Assert.AreEqual<NativeInt>(0, Rows.Count, 'Selecting an owner must not grant its authority');
           finally Rows.Free; end;
           Assert.AreEqual(PrincipalId, Data.Projects.AssignedUserID);
           Assert.AreEqual(PrincipalId, Data.Authors.CurrentUser.Id);
           Rows := VM.GetProjects(PrincipalId);
           try
-            Assert.AreEqual(1, Rows.Count);
+            Assert.AreEqual<NativeInt>(1, Rows.Count);
             Assert.AreEqual(OwnProject.Id, Rows[0].Id);
           finally Rows.Free; end;
           Assert.AreEqual(PrincipalId, Data.Projects.AssignedUserID);

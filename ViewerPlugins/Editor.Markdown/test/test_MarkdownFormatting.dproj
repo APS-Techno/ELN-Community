@@ -2,7 +2,7 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Config Condition="'$(Config)'==''">Debug</Config>
-    <Platform Condition="'$(Platform)'==''">Win32</Platform>
+    <Platform Condition="'$(Platform)'==''">Win64</Platform>
     <ELN_ProductRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\..'))</ELN_ProductRoot>
     <ELN_OutputRoot>$(ELN_ProductRoot)\_OUT\ViewerTests\test_MarkdownFormatting\$(Platform)\$(Config)</ELN_OutputRoot>
     <ELN_TmsRoot Condition="'$(ELN_TmsRoot)'==''">$(ELN_TMS_ROOT)</ELN_TmsRoot>
@@ -26,7 +26,7 @@
     <AppType>Console</AppType>
     <FrameworkType>None</FrameworkType>
     <ProjectVersion>20.3</ProjectVersion>
-    <TargetedPlatforms>1</TargetedPlatforms>
+    <TargetedPlatforms>3</TargetedPlatforms>
     <DCC_DependencyCheckOutputName>test_MarkdownFormatting.exe</DCC_DependencyCheckOutputName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Config)'=='Debug'">

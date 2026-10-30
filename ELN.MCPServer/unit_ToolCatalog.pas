@@ -22,7 +22,8 @@ uses
   unit_ToolsColumnar,
   unit_ToolsTags,
   unit_ToolsHypotheses,
-  unit_ToolsValueChecks;
+  unit_ToolsValueChecks,
+  unit_ToolsValueEdit;
 
 procedure RegisterAllTools(Registry: TToolRegistry);
 begin
@@ -31,6 +32,7 @@ begin
   RegisterFileTools(Registry);
   RegisterMetadataTools(Registry);
   RegisterWriteTools(Registry);
+  RegisterValueEditTools(Registry);
   RegisterWikiTools(Registry);
   RegisterColumnarTools(Registry);
   RegisterTagTools(Registry);

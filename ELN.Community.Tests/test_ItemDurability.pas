@@ -241,7 +241,7 @@ begin
   FRootItem.Title := 'Renamed';
   Assert.IsTrue(FItems.UpdateItemDurable(FRootItem, FNotebook.Principal.Id, FRelocator));
   Assert.IsFalse(FNotebook.Storage.Exists(OldPath));
-  Assert.AreEqual(3, Length(FNotebook.Storage.ReadBytes(NewPath)));
+  Assert.AreEqual<NativeInt>(3, Length(FNotebook.Storage.ReadBytes(NewPath)));
   Fresh := TObjectManager.Create(FNotebook.Connection);
   try
     Assert.AreEqual('Renamed', Fresh.Find<TItem>(FRootItem.Id).Title);
@@ -370,7 +370,7 @@ begin
   Assert.IsTrue(FProjects.MoveFolder(Folder, FSource.Id, FDestination.Id, 0,
     FNotebook.Principal.Id, FRelocator));
   Assert.IsFalse(FNotebook.Storage.Exists(OldPath));
-  Assert.AreEqual(3, Length(FNotebook.Storage.ReadBytes(NewPath)));
+  Assert.AreEqual<NativeInt>(3, Length(FNotebook.Storage.ReadBytes(NewPath)));
   Fresh := TObjectManager.Create(FNotebook.Connection);
   try
     Assert.AreEqual(FDestination.Id, Fresh.Find<TItem>(FChild.Id).ProjectID);
@@ -546,7 +546,7 @@ begin
     FItems.AssignProject(FSource.Id, RootId);
     Items := FItems.List;
     try
-      Assert.AreEqual(2, Items.Count);
+      Assert.AreEqual<NativeInt>(2, Items.Count);
       Assert.IsTrue(Items.Contains(FRootItem), 'Legacy root item must remain visible');
       Assert.IsTrue(Items.Contains(FChild), 'Canonical root item must remain visible');
       Assert.IsFalse(Items.Contains(FDraft), 'Positive folder items must not leak into root');
@@ -557,7 +557,7 @@ begin
   FItems.AssignProject(FSource.Id, Folder.Id);
   Items := FItems.List;
   try
-    Assert.AreEqual(1, Items.Count);
+    Assert.AreEqual<NativeInt>(1, Items.Count);
     Assert.IsTrue(Items.Contains(FDraft));
   finally
     Items.Free;
@@ -597,7 +597,7 @@ begin
   Assert.IsTrue(FItems.MoveProc(FRootItem, FDestination.Id, -1,
     FNotebook.Principal.Id, FRelocator));
   Assert.IsFalse(FNotebook.Storage.Exists(OldPath));
-  Assert.AreEqual(3, Length(FNotebook.Storage.ReadBytes(NewPath)));
+  Assert.AreEqual<NativeInt>(3, Length(FNotebook.Storage.ReadBytes(NewPath)));
   Assert.AreEqual('pending draft', FDraft.Description);
   Fresh := TObjectManager.Create(FNotebook.Connection);
   try

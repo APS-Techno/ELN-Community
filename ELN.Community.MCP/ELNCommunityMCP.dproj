@@ -1,13 +1,13 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Config Condition="'$(Config)'==''">Debug</Config>
-    <Platform Condition="'$(Platform)'==''">Win32</Platform>
+    <Platform Condition="'$(Platform)'==''">Win64</Platform>
     <ELN_ProductRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..'))</ELN_ProductRoot>
     <ELN_OutputRoot>$(ELN_ProductRoot)\_OUT\CommunityMCP\$(Platform)\$(Config)</ELN_OutputRoot>
     <ELN_TmsRoot Condition="'$(ELN_TmsRoot)'==''">$(ELN_TMS_ROOT)</ELN_TmsRoot>
     <ELN_ExternalUnitPaths Condition="'$(ELN_ExternalUnitPaths)'==''">$(ELN_EXTERNAL_UNIT_PATHS)</ELN_ExternalUnitPaths>
     <ELN_ExternalUnitPaths Condition="'$(ELN_TmsRoot)'!=''">$(ELN_ExternalUnitPaths);$(ELN_TmsRoot)\tms.biz.aurelius\packages\d13\$(Platform)\$(Config);$(ELN_TmsRoot)\tms.biz.bcl\packages\d13\$(Platform)\$(Config)</ELN_ExternalUnitPaths>
-    <DCC_UnitSearchPath>$(ELN_OutputRoot)\Packages;$(ELN_ProductRoot)\ViewerPlugins\Core;$(ELN_ProductRoot)\ViewerPlugins\Core.Protocol;..\ELN.Model;..\ELN.Domain;..\ELN.Community;..\ELN.DB;..\ELN.Components;..\ELN.Model\ViewModels;..\ELN.Desktop\Units;..\ELN.MCPServer;$(ELN_ExternalUnitPaths)</DCC_UnitSearchPath>
+    <DCC_UnitSearchPath>$(ELN_OutputRoot)\Packages;$(ELN_ProductRoot)\ViewerPlugins\Core;$(ELN_ProductRoot)\ViewerPlugins\Core.Protocol;..\ELN.Model;..\ELN.Domain;..\ELN.Community;..\ELN.DB;..\ELN.Components;..\ELN.Model\ViewModels;..\ELN.Desktop\Units;..\ELN.MCPServer;..\ELN.Search;$(ELN_ExternalUnitPaths)</DCC_UnitSearchPath>
     <DCC_DcpOutput>$(ELN_OutputRoot)\Packages</DCC_DcpOutput>
     <DCC_BplOutput>$(ELN_OutputRoot)</DCC_BplOutput>
     <DCC_HppOutput>$(ELN_OutputRoot)\Hpp</DCC_HppOutput>
@@ -24,12 +24,12 @@
     <MainSource>ELNCommunityMCP.dpr</MainSource>
     <ProjectName>ELNCommunityMCP</ProjectName>
     <Config Condition="'$(Config)'==''">Release</Config>
-    <Platform Condition="'$(Platform)'==''">Win32</Platform>
-    <TargetedPlatforms>1</TargetedPlatforms>
+    <Platform Condition="'$(Platform)'==''">Win64</Platform>
+    <TargetedPlatforms>3</TargetedPlatforms>
     <DCC_Namespace>Winapi;System.Win;Data.Win;Vcl;Vcl.Imaging;System;Xml;Data;$(DCC_Namespace)</DCC_Namespace>
     <PluginCorePath Condition="'$(PluginCorePath)'==''">..\ViewerPlugins\Core</PluginCorePath>
     <UsePackages>true</UsePackages>
-    <DCC_UsePackage>rtl;vcl;TMSVCLPluginFrameworkPkgCoreDXE16;ELNPluginCore;vclimg;vclwinx;Tee;RaizeComponentsVcl</DCC_UsePackage>
+    <DCC_UsePackage>rtl;vcl;TMSVCLPluginFrameworkPkgCore;ELNPluginCore;vclimg;vclwinx;Tee;RaizeComponentsVcl</DCC_UsePackage>
     <DCC_ExeOutput>$(ELN_OutputRoot)</DCC_ExeOutput>
     <DCC_DcuOutput>$(ELN_OutputRoot)\DCU</DCC_DcuOutput>
   </PropertyGroup>

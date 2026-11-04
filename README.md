@@ -19,6 +19,14 @@ Demo/reference data and the desktop shortcut are off by default.
 Installer task changes affect future notebooks only, not existing notebooks.
 Back up each notebook database and its attachment directory together.
 
+## Textbook and user guide
+
+For a step-by-step guide to recording, tracing, and analyzing laboratory data in APS ELN (from building your first `Procedure -> Specimen -> Action` tree to extracting values with file and reader provenance, testing hypotheses, and working with an AI assistant through MCP), see the textbook ***Mastering ELN: Recording, Tracing, and Analyzing Laboratory Data with APS ELN***:
+
+- **Read online:** [https://oleksiypenkov.github.io/MasteringELN/](https://oleksiypenkov.github.io/MasteringELN/)
+- **Download PDF:** [Mastering-ELN.pdf](https://github.com/OleksiyPenkov/MasteringELN/releases/latest/download/Mastering-ELN.pdf)
+- **Source and practice datasets:** [OleksiyPenkov/MasteringELN](https://github.com/OleksiyPenkov/MasteringELN)
+
 ## Citation
 
 If APS ELN supports your research, please cite the preprint:

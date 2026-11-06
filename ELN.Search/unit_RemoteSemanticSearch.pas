@@ -38,7 +38,8 @@ type
     function SendOnce(const Method, Url, Token, Body: string;
       TimeoutMs: Integer): TRemoteHttpResponse;
     function Exchange(const Method, Path, Body: string): TRemoteHttpResponse;
-    function Store(const Fresh: TSemanticSearchStatus; Dropped: Integer): TSemanticSearchStatus;
+    function Store(const Fresh: TSemanticSearchStatus; Dropped: Integer;
+      KeepDetail: Boolean): TSemanticSearchStatus;
     procedure MarkFailed(const Text: string);
     function RefreshDue: Boolean;
     procedure RefreshStatus;
@@ -62,7 +63,7 @@ const
 implementation
 
 uses
-  System.JSON, System.Generics.Collections, System.Net.URLClient,
+  System.JSON, System.DateUtils, System.Generics.Collections, System.Net.URLClient,
   System.Net.HttpClient, unit_SearchPassages, unit_HybridSearch, unit_NativeLibrary;
 
 const
@@ -231,7 +232,20 @@ begin
   Result.FileId := Result.Passages[0].FileId;
 end;
 
+function OptionalTextOf(const Obj: TJSONObject; const Key: string): string;
+var
+  Value: TJSONValue;
+begin
+  Result := '';
+  Value := Obj.GetValue(Key);
+  if (Value <> nil) and not (Value is TJSONNull) then
+    Result := TextOf(Value, Key);
+end;
+
 function ParseIndex(const Obj: TJSONObject): TSemanticSearchStatus;
+var
+  StateNode: TJSONValue;
+  Text: string;
 begin
   Result := Default(TSemanticSearchStatus);
   Result.State := ssIdle;
@@ -241,6 +255,25 @@ begin
   Result.PendingPassages := NumberOf(Obj, 'pending_passages').AsInt;
   Result.FilesTotal := NumberOf(Obj, 'files_pending').AsInt;
   Result.FilesDone := 0;
+  StateNode := Obj.GetValue('state');
+  if StateNode = nil then
+    Exit;
+  Result.ServerDetail := True;
+  if TextOf(StateNode, 'state') = 'running' then
+    Result.State := ssSyncing;
+  Result.FilesDone := NumberOf(Obj, 'files_done').AsInt;
+  Result.FilesTotal := NumberOf(Obj, 'files_total').AsInt;
+  if Result.State = ssSyncing then
+    if Result.FilesTotal > 0 then
+      Result.Phase := spExtracting
+    else
+      Result.Phase := spEmbedding;
+  Text := OptionalTextOf(Obj, 'last_sync_utc');
+  if Text <> '' then
+    Result.LastSyncUtc := ISO8601ToDate(Text, True);
+  Result.LastErrorCode := OptionalTextOf(Obj, 'last_error');
+  if Obj.GetValue('files_skipped') <> nil then
+    Result.FilesSkipped := NumberOf(Obj, 'files_skipped').AsInt;
 end;
 
 function IsVisible(const Visible: TArray<Integer>; ProjectId: Integer): Boolean;
@@ -611,12 +644,20 @@ begin
 end;
 
 function TRemoteSemanticSearch.Store(const Fresh: TSemanticSearchStatus;
-  Dropped: Integer): TSemanticSearchStatus;
+  Dropped: Integer; KeepDetail: Boolean): TSemanticSearchStatus;
 begin
   FLock.Enter;
   try
     Inc(FDropped, Dropped);
     Result := Fresh;
+    if KeepDetail and FStatus.ServerDetail and (FStatus.State <> ssFailed) and
+      not Fresh.ServerDetail then
+    begin
+      Result := FStatus;
+      Result.IndexedPassages := Fresh.IndexedPassages;
+      Result.PendingPassages := Fresh.PendingPassages;
+      Result.LastSyncComplete := Fresh.LastSyncComplete;
+    end;
     Result.DroppedGroups := FDropped;
     FStatus := Result;
     FUpdated := True;
@@ -656,7 +697,7 @@ begin
   try
     Response := Exchange('GET', StatusPath, '');
     Fresh := ParseStatusResponse(Response.Body, Reranker);
-    Store(Fresh, 0);
+    Store(Fresh, 0, False);
     FLock.Enter;
     try
       FReranker := Reranker;
@@ -702,7 +743,7 @@ begin
       raise;
     end;
   end;
-  Result.IndexStatus := Store(Result.IndexStatus, Dropped);
+  Result.IndexStatus := Store(Result.IndexStatus, Dropped, True);
 end;
 
 function TRemoteSemanticSearch.Status: TSemanticSearchStatus;

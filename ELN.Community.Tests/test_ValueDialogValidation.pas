@@ -16,6 +16,7 @@ type
     [Test] procedure ToleranceLargerThanValueNeedsConfirmation;
     [Test] procedure EditedReaderValueBecomesManual;
     [Test] procedure UntouchedReaderValueKeepsSourceAndNumber;
+    [Test] procedure CheckValueFlagsMetreValueAndToleranceMismatch;
   end;
 
 implementation
@@ -24,7 +25,7 @@ uses
   System.SysUtils, System.Classes, System.Generics.Collections, Vcl.Forms, Vcl.Controls,
   Aurelius.Types.Nullable,
   dlg_Value, dlg_UnitConverter, unit_Item, unit_ItemTypes, unit_ValueType,
-  unit_ValueSource;
+  unit_ValueSource, unit_ValueChecks;
 
 procedure CheckRefusedInput(const Input, Tolerance: string);
 var
@@ -314,6 +315,30 @@ begin
     ConfirmValueIssues := Saved;
     Dialog.Free;
     Value.Free;
+    Thickness.Free;
+  end;
+end;
+
+procedure TValueDialogValidationTests.CheckValueFlagsMetreValueAndToleranceMismatch;
+var
+  Thickness: TValueType;
+  Issues: TValueIssues;
+begin
+  Thickness := TValueType.Create;
+  try
+    Thickness.Title := 'Thickness';
+    Thickness.Symbol := 'd';
+    Thickness.Units := 'nm';
+    Thickness.RangeMin := 0.3;
+    Thickness.RangeMax := 500;
+    Issues := CheckValue(Thickness, 1.142e-7, 3.37, DEFAULT_TOLERANCE_FACTOR);
+    Assert.IsTrue(viBelowRange in Issues, '1.142e-7 nm is below 0.3 nm');
+    Assert.IsTrue(viToleranceExceedsValue in Issues, '3.37 exceeds 1.142e-7');
+    Issues := CheckValue(Thickness, 1000, 1, DEFAULT_TOLERANCE_FACTOR);
+    Assert.IsTrue(viAboveRange in Issues, '1000 nm is above RangeMax 500');
+    Issues := CheckValue(Thickness, 100, 1, DEFAULT_TOLERANCE_FACTOR);
+    Assert.IsTrue(Issues = [], '100 nm is within [0.3, 500]');
+  finally
     Thickness.Free;
   end;
 end;

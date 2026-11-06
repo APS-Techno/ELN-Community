@@ -84,6 +84,8 @@ type
     AllowedLevels: TItemLevels): boolean; overload;
   function ShowActionDialog(const Mode: TDlgMode; var Item: TItem;
     AllowedLevels: TItemLevels; out NavigateFileId: Int64): boolean; overload;
+  function ShowPrefilledActionDialog(var Item: TItem;
+    AllowedLevels: TItemLevels): boolean;
   function ShowQuickActionType(AItemType: TItemType;
     out ATitle: string; out AKind: TActionKind): Boolean;
   function ShowQuickEquipment(out AModel, AManufacturer, ALocation: string): Boolean;
@@ -100,8 +102,8 @@ uses
 
 {$R *.dfm}
 
-function ShowActionDialog(const Mode: TDlgMode; var Item: TItem;
-  AllowedLevels: TItemLevels; out NavigateFileId: Int64): boolean;
+function RunActionDialog(const Mode: TDlgMode; var Item: TItem;
+  AllowedLevels: TItemLevels; APrefill: Boolean; out NavigateFileId: Int64): boolean;
 var
   ItemRef: TItem;
   Nav: Int64;
@@ -121,8 +123,18 @@ begin
       D.FVM.OnChanged := D.SyncControlsFromVM;
 
       case Mode of
-        dmNew: D.FVM.LoadForNew(AllowedLevels);
+        dmNew:
+          begin
+            D.FVM.LoadForNew(AllowedLevels);
+            if APrefill then
+              D.FVM.Prefill(ItemRef);
+          end;
         dmEdit: D.FVM.LoadForEdit(ItemRef, AllowedLevels);
+      end;
+      if APrefill then
+      begin
+        D.pcDetails.ActivePage := D.tsProperties;
+        D.tsValues.TabVisible := False;
       end;
 
       if D.FVM.Level = TItemLevel.Proc then
@@ -156,12 +168,27 @@ begin
   Result := Result and (Nav = 0);
   NavigateFileId := Nav;
 end;
+
+function ShowActionDialog(const Mode: TDlgMode; var Item: TItem;
+  AllowedLevels: TItemLevels; out NavigateFileId: Int64): boolean;
+begin
+  Result := RunActionDialog(Mode, Item, AllowedLevels, False, NavigateFileId);
+end;
+
 function ShowActionDialog(const Mode: TDlgMode; var Item: TItem;
   AllowedLevels: TItemLevels): boolean;
 var
   Ignored: Int64;
 begin
-  Result := ShowActionDialog(Mode, Item, AllowedLevels, Ignored);
+  Result := RunActionDialog(Mode, Item, AllowedLevels, False, Ignored);
+end;
+
+function ShowPrefilledActionDialog(var Item: TItem;
+  AllowedLevels: TItemLevels): boolean;
+var
+  Ignored: Int64;
+begin
+  Result := RunActionDialog(dmNew, Item, AllowedLevels, True, Ignored);
 end;
 
 destructor TdlgAction.Destroy;

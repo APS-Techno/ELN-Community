@@ -37,6 +37,7 @@ var
   FixtureDir, DatabasePath, StorageRoot: string;
   Notebook: TLocalNotebook;
   Passed, Failed: Integer;
+  TableName: string;
 
 procedure Check(Condition: Boolean; const MessageText: string);
 begin
@@ -784,18 +785,19 @@ begin
     procedure
     begin
       TLocalNotebook.Upgrade(DatabasePath);
-    end, 'a format 5 notebook is not upgraded again');
+    end, 'a current-format notebook is not upgraded again');
 
   Notebook := TLocalNotebook.Open(DatabasePath, StorageRoot);
   V := Notebook.Manager.Find<TValue>(ValueId);
   Check(V <> nil, 'pre-upgrade value survives');
-  Check(SameValue(V.Value, 2.279e-8, 1e-20), 'value number survives');
-  Check(SameValue(V.Tol, 1e-10, 1e-22), 'tolerance survives');
+  Check(SameValue(V.Value, 22.79, 1e-9), 'Thickness in m is converted to nm');
+  Check(SameValue(V.Tol, 0.1, 1e-12), 'tolerance is converted to nm');
   Check(V.Description = 'pre-upgrade row', 'description survives');
   Check(V.Item.Id = ItemId, 'value owner survives');
   Check(not V.SourceKind.HasValue, 'pre-upgrade row has no stored source kind');
   Check(V.EffectiveSourceKind = vskUnknown, 'pre-upgrade row reads as Unknown');
   VT := Notebook.Manager.Find<TValueType>(ValueTypeId);
+  Check(VT.Units = 'nm', 'Thickness type is in nm');
   Check(not VT.RangeMin.HasValue and not VT.RangeMax.HasValue,
     'existing value type has no range');
 
@@ -860,7 +862,7 @@ begin
   finally
     Opened.Free;
   end;
-  Check(Required, 'format 3 requires explicit upgrade to format 5');
+  Check(Required, 'format 3 requires explicit upgrade to format 6');
   CheckBytes(Before, System.IOUtils.TFile.ReadAllBytes(DatabasePath),
     'refused format 3 open preserves bytes');
   BackupPath := TLocalNotebook.Upgrade(DatabasePath);
@@ -869,9 +871,9 @@ begin
     'format 3 backup retains original bytes');
   Notebook := TLocalNotebook.Open(DatabasePath, StorageRoot);
   Setting := Notebook.Manager.Find<TDBSetting>('COMMUNITY_FORMAT_VERSION');
-  Check(Setting.SettingValue = '5', 'upgrade stamps format 5');
+  Check(Setting.SettingValue = '6', 'upgrade stamps format 6');
   Value := Notebook.Manager.Find<TValue>(ValueId);
-  Check(SameValue(Value.Value, 2.279e-8, 1e-20), 'format 3 value survives');
+  Check(SameValue(Value.Value, 22.79, 1e-9), 'format 3 Thickness value is in nm');
   Check(Value.Description = 'pre-upgrade row', 'format 3 description survives');
   Check(Value.EffectiveSourceKind = vskReader, 'format 3 Reader source survives');
   Check(not Value.ReaderUnits.HasValue and not Value.ConversionFactor.HasValue,
@@ -912,7 +914,7 @@ begin
   Observer := TObjectManager.Create(Connection);
   try
     Check(Observer.Find<TDBSetting>('COMMUNITY_FORMAT_VERSION').SettingValue = '3',
-      'seed failure does not stamp format 5');
+      'seed failure does not stamp format 6');
   finally
     Observer.Free;
   end;
@@ -925,7 +927,7 @@ begin
   RetryBackup := TLocalNotebook.Upgrade(DatabasePath);
   Check(RetryBackup <> Backups[0], 'retry keeps the first backup');
   Notebook := TLocalNotebook.Open(DatabasePath, StorageRoot);
-  Check(Notebook.Manager.Find<TDBSetting>('COMMUNITY_FORMAT_VERSION').SettingValue = '5',
+  Check(Notebook.Manager.Find<TDBSetting>('COMMUNITY_FORMAT_VERSION').SettingValue = '6',
     'retry completes the migration');
 end;
 
@@ -950,7 +952,7 @@ begin
   Result := 'mm' + WideChar($00B3) + '/(N' + WideChar($00B7) + 'mm)';
 end;
 
-procedure TestFormat4UpgradesToFormat5;
+procedure TestFormat4UpgradesToFormat6;
 var
   Project: TProject;
   Item: TItem;
@@ -1009,12 +1011,12 @@ begin
       Opened := TLocalNotebook.Open(DatabasePath, StorageRoot);
     except
       on E: ELocalNotebookUpgradeRequired do
-        Required := Pos('format 5', E.Message) > 0;
+        Required := Pos('format 6', E.Message) > 0;
     end;
   finally
     Opened.Free;
   end;
-  Check(Required, 'format 4 requires explicit upgrade to format 5');
+  Check(Required, 'format 4 requires explicit upgrade to format 6');
   CheckBytes(Before, System.IOUtils.TFile.ReadAllBytes(DatabasePath),
     'refused format 4 open preserves bytes');
   BackupPath := TLocalNotebook.Upgrade(DatabasePath);
@@ -1023,8 +1025,8 @@ begin
     'format 4 backup retains original bytes');
 
   Notebook := TLocalNotebook.Open(DatabasePath, StorageRoot);
-  Check(Notebook.Manager.Find<TDBSetting>('COMMUNITY_FORMAT_VERSION').SettingValue = '5',
-    'upgrade stamps format 5');
+  Check(Notebook.Manager.Find<TDBSetting>('COMMUNITY_FORMAT_VERSION').SettingValue = '6',
+    'upgrade stamps format 6');
   V := Notebook.Manager.Find<TValue>(ReaderId);
   Check(V.EffectiveSourceKind = vskReader, 'Reader value keeps its kind');
   Check((V.ReaderId = 'aps.zrw') and (V.KeyName = 'Fn') and
@@ -1042,6 +1044,143 @@ begin
   Check(Notebook.Manager.Find<TItem>(ItemId).Values.Count = 2, 'values survive the upgrade');
 end;
 
+procedure TestFormat5UpgradesToFormat6AddsSeries;
+var
+  Before: TBytes;
+  BackupPath: string;
+  Opened: TLocalNotebook;
+  Required: Boolean;
+begin
+  CreateFixtureNotebook;
+  ExecuteSQL('DROP TABLE SeriesSlotLevels');
+  ExecuteSQL('DROP TABLE SeriesSlots');
+  ExecuteSQL('DROP TABLE SeriesFixedConditions');
+  ExecuteSQL('DROP TABLE SeriesFactors');
+  ExecuteSQL('DROP TABLE SeriesColumns');
+  ExecuteSQL('DROP TABLE SeriesMembers');
+  ExecuteSQL('DROP TABLE Series');
+  ExecuteSQL('UPDATE DBSettings SET SettingValue = ''5'' ' +
+    'WHERE SettingKey = ''COMMUNITY_FORMAT_VERSION''');
+  FreeAndNil(Notebook);
+
+  Before := System.IOUtils.TFile.ReadAllBytes(DatabasePath);
+  Required := False;
+  Opened := nil;
+  try
+    try
+      Opened := TLocalNotebook.Open(DatabasePath, StorageRoot);
+    except
+      on E: ELocalNotebookUpgradeRequired do
+        Required := Pos('format 6', E.Message) > 0;
+    end;
+  finally
+    Opened.Free;
+  end;
+  Check(Required, 'format 5 requires explicit upgrade to format 6');
+  CheckBytes(Before, System.IOUtils.TFile.ReadAllBytes(DatabasePath),
+    'refused format 5 open preserves bytes');
+  BackupPath := TLocalNotebook.Upgrade(DatabasePath);
+  Check(Pos('format5-backup', BackupPath) > 0, 'backup identifies format 5');
+  CheckBytes(Before, System.IOUtils.TFile.ReadAllBytes(BackupPath),
+    'format 5 backup retains original bytes');
+
+  Notebook := TLocalNotebook.Open(DatabasePath, StorageRoot);
+  Check(Notebook.Manager.Find<TDBSetting>('COMMUNITY_FORMAT_VERSION').SettingValue = '6',
+    'upgrade stamps format 6');
+  Check(QueryStrings('SELECT COUNT(*) FROM Series')[0] = '0', 'upgrade adds Series');
+  Check(QueryStrings('SELECT COUNT(*) FROM SeriesMembers')[0] = '0',
+    'upgrade adds SeriesMembers');
+  Check(QueryStrings('SELECT COUNT(*) FROM SeriesColumns')[0] = '0',
+    'upgrade adds SeriesColumns');
+  Check(QueryStrings('SELECT COUNT(*) FROM SeriesFactors')[0] = '0',
+    'upgrade adds SeriesFactors');
+  Check(QueryStrings('SELECT COUNT(*) FROM SeriesFixedConditions')[0] = '0',
+    'upgrade adds SeriesFixedConditions');
+  Check(QueryStrings('SELECT COUNT(*) FROM SeriesSlots')[0] = '0',
+    'upgrade adds SeriesSlots');
+  Check(QueryStrings('SELECT COUNT(*) FROM SeriesSlotLevels')[0] = '0',
+    'upgrade adds SeriesSlotLevels');
+end;
+
+procedure CheckPreReleaseFormat6Completes(const TableName: string);
+var
+  Before: TBytes;
+  BackupPath: string;
+  Opened: TLocalNotebook;
+  Required: Boolean;
+begin
+  CreateFixtureNotebook;
+  ExecuteSQL('INSERT INTO DBSettings (SettingKey, SettingValue) ' +
+    'VALUES (''PreReleaseSentinel'', ''kept'')');
+  ExecuteSQL('DROP TABLE ' + TableName);
+  FreeAndNil(Notebook);
+  Before := System.IOUtils.TFile.ReadAllBytes(DatabasePath);
+  Required := False;
+  Opened := nil;
+  try
+    try
+      Opened := TLocalNotebook.Open(DatabasePath, StorageRoot);
+    except
+      on E: ELocalNotebookUpgradeRequired do
+        Required := Pos('format 6', E.Message) > 0;
+    end;
+  finally
+    Opened.Free;
+  end;
+  Check(Required, 'pre-release format 6 without ' + TableName +
+    ' asks to finish the upgrade');
+  CheckBytes(Before, System.IOUtils.TFile.ReadAllBytes(DatabasePath),
+    'asking preserves bytes for ' + TableName);
+
+  BackupPath := TLocalNotebook.Upgrade(DatabasePath);
+  Check(Pos('format6-backup', ExtractFileName(BackupPath)) > 0,
+    'backup name marks format 6 for ' + TableName);
+  CheckBytes(Before, System.IOUtils.TFile.ReadAllBytes(BackupPath),
+    'backup holds the pre-upgrade bytes for ' + TableName);
+
+  Notebook := TLocalNotebook.Open(DatabasePath, StorageRoot);
+  Check(QueryStrings('SELECT COUNT(*) FROM ' + TableName)[0] = '0',
+    'upgrade adds ' + TableName);
+  Check(QueryStrings('SELECT SettingValue FROM DBSettings ' +
+    'WHERE SettingKey = ''PreReleaseSentinel''')[0] = 'kept',
+    'existing rows survive finishing format 6 without ' + TableName);
+end;
+
+procedure TestPreReleaseFormat6GainsEntryLabels;
+var
+  Opened: TLocalNotebook;
+  Required: Boolean;
+begin
+  CreateFixtureNotebook;
+  ExecuteSQL('INSERT INTO SeriesFactors (SeriesId, ValueTypeId, SortOrder) VALUES (1, 1, 0)');
+  ExecuteSQL('ALTER TABLE SeriesFactors DROP COLUMN EntryLabel');
+  ExecuteSQL('ALTER TABLE SeriesFixedConditions DROP COLUMN EntryLabel');
+  ExecuteSQL('ALTER TABLE SeriesColumns DROP COLUMN EntryLabel');
+  FreeAndNil(Notebook);
+  Required := False;
+  Opened := nil;
+  try
+    try
+      Opened := TLocalNotebook.Open(DatabasePath, StorageRoot);
+    except
+      on E: ELocalNotebookUpgradeRequired do
+        Required := True;
+    end;
+  finally
+    Opened.Free;
+  end;
+  Check(Required, 'a notebook without plan labels asks to finish format 6');
+  TLocalNotebook.Upgrade(DatabasePath);
+  Notebook := TLocalNotebook.Open(DatabasePath, StorageRoot);
+  Check(QueryStrings('SELECT COUNT(*) FROM SeriesFactors WHERE EntryLabel IS NULL')[0] = '1',
+    'the existing factor is kept and gains an empty label');
+  Check(QueryStrings('SELECT COUNT(*) FROM SeriesFixedConditions WHERE EntryLabel IS NULL')[0] = '0',
+    'SeriesFixedConditions gains EntryLabel');
+  Check(QueryStrings('SELECT COUNT(*) FROM SeriesColumns WHERE EntryLabel IS NULL')[0] = '0',
+    'SeriesColumns gains EntryLabel');
+end;
+
+
 procedure TestFreshNotebookSeedsDerivedTypes;
 begin
   CreateFixtureNotebook;
@@ -1049,8 +1188,8 @@ begin
   Check(FindValueType('Normal force', 'N') <> nil, 'Normal force N exists');
   Check(FindValueType('Cycles', '') <> nil, 'Cycles exists');
   Check(FindValueType('Wear rate', WearRateUnits) <> nil, 'Wear rate exists');
-  Check(Notebook.Manager.Find<TDBSetting>('COMMUNITY_FORMAT_VERSION').SettingValue = '5',
-    'a new notebook is format 5');
+  Check(Notebook.Manager.Find<TDBSetting>('COMMUNITY_FORMAT_VERSION').SettingValue = '6',
+    'a new notebook is format 6');
 end;
 
 type
@@ -1136,7 +1275,7 @@ begin
     Resolution := Resolver.Resolve('aps.xrcx', 'Co Thickness', 'A');
     Check(Resolution.ValueType.Title = 'Thickness', 'material targets thickness');
     Check(Resolution.LabelText = 'Co', 'material becomes label');
-    Check(SameValue(Resolution.Factor, 1e-10, 1e-22), 'angstrom conversion');
+    Check(SameValue(Resolution.Factor, 0.1, 1e-12), 'angstrom conversion');
     Row := TReaderValueMapping.Create;
     Row.ReaderId := 'aps.xrcx';
     Row.KeyPattern := 'Co Thickness';
@@ -1157,7 +1296,7 @@ begin
     Resolution := Resolver.Resolve('aps.xrcx', 'Co Thickness', 'nm');
     Check(Resolution.ValueType = nil, 'wrong unit cannot use saved mapping');
     Check(Resolution.Reason <> '', 'wrong unit has an actionable reason');
-    Resolution := Resolver.Resolve('other.reader', 'Thickness', 'm');
+    Resolution := Resolver.Resolve('other.reader', 'Thickness', 'nm');
     Check(Resolution.ValueType <> nil, 'unmapped title-unit fallback works');
     Check(Resolution.Factor = 1, 'fallback has identity factor');
     Resolution := Resolver.Resolve('other.reader', 'Thickness', '%');
@@ -1220,9 +1359,17 @@ begin
     RunTest('mapping precedence and unit mismatch', TestMappingPrecedenceAndUnits);
     RunTest('failed default seeding retains backup and permits retry',
       TestUpgradeSeedFailureCanBeRetried);
-    RunTest('format 4 requires upgrade to format 5 and keeps sources',
-      TestFormat4UpgradesToFormat5);
-    RunTest('new notebook is format 5 with the Derived value types',
+    RunTest('format 4 requires upgrade to format 6 and keeps sources',
+      TestFormat4UpgradesToFormat6);
+    RunTest('format 5 requires upgrade to format 6 and gains the Series tables',
+      TestFormat5UpgradesToFormat6AddsSeries);
+    for TableName in ['SeriesFactors', 'SeriesFixedConditions', 'SeriesSlots',
+      'SeriesSlotLevels'] do
+      RunTest('pre-release format 6 without ' + TableName + ' finishes its upgrade',
+        procedure begin CheckPreReleaseFormat6Completes(TableName) end);
+    RunTest('pre-release format 6 without plan labels finishes its upgrade',
+      TestPreReleaseFormat6GainsEntryLabels);
+    RunTest('new notebook is format 6 with the Derived value types',
       TestFreshNotebookSeedsDerivedTypes);
     WriteLn(Format('%d passed; %d failed', [Passed, Failed]));
     if Failed > 0 then

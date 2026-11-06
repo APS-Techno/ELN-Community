@@ -48,6 +48,10 @@ type
     FCategoryMap: TDictionary<string, Integer>;
     FNextCatID: Integer;
     FLayoutDone: Boolean;
+    FEditingId: Integer;
+    FEditingOldUnits: string;
+    FApplyingUnitChange: Boolean;
+    procedure DataSetBeforeEdit(ADataSet: TDataSet);
     procedure SetupLayout;
     procedure GreekPickerClick(Sender: TObject);
     procedure CreateGreekButton(AParent: TWinControl; AEdit: TDBEdit; ALeft, ATag: Integer);
@@ -70,11 +74,13 @@ var
 implementation
 
 uses
+  System.Math,
   Aurelius.Bind.Dataset,
   unit_DataModel,
   dlg_GreekPicker,
   unit_TimeHelper,
   unit_ValueChecks,
+  unit_UnitConverter,
   editor_ReaderValueMappings;
 
 {$R *.dfm}
@@ -159,6 +165,7 @@ begin
   DataSource.DataSet := DataSet;
   DataSet.BeforeDelete := DataSetBeforeDelete;
   DataSet.AfterInsert := DataSetAfterInsert;
+  DataSet.BeforeEdit := DataSetBeforeEdit;
   DataSet.BeforePost := DataSetBeforePost;
   DataSet.OnFilterRecord := DataSetFilterRecord;
 
@@ -173,6 +180,7 @@ begin
   DataSet.OnFilterRecord := nil;
   DataSet.BeforeDelete := nil;
   DataSet.AfterInsert := nil;
+  DataSet.BeforeEdit := nil;
   DataSet.BeforePost := nil;
   DataSource.DataSet := nil;
 end;
@@ -257,9 +265,20 @@ begin
   end;
 end;
 
+procedure TedValueTypes.DataSetBeforeEdit(ADataSet: TDataSet);
+begin
+  if FApplyingUnitChange then
+    Exit;
+  FEditingId := ADataSet.FieldByName('Id').AsInteger;
+  FEditingOldUnits := ADataSet.FieldByName('Units').AsString;
+end;
+
 procedure TedValueTypes.DataSetBeforePost(ADataSet: TDataSet);
 var
   MinField, MaxField: TField;
+  VTID, ValCount, MapCount, UserId: Integer;
+  NewUnits, FactorStr: string;
+  Factor: Double;
 begin
   MinField := ADataSet.FindField('RangeMin');
   MaxField := ADataSet.FindField('RangeMax');
@@ -270,6 +289,54 @@ begin
     ShowMessage('The plausible minimum is larger than the maximum. ' +
       'Correct one of them, or leave a field empty for no limit.');
     Abort;
+  end;
+  if FApplyingUnitChange or (ADataSet.State <> dsEdit) then
+    Exit;
+  VTID := ADataSet.FieldByName('Id').AsInteger;
+  NewUnits := ADataSet.FieldByName('Units').AsString;
+  if (VTID <= 0) or (VTID <> FEditingId) or (NewUnits = FEditingOldUnits) then
+    Exit;
+  Model.ValueTypes.UsageCounts(VTID, ValCount, MapCount);
+  Factor := 1;
+  if (ValCount > 0) or (MapCount > 0) then
+  begin
+    if not TUnitConverter.TryFactor(FEditingOldUnits, NewUnits, Factor) then
+      Factor := 1;
+    FactorStr := FloatToStr(Factor);
+    if not InputQuery('Convert Stored Values and Mappings',
+      Format('This value type has %d stored value(s) and %d reader mapping(s). ' +
+        'Enter the factor to multiply values, tolerances and mapping factors by (%s -> %s):',
+        [ValCount, MapCount, FEditingOldUnits, NewUnits]), FactorStr) then
+      Abort;
+    if not TryStrToFloat(Trim(FactorStr), Factor) or
+       IsNan(Factor) or IsInfinite(Factor) or (Factor <= 0) then
+    begin
+      ShowMessage('Enter a positive conversion factor.');
+      Abort;
+    end;
+  end;
+  if Assigned(Model.User) then
+    UserId := Model.User.Id
+  else
+    UserId := 0;
+  FApplyingUnitChange := True;
+  try
+    ADataSet.FieldByName('Units').AsString := FEditingOldUnits;
+    Model.ValueTypes.ChangeUnits(VTID, NewUnits, Factor, UserId);
+    ADataSet.FieldByName('Units').AsString := NewUnits;
+    if Assigned(MinField) and not MinField.IsNull and not (MinField.OldValue <> MinField.Value) and
+       ((ValCount > 0) or (MapCount > 0)) then
+      MinField.AsFloat := MinField.AsFloat * Factor;
+    if Assigned(MaxField) and not MaxField.IsNull and not (MaxField.OldValue <> MaxField.Value) and
+       ((ValCount > 0) or (MapCount > 0)) then
+      MaxField.AsFloat := MaxField.AsFloat * Factor;
+    if ADataSet.FindField('ModifiedDate') <> nil then
+      ADataSet.FieldByName('ModifiedDate').AsDateTime := UTCNow;
+    if (UserId > 0) and (ADataSet.FindField('ModifiedBy') <> nil) then
+      ADataSet.FieldByName('ModifiedBy').AsInteger := UserId;
+    FEditingOldUnits := NewUnits;
+  finally
+    FApplyingUnitChange := False;
   end;
 end;
 

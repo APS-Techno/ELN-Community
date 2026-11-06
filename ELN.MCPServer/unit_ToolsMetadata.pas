@@ -19,7 +19,7 @@ implementation
 
 uses
   System.SysUtils, System.Generics.Collections, System.TypInfo,
-  System.DateUtils, System.Rtti,
+  System.DateUtils, System.Rtti, System.Variants, System.Math,
   Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq,
   Aurelius.Types.Nullable,
   unit_Item, unit_Project, unit_ItemTypes, unit_ELNDB_Dictionary,
@@ -28,7 +28,7 @@ uses
   unit_ProtocolStatusChange, unit_AuditLog, unit_Comment,
   unit_Signature, unit_User, unit_AuditRule, unit_FileType, unit_ValueType,
   Aurelius.Criteria.Base, Aurelius.Criteria.Projections,
-  unit_ToolScope, unit_Hypothesis, unit_HypothesisModel, unit_ToolsWrite;
+  unit_ToolScope, unit_Hypothesis, unit_Series, unit_HypothesisModel, unit_ToolsWrite;
 
 const
   // Upper bound on AuditLog rows scanned for a project's recent-activity list.
@@ -49,30 +49,6 @@ begin
     Result := TJSONString.Create(DateToISO(Value.Value))
   else
     Result := TJSONNull.Create;
-end;
-
-function GetOptInt(const Params: TJSONObject; const Key: string;
-  out Value: Integer): Boolean;
-begin
-  Result := (Params <> nil) and (Params.FindValue(Key) <> nil);
-  if Result then
-    Value := Params.GetValue<Integer>(Key);
-end;
-
-function GetOptStr(const Params: TJSONObject; const Key: string;
-  out Value: string): Boolean;
-begin
-  Result := (Params <> nil) and (Params.FindValue(Key) <> nil) and
-            not (Params.FindValue(Key) is TJSONNull);
-  if Result then
-    Value := Params.GetValue<string>(Key);
-end;
-
-function GetReqInt(const Params: TJSONObject; const Key: string): Integer;
-begin
-  if (Params = nil) or (Params.FindValue(Key) = nil) then
-    raise Exception.CreateFmt('Missing required parameter: %s', [Key]);
-  Result := Params.GetValue<Integer>(Key);
 end;
 
 
@@ -102,32 +78,74 @@ function HandleListTags(const Params: TJSONObject;
 var
   Tags: TList<TTag>;
   Tag: TTag;
-  ItemTags: TList<TItemTag>;
-  ItemTagDic: TItemTagDictionary;
+  ItemProjects, Totals: TDictionary<Integer, Integer>;
+  Visibility: TDictionary<Integer, Boolean>;
+  ItemRows, LinkRows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+  ProjectId, TagId, Total: Integer;
+  IsVisible: Boolean;
   Arr: TJSONArray;
   Obj: TJSONObject;
 begin
   Tags := Context.Manager.Find<TTag>.List;
   try
-    ItemTagDic := TItemTagDictionary.Create;
+    ItemProjects := TDictionary<Integer, Integer>.Create;
+    Totals := TDictionary<Integer, Integer>.Create;
+    Visibility := TDictionary<Integer, Boolean>.Create;
     try
+      ItemRows := Context.Manager.Find<TItem>
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop('Id').As_('Id'))
+          .Add(TProjections.Prop('ProjectID').As_('ProjectID')))
+        .Where(Linq['IsDeleted'] = False)
+        .ListValues;
+      try
+        for Row in ItemRows do
+          ItemProjects.AddOrSetValue(Integer(Row.Values['Id']),
+            Integer(Row.Values['ProjectID']));
+      finally
+        ItemRows.Free;
+      end;
+
+      LinkRows := Context.Manager.Find<TItemTag>
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop('ItemId').As_('ItemId'))
+          .Add(TProjections.Prop('TagId').As_('TagId')))
+        .ListValues;
+      try
+        for Row in LinkRows do
+        begin
+          if not ItemProjects.TryGetValue(Integer(Row.Values['ItemId']),
+            ProjectId) then
+            Continue;
+          if not Visibility.TryGetValue(ProjectId, IsVisible) then
+          begin
+            IsVisible := IsProjectVisible(Context, ProjectId);
+            Visibility.Add(ProjectId, IsVisible);
+          end;
+          if not IsVisible then
+            Continue;
+          TagId := Integer(Row.Values['TagId']);
+          if not Totals.TryGetValue(TagId, Total) then
+            Total := 0;
+          Totals.AddOrSetValue(TagId, Total + 1);
+        end;
+      finally
+        LinkRows.Free;
+      end;
+
       Arr := TJSONArray.Create;
       try
         for Tag in Tags do
         begin
-          ItemTags := Context.Manager.Find<TItemTag>
-            .Where(ItemTagDic.TagId = Tag.Id)
-            .List;
-          try
-            Obj := TJSONObject.Create;
-            Obj.AddPair('id', TJSONNumber.Create(Tag.Id));
-            Obj.AddPair('name', Tag.Name);
-            Obj.AddPair('color', Tag.Color);
-            Obj.AddPair('item_count', TJSONNumber.Create(ItemTags.Count));
-            Arr.AddElement(Obj);
-          finally
-            ItemTags.Free;
-          end;
+          if not Totals.TryGetValue(Tag.Id, Total) then
+            Total := 0;
+          Obj := TJSONObject.Create;
+          Obj.AddPair('id', TJSONNumber.Create(Tag.Id));
+          Obj.AddPair('name', Tag.Name);
+          Obj.AddPair('color', Tag.Color);
+          Obj.AddPair('item_count', TJSONNumber.Create(Total));
+          Arr.AddElement(Obj);
         end;
       except
         Arr.Free;
@@ -137,7 +155,9 @@ begin
       Result := TJSONObject.Create;
       Result.AddPair('tags', Arr);
     finally
-      ItemTagDic.Free;
+      Visibility.Free;
+      Totals.Free;
+      ItemProjects.Free;
     end;
   finally
     Tags.Free;
@@ -478,7 +498,7 @@ end;
 // page (see HandleGetAuditLog) - one query for the whole page, not one
 // Find<THypothesis> per row.
 function AuditRowProject(const Context: TToolContext; Log: TAuditLog;
-  HypothesisProjects: TDictionary<Integer, Integer>): Integer;
+  HypothesisProjects, SeriesProjects: TDictionary<Integer, Integer>): Integer;
 var
   F: unit_Item.TFile;
   V: TValue;
@@ -511,8 +531,42 @@ begin
     aetHypothesis:
       if Assigned(HypothesisProjects) then
         HypothesisProjects.TryGetValue(Log.EntityId, Result);
+    aetSeries:
+      if Assigned(SeriesProjects) then
+        SeriesProjects.TryGetValue(Log.EntityId, Result);
     aetSetting:
       Result := 0; // global, no project - see comment above
+  end;
+end;
+
+type
+  TProjectIdLoader = class
+    class procedure Load<T: class>(const Context: TToolContext;
+      const Ids: TList<Integer>; const Map: TDictionary<Integer, Integer>); static;
+  end;
+
+class procedure TProjectIdLoader.Load<T>(const Context: TToolContext;
+  const Ids: TList<Integer>; const Map: TDictionary<Integer, Integer>);
+var
+  Chunk: TArray<Variant>;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+begin
+  for Chunk in IdChunks(Ids.ToArray) do
+  begin
+    Rows := Context.Manager.Find<T>
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Prop('Id').As_('Id'))
+        .Add(TProjections.Prop('ProjectId').As_('ProjectId')))
+      .Where(Linq['Id']._In(Chunk))
+      .ListValues;
+    try
+      for Row in Rows do
+        Map.AddOrSetValue(Integer(Row.Values['Id']),
+          Integer(Row.Values['ProjectId']));
+    finally
+      Rows.Free;
+    end;
   end;
 end;
 
@@ -536,11 +590,9 @@ var
   Arr: TJSONArray;
   Obj: TJSONObject;
   I, Count, ProjectId: Integer;
-  HypIds: TList<Integer>;
-  HypProjects: TDictionary<Integer, Integer>;
-  Chunk: TArray<Variant>;
-  Rows: TObjectList<TCriteriaResult>;
-  Row: TCriteriaResult;
+  HypIds, SeriesIds: TList<Integer>;
+  HypProjects, SeriesProjects: TDictionary<Integer, Integer>;
+  Truncated: Boolean;
 begin
   EntityTypeVal := TAuditEntityType(0);
   OperationVal := TAuditOperation(0);
@@ -657,55 +709,47 @@ begin
       Logs := Context.Manager.Find<TAuditLog>
         .Where(Criteria)
         .OrderBy(AuditDic.Timestamp, False)
-        .Take(Limit)
+        .Take(Limit + 1)
         .List
     else
       Logs := Context.Manager.Find<TAuditLog>
         .OrderBy(AuditDic.Timestamp, False)
-        .Take(Limit)
+        .Take(Limit + 1)
         .List;
 
     HypProjects := nil;
+    SeriesProjects := nil;
     try
       // Batch-resolve hypothesis projects for this page BEFORE the row loop:
       // one query for every distinct hypothesis id on the page, not one
       // Find<THypothesis> per audit row (DM-8/U30), with or without a scope.
       HypIds := TList<Integer>.Create;
+      SeriesIds := TList<Integer>.Create;
       try
         for I := 0 to Logs.Count - 1 do
           if (Logs[I].EntityType = aetHypothesis) and
              (not HypIds.Contains(Logs[I].EntityId)) then
-            HypIds.Add(Logs[I].EntityId);
+            HypIds.Add(Logs[I].EntityId)
+          else if (Logs[I].EntityType = aetSeries) and
+             (not SeriesIds.Contains(Logs[I].EntityId)) then
+            SeriesIds.Add(Logs[I].EntityId);
 
         // IN lists of 500 ids (a page has up to 5000; one OR term per id
         // overflows SQLite's parser). A projection: the shared session
-        // manager does not load and keep the hypotheses.
+        // manager does not load and keep the entities.
         HypProjects := TDictionary<Integer, Integer>.Create;
-        for Chunk in IdChunks(HypIds.ToArray) do
-        begin
-          Rows := Context.Manager.Find<THypothesis>
-            .Select(TProjections.ProjectionList
-              .Add(TProjections.Prop('Id').As_('Id'))
-              .Add(TProjections.Prop('ProjectId').As_('ProjectId')))
-            .Where(Linq['Id']._In(Chunk))
-            .ListValues;
-          try
-            for Row in Rows do
-              HypProjects.AddOrSetValue(Integer(Row.Values['Id']),
-                Integer(Row.Values['ProjectId']));
-          finally
-            Rows.Free;
-          end;
-        end;
+        SeriesProjects := TDictionary<Integer, Integer>.Create;
+        TProjectIdLoader.Load<THypothesis>(Context, HypIds, HypProjects);
+        TProjectIdLoader.Load<TSeries>(Context, SeriesIds, SeriesProjects);
       finally
+        SeriesIds.Free;
         HypIds.Free;
       end;
 
       Arr := TJSONArray.Create;
       try
         Count := Logs.Count;
-        if Count > Limit then
-          Count := Limit;
+        Truncated := False;
 
         for I := 0 to Count - 1 do
         begin
@@ -714,11 +758,18 @@ begin
           // Apply policy visibility and additional session scope to every row.
           // Unknown subjects and deleted projects fail closed, including for
           // privileged policies. Filtering may return fewer than Limit rows.
-          ProjectId := AuditRowProject(Context, Log, HypProjects);
+          ProjectId := AuditRowProject(Context, Log, HypProjects, SeriesProjects);
           if (ProjectId = 0) or
              not IsProjectVisible(Context, ProjectId) or
              not Assigned(Context.Manager.Find<TProject>(ProjectId)) then
             Continue;
+
+          if I >= Limit then
+          begin
+            Truncated := True;
+            Break;
+          end;
+
 
           Obj := TJSONObject.Create;
           Obj.AddPair('id', TJSONNumber.Create(Log.Id));
@@ -737,8 +788,10 @@ begin
 
       Result := TJSONObject.Create;
       Result.AddPair('audit_log', Arr);
+      Result.AddPair('truncated', TJSONBool.Create(Truncated));
     finally
       Logs.Free;
+      SeriesProjects.Free;
       HypProjects.Free;
     end;
   finally
@@ -885,23 +938,30 @@ begin
 end;
 
 
+function TakeCount(Rows: TObjectList<TCriteriaResult>): Integer;
+begin
+  try
+    Result := 0;
+    if Rows.Count > 0 then
+      Result := Integer(Rows[0].Values['N']);
+  finally
+    Rows.Free;
+  end;
+end;
+
 function HandleGetProjectStats(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
   ProjectId: Integer;
   Project: TProject;
-  ItemDic: TItemDictionary;
   AuditDic: TAuditLogDictionary;
-  Items: TList<TItem>;
-  Item: TItem;
-  FileCount, ValueCount, ProtocolCount, TagCount: Integer;
-  E: TLabEntry;
-  ItemTagDic: TItemTagDictionary;
-  ItemTags: TList<TItemTag>;
-  TagIds: TList<Integer>;
+  ItemIds, EntryIds, ProtocolIds, TagIds: THashSet<Integer>;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+  FileCount, ValueCount, ProtocolCount: Integer;
+  EntryId: Integer;
   AuditLogs: TList<TAuditLog>;
   Log: TAuditLog;
-  ItemIds: TList<Integer>;
   ActivityArr: TJSONArray;
   Obj: TJSONObject;
   I, Count: Integer;
@@ -913,126 +973,143 @@ begin
   if not Assigned(Project) then
     raise Exception.CreateFmt('Project not found: %d', [ProjectId]);
 
-  ItemDic := TItemDictionary.Create;
+  ItemIds := THashSet<Integer>.Create;
+  EntryIds := THashSet<Integer>.Create;
+  ProtocolIds := THashSet<Integer>.Create;
+  TagIds := THashSet<Integer>.Create;
   try
-    Items := Context.Manager.Find<TItem>
-      .Where((ItemDic.ProjectID = ProjectId) and (ItemDic.IsDeleted = False))
-      .List;
+    Rows := Context.Manager.Find<TItem>
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Prop('Id').As_('Id')))
+      .Where((Linq['ProjectID'] = ProjectId) and (Linq['IsDeleted'] = False))
+      .ListValues;
     try
-      FileCount := 0;
-      ValueCount := 0;
-      ProtocolCount := 0;
+      for Row in Rows do
+        ItemIds.Add(Integer(Row.Values['Id']));
+    finally
+      Rows.Free;
+    end;
 
-      for Item in Items do
-      begin
-        FileCount := FileCount + Item.Files.Count;
-        ValueCount := ValueCount + Item.Values.Count;
-        for E in Item.Entries do
+    FileCount := TakeCount(Context.Manager.Find<unit_Item.TFile>
+      .CreateAlias('Item', 'i')
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Count('Id').As_('N')))
+      .Where((Linq['i.ProjectID'] = ProjectId) and (Linq['i.IsDeleted'] = False))
+      .ListValues);
+    ValueCount := TakeCount(Context.Manager.Find<unit_Item.TValue>
+      .CreateAlias('Item', 'i')
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Count('Id').As_('N')))
+      .Where((Linq['i.ProjectID'] = ProjectId) and (Linq['i.IsDeleted'] = False))
+      .ListValues);
+
+    Rows := Context.Manager.Find<TItem>
+      .CreateAlias('FEntries', 'e')
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Prop('e.Id').As_('EntryId')))
+      .Where((Linq['ProjectID'] = ProjectId) and (Linq['IsDeleted'] = False))
+      .ListValues;
+    try
+      for Row in Rows do
+        if not VarIsNull(Row.Values['EntryId']) then
+          EntryIds.Add(Integer(Row.Values['EntryId']));
+    finally
+      Rows.Free;
+    end;
+
+    Rows := Context.Manager.Find<TProtocol>
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Prop('Id').As_('Id')))
+      .ListValues;
+    try
+      for Row in Rows do
+        ProtocolIds.Add(Integer(Row.Values['Id']));
+    finally
+      Rows.Free;
+    end;
+
+    ProtocolCount := 0;
+    for EntryId in EntryIds do
+      if ProtocolIds.Contains(EntryId) then
+        Inc(ProtocolCount);
+
+    Rows := Context.Manager.Find<TItemTag>
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Prop('ItemId').As_('ItemId'))
+        .Add(TProjections.Prop('TagId').As_('TagId')))
+      .ListValues;
+    try
+      for Row in Rows do
+        if ItemIds.Contains(Integer(Row.Values['ItemId'])) then
+          TagIds.Add(Integer(Row.Values['TagId']));
+    finally
+      Rows.Free;
+    end;
+
+    // Get last 10 audit entries scoped to this project. The project filter
+    // runs in Pascal, so we scan a bounded recent window rather than the
+    // whole (unbounded) AuditLog table — generous enough to almost always
+    // contain 10 project-scoped rows.
+    AuditDic := TAuditLogDictionary.Create;
+    try
+      AuditLogs := Context.Manager.Find<TAuditLog>
+        .OrderBy(AuditDic.Timestamp, False)
+        .Take(PROJECT_ACTIVITY_SCAN_LIMIT)
+        .List;
+      try
+        ActivityArr := TJSONArray.Create;
+        Count := 0;
+
+        for I := 0 to AuditLogs.Count - 1 do
         begin
-          if E is TProtocol then
-            Inc(ProtocolCount);
-        end;
-      end;
+          if Count >= 10 then
+            Break;
 
-      ItemTagDic := TItemTagDictionary.Create;
-      try
-        TagIds := TList<Integer>.Create;
-        try
-          for Item in Items do
+          Log := AuditLogs[I];
+
+          if (Log.EntityType = aetProject) and (Log.EntityId = ProjectId) then
           begin
-            ItemTags := Context.Manager.Find<TItemTag>
-              .Where(ItemTagDic.ItemId = Item.Id)
-              .List;
-            try
-              for I := 0 to ItemTags.Count - 1 do
-              begin
-                if not TagIds.Contains(ItemTags[I].TagId) then
-                  TagIds.Add(ItemTags[I].TagId);
-              end;
-            finally
-              ItemTags.Free;
-            end;
-          end;
-          TagCount := TagIds.Count;
-        finally
-          TagIds.Free;
+          end
+          else if (Log.EntityType = aetItem) and ItemIds.Contains(Log.EntityId) then
+          begin
+          end
+          else
+            Continue;
+
+          Obj := TJSONObject.Create;
+          Obj.AddPair('id', TJSONNumber.Create(Log.Id));
+          Obj.AddPair('entity_type', AuditEntityTypeNames[Log.EntityType]);
+          Obj.AddPair('operation', AuditOperationNames[Log.Operation]);
+          Obj.AddPair('timestamp', DateToISO(Log.Timestamp));
+          Obj.AddPair('description', Log.Description);
+          ActivityArr.AddElement(Obj);
+          Inc(Count);
         end;
       finally
-        ItemTagDic.Free;
-      end;
-
-      ItemIds := TList<Integer>.Create;
-      try
-        for Item in Items do
-          ItemIds.Add(Item.Id);
-
-        // Get last 10 audit entries scoped to this project. The project filter
-        // runs in Pascal, so we scan a bounded recent window rather than the
-        // whole (unbounded) AuditLog table — generous enough to almost always
-        // contain 10 project-scoped rows.
-        AuditDic := TAuditLogDictionary.Create;
-        try
-          AuditLogs := Context.Manager.Find<TAuditLog>
-            .OrderBy(AuditDic.Timestamp, False)
-            .Take(PROJECT_ACTIVITY_SCAN_LIMIT)
-            .List;
-          try
-            ActivityArr := TJSONArray.Create;
-            Count := 0;
-
-            for I := 0 to AuditLogs.Count - 1 do
-            begin
-              if Count >= 10 then
-                Break;
-
-              Log := AuditLogs[I];
-
-              if (Log.EntityType = aetProject) and (Log.EntityId = ProjectId) then
-              begin
-              end
-              else if (Log.EntityType = aetItem) and ItemIds.Contains(Log.EntityId) then
-              begin
-              end
-              else
-                Continue;
-
-              Obj := TJSONObject.Create;
-              Obj.AddPair('id', TJSONNumber.Create(Log.Id));
-              Obj.AddPair('entity_type', AuditEntityTypeNames[Log.EntityType]);
-              Obj.AddPair('operation', AuditOperationNames[Log.Operation]);
-              Obj.AddPair('timestamp', DateToISO(Log.Timestamp));
-              Obj.AddPair('description', Log.Description);
-              ActivityArr.AddElement(Obj);
-              Inc(Count);
-            end;
-          finally
-            AuditLogs.Free;
-          end;
-        finally
-          AuditDic.Free;
-        end;
-      finally
-        ItemIds.Free;
-      end;
-
-      Result := TJSONObject.Create;
-      try
-        Result.AddPair('project_title', Project.Title);
-        Result.AddPair('item_count', TJSONNumber.Create(Items.Count));
-        Result.AddPair('file_count', TJSONNumber.Create(FileCount));
-        Result.AddPair('value_count', TJSONNumber.Create(ValueCount));
-        Result.AddPair('protocol_count', TJSONNumber.Create(ProtocolCount));
-        Result.AddPair('tag_count', TJSONNumber.Create(TagCount));
-        Result.AddPair('recent_activity', ActivityArr);
-      except
-        Result.Free;
-        raise;
+        AuditLogs.Free;
       end;
     finally
-      Items.Free;
+      AuditDic.Free;
+    end;
+
+    Result := TJSONObject.Create;
+    try
+      Result.AddPair('project_title', Project.Title);
+      Result.AddPair('item_count', TJSONNumber.Create(ItemIds.Count));
+      Result.AddPair('file_count', TJSONNumber.Create(FileCount));
+      Result.AddPair('value_count', TJSONNumber.Create(ValueCount));
+      Result.AddPair('protocol_count', TJSONNumber.Create(ProtocolCount));
+      Result.AddPair('tag_count', TJSONNumber.Create(TagIds.Count));
+      Result.AddPair('recent_activity', ActivityArr);
+    except
+      Result.Free;
+      raise;
     end;
   finally
-    ItemDic.Free;
+    TagIds.Free;
+    ProtocolIds.Free;
+    EntryIds.Free;
+    ItemIds.Free;
   end;
 end;
 
@@ -1199,7 +1276,7 @@ begin
   P := TJSONObject.Create;
   P.AddPair('type', 'string');
   P.AddPair('description',
-    'Filter by entity type: Project, Folder, Item, File, Protocol, Note, Value, Signature');
+    'Filter by entity type: Project, Folder, Item, File, Protocol, Note, Value, Signature, Hypothesis, Setting, Series');
   Props.AddPair('entity_type', P);
 
   P := TJSONObject.Create;
@@ -1260,8 +1337,8 @@ procedure RegisterMetadataTools(Registry: TToolRegistry);
 begin
   Registry.Register('list_tags',
     'List all tags with item counts. Returns tag name, color, and ' +
-    'number of items using each tag.',
-    MakeEmptySchema, HandleListTags, tscGlobalRef);
+    'the number of non-deleted items in projects you can read that use each tag.',
+    MakeEmptySchema, HandleListTags, tscGlobalRef, taRead);
 
   Registry.Register('get_item_links',
     'Get bidirectional links for an item. Returns only links to existing ' +
@@ -1270,55 +1347,56 @@ begin
     'uses the type''s forward caption ("derived from"), an incoming link its ' +
     'reverse caption ("precursor of"), so it always reads correctly.',
     MakeItemIdSchema('Item ID to get links for'), HandleGetItemLinks,
-    tscProjectScoped);
+    tscProjectScoped, taRead);
 
   Registry.Register('list_equipment',
     'List equipment with type grouping. Optionally filter by equipment type.',
-    MakeListEquipmentSchema, HandleListEquipment, tscGlobalRef);
+    MakeListEquipmentSchema, HandleListEquipment, tscGlobalRef, taRead);
 
   Registry.Register('list_action_types',
     'List action types. Optionally filter by kind ' +
     '(Synthesys, Testing, Measurement, Analysis, Simulation, Other).',
-    MakeListActionTypesSchema, HandleListActionTypes, tscGlobalRef);
+    MakeListActionTypesSchema, HandleListActionTypes, tscGlobalRef, taRead);
 
   Registry.Register('get_protocols',
     'Get protocols for an item including type, validation status, ' +
     'form data, equipment info, and status change history.',
     MakeItemIdSchema('Item ID to get protocols for'), HandleGetProtocols,
-    tscProjectScoped);
+    tscProjectScoped, taRead);
 
   Registry.Register('get_audit_log',
     'Query audit trail with optional filters for entity type, entity ID, ' +
     'operation, user, and date range. Returns entries ordered by timestamp desc. ' +
     'Only rows with existing subjects in visible projects are returned; ' +
-    'global or unresolved rows are omitted, so fewer than limit may be returned.',
-    MakeGetAuditLogSchema, HandleGetAuditLog, tscProjectScoped);
+    'global or unresolved rows are omitted, so fewer than limit may be returned. ' +
+    'truncated is true when more rows matched than limit.',
+    MakeGetAuditLogSchema, HandleGetAuditLog, tscProjectScoped, taRead);
 
   Registry.Register('get_comments',
     'Get comments for an item. Returns comment text, author, and dates.',
     MakeItemIdSchema('Item ID to get comments for'), HandleGetComments,
-    tscProjectScoped);
+    tscProjectScoped, taRead);
 
   Registry.Register('get_signatures',
     'Get electronic signatures for an item. Returns signer, date, ' +
     'meaning, comment, and content hash.',
     MakeItemIdSchema('Item ID to get signatures for'), HandleGetSignatures,
-    tscProjectScoped);
+    tscProjectScoped, taRead);
 
   Registry.Register('list_users',
     'List all users with roles. Returns username, name, email, and role. ' +
     'Password hashes are never exposed.',
-    MakeEmptySchema, HandleListUsers, tscProjectScoped);
+    MakeEmptySchema, HandleListUsers, tscProjectScoped, taRead);
 
   Registry.Register('get_project_stats',
     'Get summary statistics for a project including item, file, value, ' +
     'protocol, and tag counts, plus recent audit activity.',
-    MakeProjectIdSchema, HandleGetProjectStats, tscProjectScoped);
+    MakeProjectIdSchema, HandleGetProjectStats, tscProjectScoped, taRead);
 
   Registry.Register('list_audit_rules',
     'List all audit rules with their required file types and value types. ' +
     'Shows rule matching criteria (action type + equipment) and requirements.',
-    MakeEmptySchema, HandleListAuditRules, tscGlobalRef);
+    MakeEmptySchema, HandleListAuditRules, tscGlobalRef, taRead);
 end;
 
 end.

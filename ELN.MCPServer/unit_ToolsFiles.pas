@@ -38,13 +38,6 @@ begin
     Result := TJSONNull.Create;
 end;
 
-function GetReqInt(const Params: TJSONObject; const Key: string): Integer;
-begin
-  if (Params = nil) or (Params.FindValue(Key) = nil) then
-    raise Exception.CreateFmt('Missing required parameter: %s', [Key]);
-  Result := Params.GetValue<Integer>(Key);
-end;
-
 
 
 function HandleListFiles(const Params: TJSONObject;
@@ -821,7 +814,7 @@ begin
     '(true when the item or an ancestor is in the recycle bin). Set ' +
     'check_storage to add storage_status (ok, missing, content_mismatch, ' +
     'no_hash or error) from the stored bytes.',
-    MakeListFilesSchema, HandleListFiles, tscProjectScoped);
+    MakeListFilesSchema, HandleListFiles, tscProjectScoped, taRead);
 
   Registry.Register('download_file',
     'Read-only. Copy the stored bytes of a file to dest_path on the server ' +
@@ -832,19 +825,19 @@ begin
     'Missing bytes or a storage failure give an error with storage_status ' +
     'missing or error and write nothing. overwrite false refuses an ' +
     'existing dest_path. Files of deleted items are refused.',
-    MakeDownloadFileSchema, HandleDownloadFile, tscProjectScoped);
+    MakeDownloadFileSchema, HandleDownloadFile, tscProjectScoped, taWrite);
 
   Registry.Register('list_file_types',
     'List all registered file types. Returns the extension and description ' +
     'for each file type supported by the system.',
-    MakeListFileTypesSchema, HandleListFileTypes, tscGlobalRef);
+    MakeListFileTypesSchema, HandleListFileTypes, tscGlobalRef, taRead);
 
   Registry.Register('extract_file_data',
     'Extract detailed structured data from a file using the appropriate ' +
     'viewer plugin. Returns parsed JSON data containing the file''s full ' +
     'content (parameters, curves, metadata) as understood by the plugin. ' +
     'The header includes the filename and format extension, including .depo.json.',
-    MakeExtractFileDataSchema, HandleExtractFileData, tscProjectScoped);
+    MakeExtractFileDataSchema, HandleExtractFileData, tscProjectScoped, taRead);
 
   Registry.Register('extract_file_key_values',
     'Extract key measurement values from a file using the appropriate ' +
@@ -892,7 +885,7 @@ begin
     '(the indents ticked in Desktop), else every usable indent. ' +
     'The header includes the filename and format ' +
     'extension, including .depo.json.',
-    MakeExtractFileKeyValuesSchema, HandleExtractFileKeyValues, tscProjectScoped);
+    MakeExtractFileKeyValuesSchema, HandleExtractFileKeyValues, tscProjectScoped, taRead);
 
   Registry.Register('delete_file',
     'Delete a file permanently. This cannot be undone from MCP. It also ' +
@@ -905,7 +898,7 @@ begin
     'review or accepted. The result has bytes_status ' +
     '(removed, absent or remaining); the file record is deleted even when ' +
     'the bytes remain.',
-    MakeDeleteFileSchema, HandleDeleteFile, tscProjectScoped);
+    MakeDeleteFileSchema, HandleDeleteFile, tscProjectScoped, taWrite);
 end;
 
 end.

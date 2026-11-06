@@ -384,10 +384,7 @@ begin
   FUser := AUser;
   FProjects.AssignUser(FUser);
   FSearch.AssignUser(FUser);
-  FProjects.OpenDataSet;
   FFolders.OpenDataSet;
-  FItems.OpenDataSet;
-  FHistory.OpenDataSet;
 end;
 
 procedure TDataModel.SetLastFolder(const Value: integer);

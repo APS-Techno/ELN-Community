@@ -78,15 +78,15 @@ type
     [Description('Parent item ID; 0 for top-level items within a folder')]
     FParentID: integer;
 
-    [ManyValuedAssociation([], CascadeTypeAllButRemove)]
+    [ManyValuedAssociation([TAssociationProp.Lazy], CascadeTypeAllButRemove)]
     [ForeignJoinColumn('ItemID', [])]
     FEntries :  Proxy<TLabEntries>;
 
-    [ManyValuedAssociation([], CascadeTypeAllRemoveOrphan, 'FItem')]
+    [ManyValuedAssociation([TAssociationProp.Lazy], CascadeTypeAllRemoveOrphan, 'FItem')]
     FFilesList: Proxy<TFiles>;
 
     // The back-reference enables orphan removal when an item is hard-deleted.
-    [ManyValuedAssociation([], CascadeTypeAllRemoveOrphan, 'FItem')]
+    [ManyValuedAssociation([TAssociationProp.Lazy], CascadeTypeAllRemoveOrphan, 'FItem')]
     FValues : Proxy<TValues>;
 
     [Association([TAssociationProp.Lazy, TAssociationProp.Required], [])]
@@ -149,6 +149,9 @@ type
   public
     constructor Create; virtual;
     destructor Destroy; override;
+    function EntriesLoaded: Boolean;
+    function FilesLoaded: Boolean;
+    function ValuesLoaded: Boolean;
 
     property Id: Integer read FId write FId;
     property Type_: TItemType read FType_ write FType_;
@@ -472,6 +475,21 @@ end;
 function TItem.GetValuesList: TValues;
 begin
   Result := FValues.Value;
+end;
+
+function TItem.EntriesLoaded: Boolean;
+begin
+  Result := FEntries.Available;
+end;
+
+function TItem.FilesLoaded: Boolean;
+begin
+  Result := FFilesList.Available;
+end;
+
+function TItem.ValuesLoaded: Boolean;
+begin
+  Result := FValues.Available;
 end;
 
 procedure TItem.SetFiles(const Value: TFiles);

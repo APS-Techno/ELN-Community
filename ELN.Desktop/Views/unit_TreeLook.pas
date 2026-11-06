@@ -4,7 +4,8 @@ unit unit_TreeLook;
   WindowProc. The host must not replace them and must free the look before the tree.
   After StretchLastColumn it also owns OnHeaderDragged, Header.AutoSizeIndex and
   hoAutoResize, and the host reads and sets column widths through ColumnWidth and
-  SetColumnWidth. }
+  SetColumnWidth. A flat look draws a plain list: no heading gap on top-level
+  rows and no root lines or buttons. }
 
 interface
 
@@ -24,17 +25,23 @@ type
     FRowColor: TTreeRowColorFunc;
     FIsContainer: TTreeNodePredicate;
     FOnFocus: TTreeNodeProc;
+    FFlat: Boolean;
     FOldWndProc: TWndMethod;
     FHoverNode: PVirtualNode;   // compared only, never dereferenced: may be stale
     FHoverAction: Integer;
     FHoverRowRect: TRect;
     FActionDown: Boolean;
     // The tree's own metrics at 96 PPI, taken once: every apply starts here.
-    FBaseFont, FBaseHeaderFont, FBaseHeaderHeight: Integer;
+    FBaseFont, FBaseHeaderFont: Integer;
     FBaseIndent: Integer;
     FStretchColumn: TColumnIndex;
     FStretchWidth, FStretchPPI: Integer;
+    FUnfocusedFrame: TColor;
+    function UnfocusedFrameColor: TColor;
+    procedure PaintUnfocusedFrame(TargetCanvas: TCanvas; Column: TColumnIndex;
+      const CellRect: TRect);
     function NaturalRowHeight(out TextHeight: Integer): Integer;
+    function HeaderTextHeight: Integer;
     procedure WndProc(var Message: Winapi.Messages.TMessage);
     function ShowsActions(Node: PVirtualNode): Boolean;
     function ActionHit(const P: TPoint; out Node: PVirtualNode): Integer;
@@ -56,9 +63,11 @@ type
     function LineLeft(ALevel: Integer): Integer;
     function LineNodes(Node: PVirtualNode): TArray<PVirtualNode>;
     function EndsBlock(Node, Container: PVirtualNode): Boolean;
+    function UnfocusedSelectionFill: TColor;
   public
     constructor Create(ATree: TVirtualStringTree; ARowColor: TTreeRowColorFunc;
-      AIsContainer: TTreeNodePredicate; AOnFocus: TTreeNodeProc);
+      AIsContainer: TTreeNodePredicate; AOnFocus: TTreeNodeProc;
+      AFlat: Boolean = False);
     destructor Destroy; override;
     /// Call before Tree.Clear: forgets the hovered row.
     procedure ClearHover;
@@ -99,13 +108,14 @@ var
 
 constructor TTreeLook.Create(ATree: TVirtualStringTree;
   ARowColor: TTreeRowColorFunc; AIsContainer: TTreeNodePredicate;
-  AOnFocus: TTreeNodeProc);
+  AOnFocus: TTreeNodeProc; AFlat: Boolean);
 begin
   inherited Create;
   FTree := ATree;
   FRowColor := ARowColor;
   FIsContainer := AIsContainer;
   FOnFocus := AOnFocus;
+  FFlat := AFlat;
   FHoverAction := -1;
   FStretchColumn := NoColumn;
 
@@ -116,6 +126,9 @@ begin
   FTree.OnMeasureItem := MeasureItem;
   FTree.OnAfterItemPaint := AfterItemPaint;
   FTree.TreeOptions.PaintOptions := FTree.TreeOptions.PaintOptions - [toShowTreeLines];
+  if FFlat then
+    FTree.TreeOptions.PaintOptions := FTree.TreeOptions.PaintOptions -
+      [toShowRoot, toShowButtons];
   FTree.Header.Options := FTree.Header.Options + [hoOwnerDraw];
   FTree.OnHeaderDrawQueryElements := HeaderDrawQueryElements;
   FTree.OnAdvancedHeaderDraw := AdvancedHeaderDraw;
@@ -132,7 +145,6 @@ begin
 
   FBaseFont := MulDiv(FTree.Font.Height, 96, FTree.CurrentPPI);
   FBaseHeaderFont := MulDiv(FTree.Header.Font.Height, 96, FTree.CurrentPPI);
-  FBaseHeaderHeight := MulDiv(Integer(FTree.Header.Height), 96, FTree.CurrentPPI);
   FBaseIndent := MulDiv(Integer(FTree.Indent), 96, FTree.CurrentPPI);
   if not Assigned(GLooks) then
     GLooks := TList<TTreeLook>.Create;
@@ -185,6 +197,19 @@ begin
       Max(1, MulDiv(1, FTree.CurrentPPI, 96)));
 end;
 
+function TTreeLook.HeaderTextHeight: Integer;
+var
+  B: TBitmap;
+begin
+  B := TBitmap.Create;
+  try
+    B.Canvas.Font.Assign(FTree.Header.Font);
+    Result := B.Canvas.TextHeight('Tg');
+  finally
+    B.Free;
+  end;
+end;
+
 procedure TTreeLook.ApplyAppearance;
 var
   PPIOf, TextHeight, Row: Integer;
@@ -195,7 +220,7 @@ begin
   try
     FTree.Font.Height := MulDiv(Appearance.Scaled(FBaseFont), PPIOf, 96);
     FTree.Header.Font.Height := MulDiv(Appearance.Scaled(FBaseHeaderFont), PPIOf, 96);
-    FTree.Header.Height := MulDiv(Appearance.Scaled(FBaseHeaderHeight), PPIOf, 96);
+    FTree.Header.Height := HeaderTextHeight * 4 div 3;
     FTree.Indent := MulDiv(Appearance.Scaled(FBaseIndent), PPIOf, 96);
     Row := Appearance.Spaced(NaturalRowHeight(TextHeight));
     FTree.DefaultNodeHeight := Max(Row, TextHeight + 2);
@@ -212,7 +237,84 @@ begin
   finally
     FTree.EndUpdate;
   end;
+  FTree.Colors.UnfocusedSelectionColor := UnfocusedSelectionFill;
+  FTree.Colors.UnfocusedSelectionBorderColor := FTree.Colors.UnfocusedSelectionColor;
+  FUnfocusedFrame := UnfocusedFrameColor;
   FTree.Invalidate;
+end;
+
+function TTreeLook.UnfocusedFrameColor: TColor;
+var
+  Fill: TColor;
+begin
+  Fill := FTree.Colors.UnfocusedSelectionColor;
+  Result := FTree.Colors.FocusedSelectionColor;
+  if ContrastRatio(Result, Fill) < 1.8 then
+    Result := MixColor(Fill, FTree.Colors.UnfocusedColor, 0.5);
+end;
+
+procedure TTreeLook.PaintUnfocusedFrame(TargetCanvas: TCanvas; Column: TColumnIndex;
+  const CellRect: TRect);
+var
+  W: Integer;
+  First, Last: Boolean;
+begin
+  W := Max(1, MulDiv(1, PPI, 96));
+  if (Column = NoColumn) or not FTree.Header.UseColumns then
+  begin
+    First := True;
+    Last := True;
+  end
+  else
+  begin
+    First := Column = FTree.Header.Columns.GetFirstVisibleColumn;
+    Last := Column = FTree.Header.Columns.GetLastVisibleColumn;
+  end;
+  TargetCanvas.Brush.Style := bsSolid;
+  TargetCanvas.Brush.Color := FUnfocusedFrame;
+  TargetCanvas.FillRect(Rect(CellRect.Left, CellRect.Top, CellRect.Right, CellRect.Top + W));
+  TargetCanvas.FillRect(Rect(CellRect.Left, CellRect.Bottom - W, CellRect.Right, CellRect.Bottom));
+  if First then
+    TargetCanvas.FillRect(Rect(CellRect.Left, CellRect.Top, CellRect.Left + W, CellRect.Bottom));
+  if Last then
+    TargetCanvas.FillRect(Rect(CellRect.Right - W, CellRect.Top, CellRect.Right, CellRect.Bottom));
+end;
+
+function TTreeLook.UnfocusedSelectionFill: TColor;
+const
+  MinTextContrast = 4.5;
+  // Dark row tints sit well above the tree colour, so the step must be larger there.
+  MinBackgroundStep: array[Boolean] of Double = (1.8, 3.0);
+  AccentSteps = 11;
+  LiftSteps = 12;
+var
+  Back, Accent, Text, Candidate: TColor;
+  K: Integer;
+  Step, BestStep, MinStep: Double;
+begin
+  Back := Background;
+  Accent := FTree.Colors.FocusedSelectionColor;
+  Text := FTree.Colors.UnfocusedColor;
+  MinStep := MinBackgroundStep[IsDark];
+  Result := MixColor(Back, Accent, 0.45);
+  BestStep := -1;
+  for K := 0 to AccentSteps + LiftSteps do
+  begin
+    if K <= AccentSteps then
+      Candidate := MixColor(Back, Accent, 0.45 + 0.05 * K)
+    else
+      Candidate := MixColor(Accent, Text, 0.05 * (K - AccentSteps));
+    if ContrastRatio(Text, Candidate) < MinTextContrast then
+      Continue;
+    Step := ContrastRatio(Candidate, Back);
+    if Step > BestStep then
+    begin
+      Result := Candidate;
+      BestStep := Step;
+    end;
+    if Step >= MinStep then
+      Break;
+  end;
 end;
 
 class procedure TTreeLook.ApplyAll;
@@ -285,7 +387,7 @@ procedure TTreeLook.MeasureItem(Sender: TBaseVirtualTree; TargetCanvas: TCanvas;
 var
   Gap, Img: Integer;
 begin
-  if Sender.GetNodeLevel(Node) <> 0 then Exit;
+  if FFlat or (Sender.GetNodeLevel(Node) <> 0) then Exit;
   Gap := MulDiv(8, PPI, 96);
   Img := 16;
   if Assigned(FTree.Images) then
@@ -298,7 +400,7 @@ end;
 function TTreeLook.HeaderGap(Node: PVirtualNode): Integer;
 begin
   Result := 0;
-  if Assigned(Node) and (FTree.GetNodeLevel(Node) = 0) then
+  if not FFlat and Assigned(Node) and (FTree.GetNodeLevel(Node) = 0) then
     Result := Max(0, Integer(FTree.NodeHeight[Node]) - Integer(FTree.DefaultNodeHeight));
 end;
 
@@ -381,12 +483,19 @@ function TTreeLook.AfterCellPaint(TargetCanvas: TCanvas; Node: PVirtualNode;
 var
   Gap, D, X, W, Y0: Integer;
   Lines: TArray<PVirtualNode>;
+  Framed: Boolean;
 begin
   Result := False;
   TargetCanvas.Brush.Style := bsSolid;
   Gap := HeaderGap(Node);
   Inc(CellRect.Top, Gap);
-  if Column <> FTree.Header.MainColumn then Exit;
+  Framed := (vsSelected in Node.States) and not FTree.Focused;
+  if Column <> FTree.Header.MainColumn then
+  begin
+    if Framed then
+      PaintUnfocusedFrame(TargetCanvas, Column, CellRect);
+    Exit;
+  end;
 
   Lines := LineNodes(Node);
   W := Max(2, MulDiv(2, PPI, 96));
@@ -412,6 +521,8 @@ begin
       DrawTreeActions(TargetCanvas, CellRect, PPI, RowBackground(Node), -1);
     Result := True;
   end;
+  if Framed then
+    PaintUnfocusedFrame(TargetCanvas, Column, CellRect);
 end;
 
 procedure TTreeLook.AfterItemPaint(Sender: TBaseVirtualTree; TargetCanvas: TCanvas;

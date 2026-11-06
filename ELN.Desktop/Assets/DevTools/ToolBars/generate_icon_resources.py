@@ -51,7 +51,7 @@ ITEM_TREE_ICONS = [
 PROJECT_TB_ICONS = [
     'Add File', 'Add Folder', 'Edit', 'Delete Document',
     'Arrow Up', 'Down Right', 'Refresh', 'Show Archived', 'New',
-    'Analyze',
+    'Analyze', 'Series',
 ]
 
 PROJECT_TREE_ICONS = [
@@ -98,6 +98,12 @@ MENU_ICONS = [
     'Save Draft',
     'Reload Draft',
     'Semantic Search',
+    'Series',
+    'Link Plan Point',
+    'Confirm Planned',
+    'Mark Failed',
+    'Unlink',
+    'Remove Point',
 ]
 
 

@@ -250,9 +250,11 @@ var
   P: TZRWPackage;
 begin
   Tsv := TsvText('t_s'#9'dt_s'#9'R'#9'state') + 'oops'#9'0.1'#9'1'#9'ok'#13#10 +
-    '1.0'#9'0.1'#9'abc'#9'ok'#13#10 + '1.0'#9'0.1'#13#10;
+    '1.0'#9'0.1'#9'abc'#9'ok'#13#10 + '1.0'#9'0.1'#13#10 +
+    '2.0'#9'0.1'#9'+1.980000E+38'#9'ok'#13#10 +
+    '2.5'#9'0.1'#9'-9.900000E+37'#9'ok'#13#10;
   P := LoadZRWPackage(DefaultPackage('', Tsv));
-  Assert.AreEqual(3, P.Channel.BadRows);
+  Assert.AreEqual(5, P.Channel.BadRows);
   Assert.AreEqual<NativeInt>(LoggerRows, Length(P.Channel.Value));
 end;
 

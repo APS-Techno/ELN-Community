@@ -9,7 +9,7 @@ implementation
 uses
   Winapi.Windows,
   System.SysUtils, System.Classes, System.JSON, System.IOUtils, System.Hash,
-  System.Generics.Collections, System.Variants,
+  System.Generics.Collections, System.Variants, System.Math,
   Vcl.Forms,
   Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq, Aurelius.Drivers.Interfaces,
   upfVisualClasses, upfIntf,
@@ -18,13 +18,15 @@ uses
   unit_ToolsWrite, unit_ToolsValues, unit_ToolsNavigation, unit_ToolsFiles,
   unit_ToolsWiki,
   unit_ToolsValueChecks, unit_ToolsValueEdit, unit_ToolsMetadata,
-  unit_Project, unit_Item, unit_ItemTypes, unit_ValueType,
+  unit_Project, unit_Item, unit_ItemTypes, unit_ValueType, unit_User,
   unit_ReaderValueMapping,
   unit_FileType, unit_AuditLog, unit_FilePaths,
-  unit_ItemModel, unit_DerivedFormulas,
+  unit_ItemModel, unit_DerivedFormulas, unit_ValueSource,
   unit_Hypothesis, unit_HypothesisRun, unit_HypothesisEvidence, unit_Signature,
   unit_AnalysisSettingsModel, unit_NotebookStorage, unit_ViewerStateModel,
-  unit_ToolScope, unit_ToolsHypotheses;
+  unit_ToolScope, unit_ToolsHypotheses, unit_ToolsSeries, unit_JSONCompact,
+  unit_SeriesTable, unit_SeriesModel, unit_ActionType, unit_Series, unit_SeriesColumn,
+  unit_ProjectModel;
 
 type
   TDriftFixturePlugin = class(TupfVisualPlugin, IViewerPlugin,
@@ -59,6 +61,22 @@ type
   private
     FInner: INotebookStorage;
   public
+    constructor Create(const Inner: INotebookStorage);
+    procedure MoveFile(const OldPath, NewPath: string);
+    function ReadBytes(const RelativePath: string): TBytes;
+    procedure WriteBytes(const RelativePath: string; const Data: TBytes);
+    procedure CopyIn(const SourcePath, RelativePath: string);
+    procedure CopyOut(const RelativePath, TargetPath: string);
+    function Exists(const RelativePath: string): Boolean;
+    procedure DeleteFile(const RelativePath: string);
+  end;
+
+  TCopyInFailStorage = class(TInterfacedObject, INotebookStorage)
+  private
+    FInner: INotebookStorage;
+  public
+    FailOnCall: Integer;
+    CopyInCalls: Integer;
     constructor Create(const Inner: INotebookStorage);
     procedure MoveFile(const OldPath, NewPath: string);
     function ReadBytes(const RelativePath: string): TBytes;
@@ -263,6 +281,51 @@ begin
   FInner.DeleteFile(RelativePath);
 end;
 
+constructor TCopyInFailStorage.Create(const Inner: INotebookStorage);
+begin
+  inherited Create;
+  FInner := Inner;
+end;
+
+procedure TCopyInFailStorage.MoveFile(const OldPath, NewPath: string);
+begin
+  FInner.MoveFile(OldPath, NewPath);
+end;
+
+function TCopyInFailStorage.ReadBytes(const RelativePath: string): TBytes;
+begin
+  Result := FInner.ReadBytes(RelativePath);
+end;
+
+procedure TCopyInFailStorage.WriteBytes(const RelativePath: string;
+  const Data: TBytes);
+begin
+  FInner.WriteBytes(RelativePath, Data);
+end;
+
+procedure TCopyInFailStorage.CopyIn(const SourcePath, RelativePath: string);
+begin
+  Inc(CopyInCalls);
+  if CopyInCalls = FailOnCall then
+    raise EInOutError.Create('injected CopyIn failure');
+  FInner.CopyIn(SourcePath, RelativePath);
+end;
+
+procedure TCopyInFailStorage.CopyOut(const RelativePath, TargetPath: string);
+begin
+  FInner.CopyOut(RelativePath, TargetPath);
+end;
+
+function TCopyInFailStorage.Exists(const RelativePath: string): Boolean;
+begin
+  Result := FInner.Exists(RelativePath);
+end;
+
+procedure TCopyInFailStorage.DeleteFile(const RelativePath: string);
+begin
+  FInner.DeleteFile(RelativePath);
+end;
+
 procedure Prepare(const Storage: INotebookStorage = nil);
 begin
   if Storage = nil then
@@ -280,6 +343,7 @@ begin
   RegisterMetadataTools(Registry);
   RegisterWikiTools(Registry);
   RegisterHypothesisTools(Registry);
+  RegisterSeriesTools(Registry);
 end;
 
 function NewItem(Project: TProject; ParentId: Integer;
@@ -2322,6 +2386,287 @@ begin
   Check(Pos(IntToStr(M1Id), Refusal) > 0, 'The refusal names the first candidate: ' + Refusal);
 end;
 
+procedure ExpectStorageFailure(const Tool, JSON: string);
+var
+  Response: TJSONObject;
+  Raised: Boolean;
+begin
+  Raised := False;
+  try
+    Response := Call(Tool, JSON);
+    Response.Free;
+  except
+    on E: Exception do
+    begin
+      Raised := True;
+      Check(E is EInOutError, Tool + ' keeps the storage error class for the transport ' +
+        'sanitizer, got ' + E.ClassName);
+      Check(Pos('injected CopyIn failure', E.Message) > 0, 'The storage error is kept: ' + E.Message);
+    end;
+  end;
+  Check(Raised, Tool + ' must fail: ' + JSON);
+end;
+
+function PrepareWiki: TCopyInFailStorage;
+var
+  Root: string;
+begin
+  Root := TPath.Combine(TPath.GetDirectoryName(Notebook.DatabasePath), 'upload');
+  TDirectory.CreateDirectory(Root);
+  Context.UploadRoot := Root;
+  Result := TCopyInFailStorage.Create(Notebook.Storage);
+  Prepare(Result);
+end;
+
+function WikiAttachment(const Name, Content: string): string;
+begin
+  Result := TPath.Combine(Context.UploadRoot, Name);
+  System.IOUtils.TFile.WriteAllBytes(Result, TEncoding.UTF8.GetBytes(Content));
+end;
+
+function WikiCreateJSON(ProjectId: Integer; const Title, Body: string;
+  const Attachments: array of string): string;
+var
+  Obj: TJSONObject;
+  Arr: TJSONArray;
+  Path: string;
+begin
+  Obj := TJSONObject.Create;
+  try
+    Obj.AddPair('project_id', TJSONNumber.Create(ProjectId));
+    Obj.AddPair('section', 'Analysis');
+    Obj.AddPair('title', Title);
+    Obj.AddPair('body_md', Body);
+    if Length(Attachments) > 0 then
+    begin
+      Arr := TJSONArray.Create;
+      for Path in Attachments do
+        Arr.Add(Path);
+      Obj.AddPair('attachments', Arr);
+    end;
+    Result := Obj.ToJSON;
+  finally
+    Obj.Free;
+  end;
+end;
+
+function WikiUpdateJSON(ItemId: Integer; const Body: string;
+  const Attachments: array of string): string;
+var
+  Obj: TJSONObject;
+  Arr: TJSONArray;
+  Path: string;
+begin
+  Obj := TJSONObject.Create;
+  try
+    Obj.AddPair('item_id', TJSONNumber.Create(ItemId));
+    Obj.AddPair('body_md', Body);
+    if Length(Attachments) > 0 then
+    begin
+      Arr := TJSONArray.Create;
+      for Path in Attachments do
+        Arr.Add(Path);
+      Obj.AddPair('attachments', Arr);
+    end;
+    Result := Obj.ToJSON;
+  finally
+    Obj.Free;
+  end;
+end;
+
+function StorageFileCount: Integer;
+var
+  Dir: string;
+begin
+  Dir := TPath.Combine(Notebook.StorageRoot, 'Projects');
+  if TDirectory.Exists(Dir) then
+    Result := Length(TDirectory.GetFiles(Dir, '*', TSearchOption.soAllDirectories))
+  else
+    Result := 0;
+end;
+
+function CreateWikiPage(ProjectId: Integer; const Title, Body: string;
+  const Attachments: array of string): Integer;
+var
+  Response: TJSONObject;
+begin
+  Response := Call('wiki_create_page', WikiCreateJSON(ProjectId, Title, Body, Attachments));
+  try
+    Result := Response.GetValue<Integer>('item_id');
+  finally
+    Response.Free;
+  end;
+end;
+
+function WikiBody(ItemId: Integer): string;
+var
+  Response: TJSONObject;
+begin
+  Response := Call('wiki_get_page', Format('{"item_id":%d}', [ItemId]));
+  try
+    Result := Response.GetValue<string>('body_md');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure CheckStoredFilesIntact(ItemId: Integer; ExpectedCount: Integer);
+var
+  Observer: TObjectManager;
+  Item: TItem;
+  Project: TProject;
+  F: unit_Item.TFile;
+  Path: string;
+begin
+  Observer := TObjectManager.Create(Notebook.Connection);
+  try
+    Item := Observer.Find<TItem>(ItemId);
+    Check(Assigned(Item), Format('Item %d must exist', [ItemId]));
+    Project := Observer.Find<TProject>(Item.ProjectID);
+    Check(Item.Files.Count = ExpectedCount,
+      Format('Item %d must have %d files, has %d', [ItemId, ExpectedCount, Item.Files.Count]));
+    for F in Item.Files do
+    begin
+      Path := AttachmentRelativePath(Project.FileFolder, Item.FolderName, F.FullName);
+      Check(Notebook.Storage.Exists(Path), 'Bytes must exist for ' + Path);
+      Check(SameText(ComputeFileMD5(TPath.Combine(Notebook.StorageRoot, Path)), F.Hash),
+        'Stored bytes must match the recorded hash for ' + Path);
+    end;
+  finally
+    Observer.Free;
+  end;
+end;
+
+procedure TestWikiCreateWritesPageAndAttachments;
+var
+  Project: TProject;
+  Before: TRowSnapshot;
+  ItemId: Integer;
+begin
+  PrepareWiki;
+  Project := AddProject(Notebook.Principal);
+  NewFileType('.md');
+  NewFileType('.txt');
+  Before := TRowSnapshot.Take;
+  ItemId := CreateWikiPage(Project.Id, 'Plan', 'body text',
+    [WikiAttachment('a.txt', 'alpha'), WikiAttachment('b.txt', 'beta')]);
+  Check(TRows.Count<TItem> = Before.Items + 1, 'One page item is created');
+  Check(TRows.Count<unit_Item.TFile> = Before.Files + 3, 'Body and two attachments are recorded');
+  Check(StorageFileCount = 3, 'Three files are stored');
+  CheckStoredFilesIntact(ItemId, 3);
+  Check(WikiBody(ItemId) = 'body text', 'The page body reads back');
+end;
+
+procedure CheckWikiFailureLeavesNothing(Storage: TCopyInFailStorage; FailAfter: Integer);
+var
+  Project: TProject;
+  Before: TRowSnapshot;
+  StoredBefore, ExistingId: Integer;
+  Attachments: TArray<string>;
+begin
+  Project := AddProject(Notebook.Principal);
+  NewFileType('.md');
+  NewFileType('.txt');
+  ExistingId := CreateWikiPage(Project.Id, 'Existing', 'existing body',
+    [WikiAttachment('keep.txt', 'keep')]);
+  Attachments := [WikiAttachment('a.txt', 'alpha'), WikiAttachment('b.txt', 'beta')];
+  Before := TRowSnapshot.Take;
+  StoredBefore := StorageFileCount;
+
+  Storage.FailOnCall := Storage.CopyInCalls + FailAfter;
+  ExpectStorageFailure('wiki_create_page', WikiCreateJSON(Project.Id, 'Plan', 'body text',
+    Attachments));
+  Check(TRowSnapshot.Take.SameAs(Before), 'A failed create leaves no item, file or audit row');
+  Check(StorageFileCount = StoredBefore, 'A failed create leaves no stored bytes');
+  CheckStoredFilesIntact(ExistingId, 2);
+  Check(WikiBody(ExistingId) = 'existing body', 'The existing page keeps its body');
+
+  Storage.FailOnCall := 0;
+  CheckStoredFilesIntact(CreateWikiPage(Project.Id, 'Plan', 'body text', Attachments), 3);
+end;
+
+procedure TestWikiCreateBodyCopyFailureLeavesNothing;
+begin
+  CheckWikiFailureLeavesNothing(PrepareWiki, 1);
+end;
+
+procedure TestWikiCreateAttachmentCopyFailureLeavesNothing;
+begin
+  CheckWikiFailureLeavesNothing(PrepareWiki, 3);
+end;
+
+procedure TestWikiCreateMissingMarkdownTypeWritesNothing;
+var
+  Project: TProject;
+  Before: TRowSnapshot;
+begin
+  PrepareWiki;
+  Project := AddProject(Notebook.Principal);
+  Before := TRowSnapshot.Take;
+  ExpectRefused('wiki_create_page', WikiCreateJSON(Project.Id, 'Plan', 'body', []),
+    'No FileTypes row for ".md"');
+  Check(TRows.Count<TItem> = Before.Items, 'No page item is created');
+  Check(TRows.Count<unit_Item.TFile> = Before.Files, 'No file row is created');
+  Check(StorageFileCount = 0, 'No bytes are stored');
+end;
+
+procedure TestWikiCreateRefusesCaseDuplicate;
+var
+  Project: TProject;
+  Before: TRowSnapshot;
+begin
+  PrepareWiki;
+  Project := AddProject(Notebook.Principal);
+  NewFileType('.md');
+  CreateWikiPage(Project.Id, 'Notes', 'first', []);
+  Before := TRowSnapshot.Take;
+  ExpectRefused('wiki_create_page', WikiCreateJSON(Project.Id, 'notes', 'second', []),
+    'already exists');
+  Check(TRowSnapshot.Take.SameAs(Before), 'A duplicate title writes nothing');
+end;
+
+procedure TestWikiCreateMissingAttachmentSourceWritesNothing;
+var
+  Project: TProject;
+  Before: TRowSnapshot;
+begin
+  PrepareWiki;
+  Project := AddProject(Notebook.Principal);
+  NewFileType('.md');
+  NewFileType('.txt');
+  Before := TRowSnapshot.Take;
+  ExpectRefused('wiki_create_page', WikiCreateJSON(Project.Id, 'Plan', 'body',
+    [WikiAttachment('a.txt', 'alpha'), TPath.Combine(Context.UploadRoot, 'absent.txt')]),
+    'Attachment not found');
+  Check(TRows.Count<TItem> = Before.Items, 'No page item is created');
+  Check(TRows.Count<unit_Item.TFile> = Before.Files, 'No file row is created');
+  Check(StorageFileCount = 0, 'No bytes are stored');
+end;
+
+procedure TestWikiUpdateFailureRestoresBody;
+var
+  Storage: TCopyInFailStorage;
+  Project: TProject;
+  Before: TRowSnapshot;
+  ItemId, StoredBefore: Integer;
+begin
+  Storage := PrepareWiki;
+  Project := AddProject(Notebook.Principal);
+  NewFileType('.md');
+  NewFileType('.txt');
+  ItemId := CreateWikiPage(Project.Id, 'Plan', 'old body', []);
+  Before := TRowSnapshot.Take;
+  StoredBefore := StorageFileCount;
+
+  Storage.FailOnCall := Storage.CopyInCalls + 2;
+  ExpectStorageFailure('wiki_update_page', WikiUpdateJSON(ItemId, 'new body',
+    [WikiAttachment('a.txt', 'alpha')]));
+  Check(TRowSnapshot.Take.SameAs(Before), 'A failed update leaves no new row');
+  Check(StorageFileCount = StoredBefore, 'A failed update leaves no new bytes');
+  CheckStoredFilesIntact(ItemId, 1);
+  Check(WikiBody(ItemId) = 'old body', 'A failed update restores the old body');
+end;
+
 type
   TDeleteFixture = record
     Item: TItem;
@@ -2346,6 +2691,787 @@ begin
   Evidence.AddedDate := Now;
   Notebook.Manager.Save(Evidence);
   Notebook.Manager.Flush;
+end;
+
+procedure AddReference(HypothesisId, ItemId: Integer);
+var
+  Run: THypothesisRun;
+begin
+  Run := THypothesisRun.Create;
+  Run.HypothesisId := HypothesisId;
+  Run.ItemId := ItemId;
+  Run.Role := hrrReference;
+  Run.AddedBy := Notebook.Principal.Id;
+  Run.AddedDate := Now;
+  Notebook.Manager.Save(Run);
+  Notebook.Manager.Flush;
+end;
+
+procedure AddItemEvidence(HypothesisId, ItemId: Integer);
+var
+  Evidence: THypothesisEvidence;
+begin
+  Evidence := THypothesisEvidence.Create;
+  Evidence.HypothesisId := HypothesisId;
+  Evidence.ItemId := ItemId;
+  Evidence.AddedBy := Notebook.Principal.Id;
+  Evidence.AddedDate := Now;
+  Notebook.Manager.Save(Evidence);
+  Notebook.Manager.Flush;
+end;
+
+function FindHypotheses(const ItemIds: array of Integer): TJSONObject;
+var
+  Arr: TJSONArray;
+  Id: Integer;
+  Obj: TJSONObject;
+begin
+  Obj := TJSONObject.Create;
+  try
+    Arr := TJSONArray.Create;
+    for Id in ItemIds do
+      Arr.Add(Id);
+    Obj.AddPair('item_ids', Arr);
+    Result := Call('find_hypotheses_for_item', Obj.ToJSON);
+  finally
+    Obj.Free;
+  end;
+end;
+
+function LinkKey(HypothesisId: Integer; const Kind: string; Link: TJSONObject): string;
+begin
+  Result := Format('%d|%s', [HypothesisId, Kind]);
+  if Kind = 'Evidence' then
+    Result := Result + '|' + Link.GetValue('evidence_id').ToJSON + '|' +
+      Link.GetValue('file_id').ToJSON + '|' + Link.GetValue('value_id').ToJSON;
+end;
+
+function ToolLinkKeys(Entry: TJSONObject): TStringList;
+var
+  Hyp, Link: TJSONValue;
+  HypId: Integer;
+begin
+  Result := TStringList.Create;
+  Result.Sorted := True;
+  Result.Duplicates := dupAccept;
+  for Hyp in Entry.GetValue<TJSONArray>('hypotheses') do
+  begin
+    HypId := (Hyp as TJSONObject).GetValue<Integer>('hypothesis_id');
+    for Link in (Hyp as TJSONObject).GetValue<TJSONArray>('links') do
+      Result.Add(LinkKey(HypId, (Link as TJSONObject).GetValue<string>('kind'),
+        TJSONObject(Link)));
+  end;
+end;
+
+function DetailLinkKeys(ItemId: Integer; const HypothesisIds: array of Integer): TStringList;
+var
+  HypId: Integer;
+  Detail: TJSONObject;
+  Row: TJSONValue;
+begin
+  Result := TStringList.Create;
+  Result.Sorted := True;
+  Result.Duplicates := dupAccept;
+  for HypId in HypothesisIds do
+  begin
+    Detail := Call('get_hypothesis', Format('{"hypothesis_id":%d}', [HypId]));
+    try
+      for Row in Detail.GetValue<TJSONArray>('runs') do
+        if (Row as TJSONObject).GetValue('item_id').ToJSON = IntToStr(ItemId) then
+          Result.Add(LinkKey(HypId, (Row as TJSONObject).GetValue<string>('role'),
+            TJSONObject(Row)));
+      for Row in Detail.GetValue<TJSONArray>('evidence') do
+        if (Row as TJSONObject).GetValue('item_id').ToJSON = IntToStr(ItemId) then
+          Result.Add(LinkKey(HypId, 'Evidence', TJSONObject(Row)));
+    finally
+      Detail.Free;
+    end;
+  end;
+end;
+
+function EntryFor(Response: TJSONObject; ItemId: Integer): TJSONObject;
+begin
+  Result := FindRow(Response.GetValue<TJSONArray>('items'), 'item_id', ItemId);
+  Check(Assigned(Result), Format('Item %d must have an entry', [ItemId]));
+end;
+
+procedure TestFindHypothesesReturnsAllLinkKinds;
+var
+  Project: TProject;
+  Item: TItem;
+  H1, H2, ValueId: Integer;
+  FileId: Int64;
+  Response, Detail, Hyp: TJSONObject;
+  Keys: TStringList;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Linked item');
+  H1 := AddLockedHypothesis(Project, hsApproved);
+  H2 := AddLockedHypothesis(Project, hsInReview);
+  FileId := StoreFile(Item, NewFileType('.vsrc'), 'scan', 'bytes');
+  ValueId := AddManual(Item.Id, NewValueType('Synthetic step', 'nm', False, 0, 0), 5);
+  AddRun(H1, Item.Id);
+  AddReference(H2, Item.Id);
+  AddItemEvidence(H1, Item.Id);
+  AddFileEvidence(H1, Item.Id, FileId);
+  AddValueEvidence(H1, Item.Id, ValueId);
+
+  Response := FindHypotheses([Item.Id]);
+  try
+    Keys := ToolLinkKeys(EntryFor(Response, Item.Id));
+    try
+      Check(Keys.Count = 5, 'Run, Reference and three evidence rows: ' + Keys.CommaText);
+      Check(Keys.IndexOf(Format('%d|Run', [H1])) >= 0, 'The Run link is listed');
+      Check(Keys.IndexOf(Format('%d|Reference', [H2])) >= 0, 'The Reference link is listed');
+    finally
+      Keys.Free;
+    end;
+    Hyp := FindRow(EntryFor(Response, Item.Id).GetValue<TJSONArray>('hypotheses'),
+      'hypothesis_id', H1);
+    Check(Hyp.GetValue<TJSONArray>('links').Count = 4, 'H1 groups its four links');
+    Detail := Call('get_hypothesis', Format('{"hypothesis_id":%d}', [H1]));
+    try
+      Check(Hyp.GetValue<string>('status') = Detail.GetValue<string>('status'),
+        'The status matches get_hypothesis');
+      Check(Hyp.GetValue('outcome').ToJSON = Detail.GetValue('outcome').ToJSON,
+        'The outcome matches get_hypothesis');
+      Check(Hyp.GetValue<string>('title') = Detail.GetValue<string>('title'),
+        'The title matches get_hypothesis');
+      Check(Hyp.GetValue<Integer>('project_id') = Project.Id, 'The project is listed');
+    finally
+      Detail.Free;
+    end;
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestFindHypothesesMatchesGetHypothesis;
+var
+  Project: TProject;
+  Items: array[0..2] of TItem;
+  Hyps: array[0..2] of Integer;
+  I, TypeId: Integer;
+  Response: TJSONObject;
+  Expected, Actual: TStringList;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  TypeId := NewValueType('Synthetic step', 'nm', False, 0, 0);
+  for I := 0 to 2 do
+  begin
+    Items[I] := NewItem(Project, 0, 'Item ' + IntToStr(I));
+    Hyps[I] := AddLockedHypothesis(Project, hsApproved);
+  end;
+  AddRun(Hyps[0], Items[0].Id);
+  AddRun(Hyps[1], Items[0].Id);
+  AddReference(Hyps[2], Items[0].Id);
+  AddItemEvidence(Hyps[0], Items[0].Id);
+  AddItemEvidence(Hyps[0], Items[0].Id);
+  AddRun(Hyps[2], Items[1].Id);
+  AddValueEvidence(Hyps[1], Items[1].Id, AddManual(Items[1].Id, TypeId, 2));
+
+  Response := FindHypotheses([Items[0].Id, Items[1].Id, Items[2].Id]);
+  try
+    for I := 0 to 2 do
+    begin
+      Expected := DetailLinkKeys(Items[I].Id, Hyps);
+      Actual := ToolLinkKeys(EntryFor(Response, Items[I].Id));
+      try
+        Check(Expected.Text = Actual.Text, Format('Item %d links: expected %s, got %s',
+          [I, Expected.CommaText, Actual.CommaText]));
+      finally
+        Expected.Free;
+        Actual.Free;
+      end;
+    end;
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestFindHypothesesUnavailableItemsAreUniform;
+var
+  Project: TProject;
+  Item, Hidden, Deleted: TItem;
+  Response: TJSONObject;
+  Missing, Foreign: string;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Plain item');
+  Deleted := NewItem(Project, 0, 'Binned item');
+  Deleted.IsDeleted := True;
+  Notebook.Manager.Flush;
+  AddRun(AddLockedHypothesis(Project, hsApproved), Deleted.Id);
+  Hidden := NewItem(AddProject(AddUser('hidden-owner', dbUser)), 0, 'Hidden item');
+
+  Response := FindHypotheses([999999, Hidden.Id, Item.Id, Item.Id, Deleted.Id]);
+  try
+    Check(Response.GetValue<TJSONArray>('items').Count = 4, 'A repeated id counts once');
+    Missing := EntryFor(Response, 999999).GetValue<string>('error');
+    Foreign := EntryFor(Response, Hidden.Id).GetValue<string>('error');
+    Check(Missing = 'Item 999999 is not available.', 'Missing item message: ' + Missing);
+    Check(Foreign = Format('Item %d is not available.', [Hidden.Id]),
+      'Unreadable item message: ' + Foreign);
+    Check(EntryFor(Response, Hidden.Id).Count = 2, 'An unavailable entry has only item_id and error');
+    Check(EntryFor(Response, Item.Id).GetValue<TJSONArray>('hypotheses').Count = 0,
+      'An item without links has an empty list');
+    Check(EntryFor(Response, Deleted.Id).GetValue<Boolean>('is_deleted'),
+      'An item in the recycle bin is flagged');
+    Check(EntryFor(Response, Deleted.Id).GetValue<TJSONArray>('hypotheses').Count = 1,
+      'An item in the recycle bin still lists its links');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestFindHypothesesHidesForeignHypothesis;
+var
+  Project: TProject;
+  Item: TItem;
+  Foreign: THypothesis;
+  Response: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Visible item');
+  Foreign := AddHypothesis(AddProject(AddUser('hidden-owner', dbUser)));
+  Foreign.Title := 'Secret foreign expectation';
+  Notebook.Manager.Flush;
+  AddReference(Foreign.Id, Item.Id);
+
+  Response := FindHypotheses([Item.Id]);
+  try
+    Check(EntryFor(Response, Item.Id).GetValue<TJSONArray>('hypotheses').Count = 0,
+      'A link to an unreadable hypothesis is removed');
+    Check(Pos('Secret foreign expectation', Response.ToJSON) = 0, 'The title does not leak');
+    Check(Pos(Format('"hypothesis_id":%d', [Foreign.Id]), Response.ToJSON) = 0,
+      'The id does not leak');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestFindHypothesesScopedSession;
+var
+  P1, P2: TProject;
+  Item, Other: TItem;
+  Local, Remote: Integer;
+  Response: TJSONObject;
+  Keys: TStringList;
+begin
+  P1 := AddProject(Notebook.Principal);
+  P2 := AddProject(Notebook.Principal);
+  Item := NewItem(P1, 0, 'Scoped item');
+  Other := NewItem(P2, 0, 'Other project item');
+  Local := AddLockedHypothesis(P1, hsApproved);
+  Remote := AddLockedHypothesis(P2, hsApproved);
+  AddRun(Local, Item.Id);
+  AddReference(Remote, Item.Id);
+  Context.ScopedProjects := [P1.Id];
+  Prepare;
+
+  Response := FindHypotheses([Item.Id, Other.Id]);
+  try
+    Keys := ToolLinkKeys(EntryFor(Response, Item.Id));
+    try
+      Check(Keys.CommaText = Format('%d|Run', [Local]),
+        'Only the in-scope hypothesis is listed: ' + Keys.CommaText);
+    finally
+      Keys.Free;
+    end;
+    Check(EntryFor(Response, Other.Id).GetValue<string>('error') =
+      Format('Item %d is not available.', [Other.Id]), 'An out-of-scope item is unavailable');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestFindHypothesesLimits;
+var
+  Ids: TArray<Integer>;
+  I: Integer;
+  Response: TJSONObject;
+begin
+  Prepare;
+  SetLength(Ids, 200);
+  for I := 0 to High(Ids) do
+    Ids[I] := 100000 + I;
+  Response := FindHypotheses(Ids);
+  try
+    Check(Response.GetValue<TJSONArray>('items').Count = 200, '200 ids are accepted');
+  finally
+    Response.Free;
+  end;
+  ExpectRefused('find_hypotheses_for_item', '{"item_ids":[' +
+    StringReplace(StringOfChar('1', 200), '1', '1,', [rfReplaceAll]) + '1]}', 'item_ids');
+  ExpectRefused('find_hypotheses_for_item', '{"item_ids":[]}', 'item_ids');
+  ExpectRefused('find_hypotheses_for_item', '{"item_ids":[0]}', 'item_ids');
+  ExpectRefused('find_hypotheses_for_item', '{"item_ids":[-1]}', 'item_ids');
+  ExpectRefused('find_hypotheses_for_item', '{"item_ids":["5"]}', 'item_ids');
+  ExpectRefused('find_hypotheses_for_item', '{}', 'item_ids');
+end;
+
+procedure TestFindHypothesesWritesNothing;
+var
+  Project: TProject;
+  Item: TItem;
+  Before: TRowSnapshot;
+  Runs, Evidence, Hyps: Integer;
+  Response: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Read-only item');
+  AddRun(AddLockedHypothesis(Project, hsApproved), Item.Id);
+  Before := TRowSnapshot.Take;
+  Runs := TRows.Count<THypothesisRun>;
+  Evidence := TRows.Count<THypothesisEvidence>;
+  Hyps := TRows.Count<THypothesis>;
+  Response := FindHypotheses([Item.Id]);
+  Response.Free;
+  Check(TRowSnapshot.Take.SameAs(Before), 'No item, file, value or audit row changes');
+  Check((TRows.Count<THypothesisRun> = Runs) and
+    (TRows.Count<THypothesisEvidence> = Evidence) and
+    (TRows.Count<THypothesis> = Hyps), 'No hypothesis row changes');
+end;
+
+function crt_strtod(Str: PAnsiChar; EndPtr: PPAnsiChar): Double; cdecl;
+  external 'ucrtbase.dll' name 'strtod';
+
+// Delphi's Win64 float text conversion is not correctly rounded in the last
+// digit, so the UCRT parser is the oracle for exact JSON numbers.
+function ParseExact(const Text: string; out Value: Double): Boolean;
+var
+  A: AnsiString;
+  Stop: PAnsiChar;
+begin
+  A := AnsiString(Text);
+  Value := crt_strtod(PAnsiChar(A), @Stop);
+  Result := (A <> '') and (Stop^ = #0);
+end;
+
+function BitsToDouble(Bits: Int64): Double;
+begin
+  Result := PDouble(@Bits)^;
+end;
+
+type
+  TExactSample = record
+    Bits: Int64;
+    Text: string;
+  end;
+
+const
+  EXACT_SAMPLES: array[0..11] of TExactSample = (
+    (Bits: 4579388775385388062; Text: '0.014285714285714287'),
+    (Bits: 4599676419421066581; Text: '0.3333333333333333'),
+    (Bits: 9218868437227405311; Text: '1.7976931348623157e+308'),
+    (Bits: 4591870180174331904; Text: '0.10000000149011612'),
+    (Bits: -4540151737703765857; Text: '-123456.789012345'),
+    (Bits: 118622047889322841; Text: '1e-300'),
+    (Bits: 1; Text: '4.94065645841247e-324'),
+    (Bits: 4508321993853365645; Text: '2.5e-7'),
+    (Bits: 4591870180066957722; Text: '0.1'),
+    (Bits: 4846369599423283201; Text: '10000000000000002'),
+    (Bits: 4638387860618067575; Text: '123.456'),
+    (Bits: -4674685261256255423; Text: '-0.000123456789'));
+
+procedure TestExactNumRoundTrips;
+var
+  Sample: TExactSample;
+  V, Back: Double;
+  Json: TJSONValue;
+  Text: string;
+begin
+  for Sample in EXACT_SAMPLES do
+  begin
+    V := BitsToDouble(Sample.Bits);
+    Json := ExactNum(V);
+    try
+      Check(Json is TJSONNumber, 'A finite value is a JSON number');
+      Text := Json.ToJSON;
+      Check(Text = Sample.Text, Format('Bits %d: expected %s, got %s',
+        [Sample.Bits, Sample.Text, Text]));
+      Check(ParseExact(Text, Back) and (Back = V),
+        Format('%s must parse back to the identical Double', [Text]));
+    finally
+      Json.Free;
+    end;
+  end;
+  Json := ExactNum(9007199254740992.0);
+  try
+    Check(Json.ToJSON = '9007199254740992', '2^53 is written as an integer: ' + Json.ToJSON);
+  finally
+    Json.Free;
+  end;
+  V := BitsToDouble(Low(Int64));
+  Json := ExactNum(V);
+  try
+    Check(Json.ToJSON = '-0', 'Negative zero keeps its sign: ' + Json.ToJSON);
+    Check(ParseExact(Json.ToJSON, Back) and (PInt64(@Back)^ = Low(Int64)),
+      'Negative zero reads back with the sign bit set');
+  finally
+    Json.Free;
+  end;
+  Json := ExactNum(3e9);
+  try
+    Check(Json.ToJSON = '3000000000', 'An integral value is written as an integer: ' + Json.ToJSON);
+  finally
+    Json.Free;
+  end;
+  Json := ExactNum(0.1);
+  try
+    Check(Json.ToJSON = '0.1', 'The shortest exact form is used: ' + Json.ToJSON);
+  finally
+    Json.Free;
+  end;
+  Json := ExactNum(NaN);
+  try
+    Check(Json is TJSONNull, 'NaN is written as null');
+  finally
+    Json.Free;
+  end;
+  Json := ExactNum(Infinity);
+  try
+    Check(Json is TJSONNull, 'Infinity is written as null');
+  finally
+    Json.Free;
+  end;
+end;
+
+procedure CheckFields(Obj: TJSONObject; const Names: array of string; const Where: string);
+var
+  Name: string;
+begin
+  for Name in Names do
+    Check(Obj.FindValue(Name) <> nil, Format('%s keeps the field %s', [Where, Name]));
+end;
+
+procedure SetStoredNumbers(ValueId: Integer; Value, Tol: Double);
+var
+  Stored: unit_Item.TValue;
+begin
+  Stored := Notebook.Manager.Find<unit_Item.TValue>(ValueId);
+  Stored.Value := Value;
+  Stored.Tol := Tol;
+  Notebook.Manager.Flush;
+end;
+
+function JSONDouble(Obj: TJSONObject; const Name: string): Double;
+begin
+  Check(Obj.GetValue(Name) is TJSONNumber, Name + ' is a JSON number');
+  Check(ParseExact(Obj.GetValue(Name).ToJSON, Result),
+    Name + ' parses as a number: ' + Obj.GetValue(Name).ToJSON);
+end;
+
+const
+  GET_VALUES_FIELDS: array[0..7] of string = ('id', 'type_symbol', 'type_title',
+    'units', 'value', 'tolerance', 'description', 'source');
+  QUERY_VALUES_FIELDS: array[0..12] of string = ('value_id', 'item_id', 'item_title',
+    'project_id', 'project_title', 'type_symbol', 'type_title', 'units', 'value',
+    'tolerance', 'rec_type', 'created_date', 'source');
+
+procedure TestGetValuesAddsTypeRoleAndAncestors;
+var
+  Project: TProject;
+  Root, Mid, Leaf: TItem;
+  TypeId, CondId, ResId: Integer;
+  FileId: Int64;
+  Response, Row: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Root := NewItem(Project, 0, 'Root run');
+  Mid := NewItem(Project, Root.Id, 'Middle step');
+  Leaf := NewItem(Project, Mid.Id, 'Leaf specimen');
+  TypeId := NewValueType('Synthetic period', 'nm', False, 0, 0);
+  CondId := CallId('add_value', Format('{"item_id":%d,"value_type_id":%d,"value":2,' +
+    '"rec_type":"EXP_CONDITION","source_note":"lab book"}', [Leaf.Id, TypeId]));
+  FileId := StoreFile(Leaf, NewFileType('.vsrc'), 'scan', 'synthetic scan');
+  ResId := CallId('add_value', Format(
+    '{"item_id":%d,"value_type_id":%d,"value":3.2,"rec_type":"TEST_RESULT",' +
+    '"source_file_id":%d,"reader_id":"synthetic.reader","reader_version":"7",' +
+    '"key_name":"Period","reader_units":"A","conversion_factor":0.1}',
+    [Leaf.Id, TypeId, FileId]));
+
+  Response := Call('get_values', Format('{"item_id":%d}', [Leaf.Id]));
+  try
+    Check(Response.GetValue<Integer>('item_id') = Leaf.Id, 'The item id is listed');
+    Check(Response.GetValue<Integer>('project_id') = Project.Id, 'The project id is listed');
+    Check(Response.GetValue('ancestor_ids').ToJSON = Format('[%d,%d]', [Root.Id, Mid.Id]),
+      'Ancestors go from the root to the parent: ' + Response.GetValue('ancestor_ids').ToJSON);
+    Check(Response.FindValue('ancestors_incomplete') = nil, 'A complete chain has no flag');
+
+    Row := FindRow(Response.GetValue<TJSONArray>('conditions'), 'id', CondId);
+    Check(Assigned(Row), 'The condition is listed');
+    CheckFields(Row, GET_VALUES_FIELDS, 'get_values');
+    Check(Row.GetValue<Integer>('type_id') = TypeId, 'The condition has its type id');
+    Check(Row.GetValue<string>('rec_type') = 'EXP_CONDITION', 'The condition has its role');
+    Check(Row.GetValue<TJSONObject>('source').GetValue<string>('kind') = 'Manual',
+      'The Manual source is unchanged');
+
+    Row := FindRow(Response.GetValue<TJSONArray>('results'), 'id', ResId);
+    Check(Assigned(Row), 'The result is listed');
+    CheckFields(Row, GET_VALUES_FIELDS, 'get_values');
+    Check(Row.GetValue<Integer>('type_id') = TypeId, 'The result has its type id');
+    Check(Row.GetValue<string>('rec_type') = 'TEST_RESULT', 'The result has its role');
+    Check(Row.GetValue<TJSONObject>('source').GetValue<string>('kind') = 'Reader',
+      'The Reader source is unchanged');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestGetValuesRootItemHasNoAncestors;
+var
+  Root: TItem;
+  Response: TJSONObject;
+begin
+  Prepare;
+  Root := NewItem(AddProject(Notebook.Principal), 0, 'Root run');
+  AddManual(Root.Id, NewValueType('Synthetic step', 'nm', False, 0, 0), 1);
+  Response := Call('get_values', Format('{"item_id":%d}', [Root.Id]));
+  try
+    Check(Response.GetValue('ancestor_ids').ToJSON = '[]', 'A root item has no ancestors');
+    Check(Response.FindValue('ancestors_incomplete') = nil, 'A root chain is complete');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestQueryValuesAddsTypeIdAndAncestors;
+var
+  Project: TProject;
+  Root, Mid, Leaf: TItem;
+  TypeId, RootValue, LeafValue: Integer;
+  Response, Row: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Root := NewItem(Project, 0, 'Root run');
+  Mid := NewItem(Project, Root.Id, 'Middle step');
+  Leaf := NewItem(Project, Mid.Id, 'Leaf specimen');
+  TypeId := NewValueType('Synthetic step', 'nm', False, 0, 0);
+  RootValue := AddManual(Root.Id, TypeId, 1);
+  LeafValue := AddManual(Leaf.Id, TypeId, 2);
+
+  Response := Call('query_values', Format('{"project_id":%d}', [Project.Id]));
+  try
+    Row := FindRow(Response.GetValue<TJSONArray>('values'), 'value_id', LeafValue);
+    Check(Assigned(Row), 'The leaf value is listed');
+    CheckFields(Row, QUERY_VALUES_FIELDS, 'query_values');
+    Check(Row.GetValue<Integer>('type_id') = TypeId, 'The leaf row has its type id');
+    Check(Row.GetValue('ancestor_ids').ToJSON = Format('[%d,%d]', [Root.Id, Mid.Id]),
+      'The leaf row lists its ancestors: ' + Row.GetValue('ancestor_ids').ToJSON);
+    Check(Row.FindValue('ancestors_incomplete') = nil, 'A complete chain has no flag');
+
+    Row := FindRow(Response.GetValue<TJSONArray>('values'), 'value_id', RootValue);
+    Check(Assigned(Row), 'The root value is listed');
+    CheckFields(Row, QUERY_VALUES_FIELDS, 'query_values');
+    Check(Row.GetValue('ancestor_ids').ToJSON = '[]', 'The root row has no ancestors');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestValueAncestorsStopAtMissingParent;
+var
+  Project: TProject;
+  Orphan: TItem;
+  ValueId: Integer;
+  Response, Row: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Orphan := NewItem(Project, 999999, 'Orphan specimen');
+  ValueId := AddManual(Orphan.Id, NewValueType('Synthetic step', 'nm', False, 0, 0), 1);
+
+  Response := Call('get_values', Format('{"item_id":%d}', [Orphan.Id]));
+  try
+    Check(Response.GetValue('ancestor_ids').ToJSON = '[]', 'No ancestor is known');
+    Check(Response.GetValue<Boolean>('ancestors_incomplete'), 'The chain is flagged incomplete');
+  finally
+    Response.Free;
+  end;
+  Response := Call('query_values', Format('{"project_id":%d}', [Project.Id]));
+  try
+    Row := FindRow(Response.GetValue<TJSONArray>('values'), 'value_id', ValueId);
+    Check(Row.GetValue<Boolean>('ancestors_incomplete'), 'The row is flagged incomplete');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestValueToolsKeepExactNumbers;
+var
+  Project: TProject;
+  Item: TItem;
+  Narrow: Single;
+  Samples, Tols: TArray<Double>;
+  Ids: TArray<Integer>;
+  TypeId, I: Integer;
+  Response, Row: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Precise item');
+  TypeId := NewValueType('Synthetic step', 'nm', False, 0, 0);
+  Narrow := 0.1;
+  Samples := [0.1, 1 / 3, -123456.789012345, 3e9, 1e-300, Narrow];
+  SetLength(Ids, Length(Samples));
+  SetLength(Tols, Length(Samples));
+  for I := 0 to High(Samples) do
+  begin
+    Tols[I] := Abs(Samples[I]) / 7;
+    Ids[I] := AddManual(Item.Id, TypeId, 1);
+    SetStoredNumbers(Ids[I], Samples[I], Tols[I]);
+  end;
+
+  Response := Call('get_values', Format('{"item_id":%d}', [Item.Id]));
+  try
+    for I := 0 to High(Samples) do
+    begin
+      Row := FindRow(Response.GetValue<TJSONArray>('results'), 'id', Ids[I]);
+      Check(JSONDouble(Row, 'value') = Samples[I],
+        'get_values keeps the stored value: ' + Row.GetValue('value').ToJSON);
+      Check(JSONDouble(Row, 'tolerance') = Tols[I],
+        'get_values keeps the stored tolerance: ' + Row.GetValue('tolerance').ToJSON);
+    end;
+  finally
+    Response.Free;
+  end;
+  Response := Call('query_values', Format('{"project_id":%d}', [Project.Id]));
+  try
+    for I := 0 to High(Samples) do
+    begin
+      Row := FindRow(Response.GetValue<TJSONArray>('values'), 'value_id', Ids[I]);
+      Check(JSONDouble(Row, 'value') = Samples[I],
+        'query_values keeps the stored value: ' + Row.GetValue('value').ToJSON);
+      Check(JSONDouble(Row, 'tolerance') = Tols[I],
+        'query_values keeps the stored tolerance: ' + Row.GetValue('tolerance').ToJSON);
+    end;
+  finally
+    Response.Free;
+  end;
+end;
+
+function AddConcluded(Project: TProject; Status: THypothesisStatus;
+  HasOutcome: Boolean; Outcome: THypothesisOutcome; Modified: Boolean): Integer;
+var
+  H: THypothesis;
+begin
+  H := AddHypothesis(Project);
+  H.Status := Status;
+  if HasOutcome then
+    H.Outcome := Outcome;
+  if Modified then
+    H.ModifiedDate := EncodeDate(2026, 10, 30) + EncodeTime(12, 0, 0, 0);
+  Notebook.Manager.Flush;
+  Result := H.Id;
+end;
+
+procedure TestListHypothesesShowsOutcome;
+var
+  Project: TProject;
+  Ids: array[0..5] of Integer;
+  Expected: array[0..5] of string;
+  I: Integer;
+  Response, Detail, Row: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Ids[0] := AddConcluded(Project, hsInReview, True, hoSupported, True);
+  Ids[1] := AddConcluded(Project, hsAccepted, True, hoRefuted, True);
+  Ids[2] := AddConcluded(Project, hsInReview, True, hoInconclusive, False);
+  Ids[3] := AddConcluded(Project, hsApproved, False, hoSupported, False);
+  Ids[4] := AddConcluded(Project, hsProposed, False, hoSupported, True);
+  Ids[5] := AddConcluded(Project, hsAbandoned, True, hoRefuted, True);
+  Expected[0] := '"Supported"';
+  Expected[1] := '"Refuted"';
+  Expected[2] := '"Inconclusive"';
+  Expected[3] := 'null';
+  Expected[4] := 'null';
+  Expected[5] := '"Refuted"';
+
+  Response := Call('list_hypotheses', Format('{"project_id":%d}', [Project.Id]));
+  try
+    for I := 0 to High(Ids) do
+    begin
+      Row := FindRow(Response.GetValue<TJSONArray>('hypotheses'), 'id', Ids[I]);
+      Check(Assigned(Row), Format('Hypothesis %d is listed', [Ids[I]]));
+      Check(Row.GetValue('outcome').ToJSON = Expected[I],
+        Format('Row %d outcome: %s', [I, Row.GetValue('outcome').ToJSON]));
+      Detail := Call('get_hypothesis', Format('{"hypothesis_id":%d}', [Ids[I]]));
+      try
+        Check(Row.GetValue('outcome').ToJSON = Detail.GetValue('outcome').ToJSON,
+          'The list outcome matches get_hypothesis');
+        Check(Row.GetValue('modified_date').ToJSON = Detail.GetValue('modified_date').ToJSON,
+          'The list modified_date matches get_hypothesis');
+      finally
+        Detail.Free;
+      end;
+    end;
+    Row := FindRow(Response.GetValue<TJSONArray>('hypotheses'), 'id', Ids[2]);
+    Check(Row.GetValue('modified_date') is TJSONNull, 'An unmodified hypothesis has null');
+    Row := FindRow(Response.GetValue<TJSONArray>('hypotheses'), 'id', Ids[0]);
+    Check(Copy(Row.GetValue<string>('modified_date'), 1, 16) = '2026-10-30T12:00',
+      'The modified date is ISO 8601: ' + Row.GetValue<string>('modified_date'));
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestGetHypothesisHasOneOutcomeKey;
+var
+  Response: TJSONObject;
+  I, Count: Integer;
+begin
+  Prepare;
+  Response := Call('get_hypothesis', Format('{"hypothesis_id":%d}',
+    [AddConcluded(AddProject(Notebook.Principal), hsInReview, True, hoSupported, True)]));
+  try
+    Count := 0;
+    for I := 0 to Response.Count - 1 do
+      if Response.Pairs[I].JsonString.Value = 'outcome' then
+        Inc(Count);
+    Check(Count = 1, Format('get_hypothesis has %d outcome keys', [Count]));
+    Check(Response.GetValue<string>('outcome') = 'Supported', 'The outcome is unchanged');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestListHypothesesScopeUnchanged;
+var
+  P1, P2: TProject;
+  Response, Row: TJSONObject;
+  Element: TJSONValue;
+begin
+  P1 := AddProject(Notebook.Principal);
+  P2 := AddProject(Notebook.Principal);
+  AddConcluded(P1, hsInReview, True, hoSupported, False);
+  AddConcluded(P2, hsInReview, True, hoRefuted, False);
+  AddConcluded(AddProject(AddUser('hidden-owner', dbUser)), hsInReview, True, hoRefuted, False);
+  Context.ScopedProjects := [P1.Id];
+  Prepare;
+
+  Response := Call('list_hypotheses', '{}');
+  try
+    Check(Response.GetValue<TJSONArray>('hypotheses').Count = 1, 'Only the scoped project is listed');
+    for Element in Response.GetValue<TJSONArray>('hypotheses') do
+    begin
+      Row := Element as TJSONObject;
+      Check(Row.GetValue<Integer>('project_id') = P1.Id, 'The row is in scope');
+      CheckFields(Row, ['id', 'project_id', 'parent_id', 'title', 'status', 'derived_state',
+        'created_by', 'run_count', 'evidence_count', 'version', 'key_value', 'outcome',
+        'modified_date'], 'list_hypotheses');
+    end;
+  finally
+    Response.Free;
+  end;
 end;
 
 function MakeDeleteFixture(Project: TProject; FileTypeId, TypeId: Integer;
@@ -2728,6 +3854,737 @@ begin
   end;
 end;
 
+var
+  SeedXrrId: Integer;
+
+function SeedSeries(Project: TProject; out ProcId: Integer): Integer;
+var
+  Model: TSeriesModel;
+  Power, Thickness: TValueType;
+  Xrr: TActionType;
+  Proc, Spec, Meas: TItem;
+  SeedPlan: TSeriesPlan;
+
+  function Make(AParent: Integer; ALevel: TItemLevel; AAction: TActionType;
+    const ATitle: string): TItem;
+  begin
+    Result := TItem.Create;
+    Result.Title := ATitle;
+    Result.ProjectID := Project.Id;
+    Result.Parent := AParent;
+    Result.Type_ := TItemType.Measurement;
+    Result.Level := ALevel;
+    Result.ActionType := AAction;
+    Result.CreatedBy := Notebook.Principal.Id;
+    Result.CreatedDate := Now;
+    Notebook.Manager.Save(Result);
+    Notebook.Manager.Flush;
+  end;
+
+  procedure Add(AItem: TItem; AType: TValueType; ARec: TRecType; AValue, ATol: Double);
+  var
+    V: unit_Item.TValue;
+  begin
+    V := unit_Item.TValue.Create;
+    V.Item := AItem;
+    V.ValueType := AType;
+    V.RecType := ARec;
+    V.Value := AValue;
+    V.Tol := ATol;
+    V.CreatedDate := Now;
+    Notebook.Manager.Save(V);
+    Notebook.Manager.Flush;
+  end;
+
+begin
+  Power := Notebook.Manager.Find<TValueType>(NewValueType('Power', 'W', False, 0, 0));
+  Thickness := Notebook.Manager.Find<TValueType>(NewValueType('Thickness', 'nm', False, 0, 0));
+  Xrr := TActionType.Create;
+  Xrr.Title := 'XRR';
+  Xrr.CreatedDate := Now;
+  Notebook.Manager.Save(Xrr);
+  Notebook.Manager.Flush;
+  SeedXrrId := Xrr.Id;
+  SeedPlan := Default(TSeriesPlan);
+  SetLength(SeedPlan.Factors, 1);
+  SeedPlan.Factors[0].ValueTypeId := Power.Id;
+  SetLength(SeedPlan.Responses, 1);
+  SeedPlan.Responses[0].ValueTypeId := Thickness.Id;
+  Proc := Make(0, TItemLevel.Proc, nil, 'Deposition');
+  Spec := Make(Proc.Id, TItemLevel.Item, nil, 'Specimen');
+  Meas := Make(Spec.Id, TItemLevel.Action, Xrr, 'Measurement');
+  Add(Proc, Power, EXP_CONDITION, 200, 0);
+  Add(Meas, Thickness, TEST_RESULT, 51.0, 0.5);
+  ProcId := Proc.Id;
+  Model := TSeriesModel.Create(Notebook.Manager, Notebook.AccessPolicy);
+  try
+    Result := Model.CreateSeries(Notebook.Principal, Project.Id, 'Power scan',
+      'Vary power', SeedPlan, [[200.0]]);
+    Model.LinkToSlot(Notebook.Principal, Result, Model.GetPlan(Notebook.Principal,
+      Result).Slots[0].SlotId, ProcId);
+  finally
+    Model.Free;
+  end;
+end;
+
+procedure TestListSeriesReturnsFixtureSeries;
+var
+  Project: TProject;
+  SeriesId, ProcId: Integer;
+  Response, Row: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  SeriesId := SeedSeries(Project, ProcId);
+  Response := Call('list_series', Format('{"project_id":%d}', [Project.Id]));
+  try
+    Check(Response.GetValue<Integer>('project_id') = Project.Id, 'The project id is echoed');
+    Check(Response.GetValue<TJSONArray>('series').Count = 1, 'One series is listed');
+    Row := FindRow(Response.GetValue<TJSONArray>('series'), 'id', SeriesId);
+    Check(Assigned(Row), 'The fixture series is listed');
+    CheckFields(Row, ['id', 'title', 'purpose', 'status', 'member_count'], 'list_series');
+    Check(Row.GetValue<string>('title') = 'Power scan', 'Title');
+    Check(Row.GetValue<string>('purpose') = 'Vary power', 'Purpose');
+    Check(Row.GetValue<string>('status') = 'Active', 'Status uses the enum name');
+    Check(Row.GetValue<Integer>('member_count') = 1, 'Member count');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestGetSeriesTableCellsAreInvariantNumbers;
+var
+  Project: TProject;
+  SeriesId, ProcId: Integer;
+  Response, Col, Row, Hit: TJSONObject;
+  Cols, Cells: TJSONArray;
+  I, Found: Integer;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  SeriesId := SeedSeries(Project, ProcId);
+  Response := Call('get_series_table', Format('{"series_id":%d}', [SeriesId]));
+  try
+    CheckFields(Response, ['series_id', 'project_id', 'title', 'status', 'columns',
+      'rows', 'excluded_item_ids'], 'get_series_table');
+    Cols := Response.GetValue<TJSONArray>('columns');
+    Check(Cols.Count = 2, Format('Two columns, got %d', [Cols.Count]));
+    Check(Response.GetValue<TJSONArray>('rows').Count = 1, 'One row');
+    Row := Response.GetValue<TJSONArray>('rows').Items[0] as TJSONObject;
+    Check(Row.GetValue<Integer>('item_id') = ProcId, 'Row item id');
+    Check(Row.GetValue<string>('title') = 'Deposition', 'Row title');
+    Cells := Row.GetValue<TJSONArray>('cells');
+    Check(Cells.Count = 2, 'One cell per column');
+    Found := 0;
+    for I := 0 to Cols.Count - 1 do
+    begin
+      Col := Cols.Items[I] as TJSONObject;
+      CheckFields(Col, ['rec_type', 'value_type_id', 'caption', 'units', 'source_key',
+        'role'], 'column');
+      if Col.GetValue<string>('rec_type') = 'EXP_CONDITION' then
+        Check(Col.GetValue<string>('role') = 'Varied', 'A factor column is Varied')
+      else
+        Check(Col.GetValue<string>('role') = 'Response', 'A response column is Response');
+      Check((Cells.Items[I] as TJSONArray).Count = 1, 'One hit per cell');
+      Hit := (Cells.Items[I] as TJSONArray).Items[0] as TJSONObject;
+      CheckFields(Hit, ['value', 'tol', 'value_id', 'item_id', 'source_key'], 'hit');
+      if Col.GetValue<string>('rec_type') = 'EXP_CONDITION' then
+      begin
+        Inc(Found);
+        Check(JSONDouble(Hit, 'value') = 200, 'Power value');
+        Check(Hit.GetValue<string>('source_key') = 'root', 'Condition hit source key');
+        Check(Hit.GetValue('value').ToJSON = '200', 'Power is a plain JSON number: ' +
+          Hit.GetValue('value').ToJSON);
+      end
+      else
+      begin
+        Inc(Found, 10);
+        Check(Col.GetValue<string>('rec_type') = 'TEST_RESULT', 'Result rec_type');
+        Check(JSONDouble(Hit, 'value') = 51.0, 'Thickness value');
+        Check(Hit.GetValue<string>('source_key') = 'at:' + IntToStr(SeedXrrId),
+          'Thickness hit source key is the XRR action type');
+        Check(JSONDouble(Hit, 'tol') = 0.5, 'Thickness tolerance');
+        Check(Hit.GetValue('value').ToJSON = '51', 'Thickness is a JSON number: ' +
+          Hit.GetValue('value').ToJSON);
+        Check(Hit.GetValue('tol').ToJSON = '0.5', 'Tolerance uses the invariant point');
+      end;
+    end;
+    Check(Found = 11, 'Both rec types appear');
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestSeriesToolsRefuseOutOfScope;
+var
+  P1, P2, P3: TProject;
+  Own, Foreign, Denied, ProcId: Integer;
+  Missing, Hidden: string;
+  Stranger: TUser;
+begin
+  P1 := AddProject(Notebook.Principal);
+  P2 := AddProject(Notebook.Principal);
+  Own := SeedSeries(P1, ProcId);
+  Foreign := SeedSeries(P2, ProcId);
+  Context.ScopedProjects := [P1.Id];
+  Prepare;
+  ExpectRefused('list_series', Format('{"project_id":%d}', [P2.Id]), 'outside');
+  Hidden := ExpectRefused('get_series_table', Format('{"series_id":%d}', [Foreign]),
+    'outside');
+  Missing := ExpectRefused('get_series_table', '{"series_id":999999}', 'outside');
+  Check(Missing = Hidden, 'Missing and out-of-scope series share one refusal');
+  Stranger := AddUser('series-hidden-owner', dbUser);
+  P3 := AddProject(Notebook.Principal);
+  Denied := SeedSeries(P3, ProcId);
+  P3.Owner := Stranger;
+  Notebook.Manager.Flush;
+  Hidden := ExpectRefused('get_series_table', Format('{"series_id":%d}', [Denied]), 'outside');
+  Check(Missing = Hidden, 'A series of an unreadable project gives the same refusal');
+  Call('get_series_table', Format('{"series_id":%d}', [Own])).Free;
+end;
+
+function CallKeyed(const Tool, JSON, Key: string): Integer;
+var
+  Response: TJSONObject;
+begin
+  Response := Call(Tool, JSON);
+  try
+    Result := Response.GetValue<Integer>(Key);
+  finally
+    Response.Free;
+  end;
+end;
+
+function PowerPlanJSON(ProjectId, PowerId: Integer; const Points: string): string;
+begin
+  Result := Format('{"project_id":%d,"title":"MCP plan","purpose":"Scan",' +
+    '"factors":[{"value_type_id":%d,"range_min":100,"range_max":300}],' +
+    '"points":%s}', [ProjectId, PowerId, Points]);
+end;
+
+function SeriesRows(SeriesId: Integer): TJSONArray;
+var
+  Response: TJSONObject;
+begin
+  Response := Call('get_series_table', Format('{"series_id":%d}', [SeriesId]));
+  try
+    Result := Response.GetValue<TJSONArray>('rows').Clone as TJSONArray;
+  finally
+    Response.Free;
+  end;
+end;
+
+procedure TestCreateSeriesIsDraftViaMcp;
+var
+  Project: TProject;
+  PowerId, SeriesId: Integer;
+  Response: TJSONObject;
+  Rows: TJSONArray;
+  Model: TSeriesModel;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  PowerId := NewValueType('Plan power', 'W', False, 0, 0);
+  Response := Call('create_series', PowerPlanJSON(Project.Id, PowerId, '[[100],[200]]'));
+  try
+    Check(Response.GetValue<string>('status') = 'Draft', 'MCP creates a Draft series');
+    SeriesId := Response.GetValue<Integer>('series_id');
+  finally
+    Response.Free;
+  end;
+  Model := TSeriesModel.Create(Notebook.Manager, Notebook.AccessPolicy);
+  try
+    Check(Model.GetPlan(Notebook.Principal, SeriesId).Plan.Factors[0].ValueTypeId = PowerId,
+      'The factor is stored');
+  finally
+    Model.Free;
+  end;
+  Rows := SeriesRows(SeriesId);
+  try
+    Check(Rows.Count = 2, 'Two planned rows');
+    Check((Rows.Items[0] as TJSONObject).GetValue<string>('state') = 'Planned',
+      'A new row is Planned');
+    Check((Rows.Items[0] as TJSONObject).GetValue<string>('origin') = 'Planned',
+      'A draft point has the Planned origin');
+  finally
+    Rows.Free;
+  end;
+  ExpectRefused('create_series', PowerPlanJSON(Project.Id, PowerId, '[[999]]'),
+    '[refusal]');
+end;
+
+procedure TestUpdateSeriesPlanRefusedChangesNothing;
+var
+  Project: TProject;
+  PowerId, ThicknessId, SeriesId: Integer;
+  Before, After: string;
+  Model: TSeriesModel;
+  V0, A0: Integer;
+
+  function Snapshot: string;
+  var
+    R: TJSONObject;
+  begin
+    R := Call('get_series_table', Format('{"series_id":%d}', [SeriesId]));
+    try
+      Result := R.GetValue<TJSONObject>('plan').ToJSON + R.GetValue<TJSONArray>('columns').ToJSON;
+    finally
+      R.Free;
+    end;
+  end;
+
+  function SeriesVersion: Integer;
+  var
+    S: TSeries;
+  begin
+    S := Notebook.Manager.Find<TSeries>
+      .Where(Linq['Id'] = SeriesId).Refreshing.UniqueResult;
+    Result := S.Version;
+  end;
+
+  function AuditRows: Integer;
+  var
+    L: TAuditLogs;
+  begin
+    L := Notebook.Manager.Find<TAuditLog>
+      .Where((Linq['EntityType'] = Ord(aetSeries)) and (Linq['EntityId'] = SeriesId))
+      .Refreshing.List;
+    try
+      Result := L.Count;
+    finally
+      L.Free;
+    end;
+  end;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  PowerId := NewValueType('Plan power', 'W', False, 0, 0);
+  ThicknessId := NewValueType('Plan thickness', 'nm', False, 0, 0);
+  SeriesId := CallKeyed('create_series', PowerPlanJSON(Project.Id, PowerId, '[[100],[200]]'),
+    'series_id');
+  Model := TSeriesModel.Create(Notebook.Manager, Notebook.AccessPolicy);
+  try
+    Model.SetColumnRole(Notebook.Principal, SeriesId, TEST_RESULT, ThicknessId, '', scrHidden);
+    V0 := SeriesVersion;
+  finally
+    Model.Free;
+  end;
+  A0 := AuditRows;
+  Before := Snapshot;
+  ExpectRefused('update_series_plan', Format(
+    '{"series_id":%d,"purpose":"Changed","factors":[{"value_type_id":%d,"range_min":50,' +
+    '"range_max":400}],"responses":[{"value_type_id":%d}],"add_points":[[999]],"reason":"Bad"}',
+    [SeriesId, PowerId, ThicknessId]), '[refusal]');
+  After := Snapshot;
+  Check(Before = After, 'A refused call leaves plan and column roles unchanged');
+  Check(SeriesVersion = V0, 'Version unchanged');
+  Check(AuditRows = A0, 'No audit row written');
+  Call('update_series_plan', Format(
+    '{"series_id":%d,"purpose":"Changed","factors":[{"value_type_id":%d,"range_min":50,' +
+    '"range_max":400}],"responses":[{"value_type_id":%d}],"add_points":[[300]],"reason":"Ok"}',
+    [SeriesId, PowerId, ThicknessId])).Free;
+  Check(SeriesVersion = V0 + 1, Format('One version bump %d -> %d', [V0, SeriesVersion]));
+  Check(AuditRows = A0 + 1, 'One audit row');
+  Check(Snapshot <> Before, 'The plan changed');
+end;
+
+procedure TestUpdateSeriesPlanAddsPoints;
+var
+  Project: TProject;
+  PowerId, SeriesId: Integer;
+  Response: TJSONObject;
+  Rows: TJSONArray;
+  Listed: TJSONArray;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  PowerId := NewValueType('Plan power', 'W', False, 0, 0);
+  SeriesId := CallKeyed('create_series', PowerPlanJSON(Project.Id, PowerId, '[[100]]'), 'series_id');
+  Response := Call('update_series_plan', Format(
+    '{"series_id":%d,"purpose":"Wider","add_points":[[200],[300]],"reason":"Extend"}',
+    [SeriesId]));
+  Response.Free;
+  Rows := SeriesRows(SeriesId);
+  try
+    Check(Rows.Count = 3, 'The points are added');
+  finally
+    Rows.Free;
+  end;
+  ExpectRefused('update_series_plan', Format(
+    '{"series_id":%d,"purpose":"Rejected","add_points":[[999]],"reason":"Bad"}',
+    [SeriesId]), '[refusal]');
+  Response := Call('list_series', Format('{"project_id":%d}', [Project.Id]));
+  try
+    Listed := Response.GetValue<TJSONArray>('series');
+    Check((Listed.Items[0] as TJSONObject).GetValue<string>('purpose') = 'Wider',
+      'A refused call leaves the purpose unchanged');
+  finally
+    Response.Free;
+  end;
+  Rows := SeriesRows(SeriesId);
+  try
+    Check(Rows.Count = 3, 'A refused call adds no point');
+  finally
+    Rows.Free;
+  end;
+  ExpectRefused('update_series_plan', Format(
+    '{"series_id":%d,"factors":[{"value_type_id":%d,"range_min":100,"range_max":150}]}',
+    [SeriesId, PowerId]), '[refusal]');
+  ExpectRefused('update_series_plan', '{"series_id":999999,"purpose":"x"}', 'outside');
+end;
+
+procedure TestPlanToolsRefusedInReadOnlyMode;
+var
+  Refused: Integer;
+  Tool: string;
+begin
+  Prepare;
+  Registry.EnterReadOnly;
+  Refused := 0;
+  for Tool in ['create_series', 'update_series_plan'] do
+    try
+      Call(Tool, '{}').Free;
+    except
+      on EToolAccessRefused do
+        Inc(Refused);
+    end;
+  Check(Refused = 2, 'Both plan tools are refused in read-only mode');
+end;
+
+function PowerColumn(Response: TJSONObject; PowerId: Integer): Integer;
+var
+  Cols: TJSONArray;
+  I: Integer;
+begin
+  Result := -1;
+  Cols := Response.GetValue<TJSONArray>('columns');
+  for I := 0 to Cols.Count - 1 do
+    if (Cols.Items[I].GetValue<Integer>('value_type_id') = PowerId) and
+       (Cols.Items[I].GetValue<string>('rec_type') = 'EXP_CONDITION') then
+      Result := I;
+  Check(Result >= 0, 'The power column exists');
+end;
+
+procedure TestGetSeriesTableShowsPlanAndStates;
+var
+  Project: TProject;
+  PowerId, SeriesId, SlotId, Col, I: Integer;
+  Response: TJSONObject;
+  Model: TSeriesModel;
+  Draft: TSeriesDepositionDraft;
+  Rows, Hits: TJSONArray;
+  Row, Marks, Plan, Factor, Hit: TJSONObject;
+  SawPlanned, SawMade: Boolean;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  PowerId := NewValueType('Plan power', 'W', False, 0, 0);
+  SeriesId := CallKeyed('create_series', Format(
+    '{"project_id":%d,"title":"MCP plan","factors":[{"value_type_id":%d,"label":" Mo layer ",' +
+    '"range_min":100,"range_max":300}],"responses":[{"value_type_id":%d,"label":"Total stack"}],' +
+    '"points":[[100],[200]]}',
+    [Project.Id, PowerId, NewValueType('Plan thickness', 'nm', False, 0, 0)]), 'series_id');
+  Response := Call('get_series_table', Format('{"series_id":%d}', [SeriesId]));
+  try
+    Col := PowerColumn(Response, PowerId);
+    Rows := Response.GetValue<TJSONArray>('rows');
+    SlotId := 0;
+    for I := 0 to Rows.Count - 1 do
+    begin
+      Row := Rows.Items[I] as TJSONObject;
+      Marks := Row.GetValue<TJSONArray>('cell_marks').Items[Col] as TJSONObject;
+      if JSONDouble(Marks, 'planned_value') = 200 then
+        SlotId := Row.GetValue<Integer>('slot_id');
+    end;
+    Check(SlotId > 0, 'The planned row of 200 W is found');
+    Plan := Response.GetValue<TJSONObject>('plan');
+    Factor := Plan.GetValue<TJSONArray>('factors').Items[0] as TJSONObject;
+    Check(Factor.GetValue<Integer>('value_type_id') = PowerId, 'Plan factor id');
+    Check(Factor.GetValue<string>('title') = 'Plan power', 'Plan factor title');
+    Check(Factor.GetValue<string>('units') = 'W', 'Plan factor units');
+    Check(JSONDouble(Factor, 'range_min') = 100, 'Plan range minimum');
+    Check(JSONDouble(Factor, 'range_max') = 300, 'Plan range maximum');
+    Check(Factor.GetValue<string>('label') = 'Mo layer', 'Plan factor label is trimmed');
+    Check((Plan.GetValue<TJSONArray>('responses').Items[0] as TJSONObject)
+      .GetValue<string>('label') = 'Total stack', 'Plan response label');
+    CheckFields(Plan, ['fixed', 'responses', 'target_folder_id'], 'plan');
+  finally
+    Response.Free;
+  end;
+  Model := TSeriesModel.Create(Notebook.Manager, Notebook.AccessPolicy);
+  try
+    Model.Start(Notebook.Principal, SeriesId);
+    Draft := Default(TSeriesDepositionDraft);
+    Draft.Title := 'Made 200';
+    Model.MakeDeposition(Notebook.Principal, SeriesId, SlotId, Draft);
+  finally
+    Model.Free;
+  end;
+  Response := Call('get_series_table', Format('{"series_id":%d}', [SeriesId]));
+  try
+    Col := PowerColumn(Response, PowerId);
+    SawPlanned := False;
+    SawMade := False;
+    Rows := Response.GetValue<TJSONArray>('rows');
+    for I := 0 to Rows.Count - 1 do
+    begin
+      Row := Rows.Items[I] as TJSONObject;
+      Marks := Row.GetValue<TJSONArray>('cell_marks').Items[Col] as TJSONObject;
+      if Row.GetValue<Integer>('slot_id') = SlotId then
+      begin
+        SawMade := True;
+        Check(Row.GetValue<string>('state') = 'Deposited', 'A made row is Deposited');
+        Hits := Row.GetValue<TJSONArray>('cells').Items[Col] as TJSONArray;
+        Check(Hits.Count = 1, 'One planned hit');
+        Hit := Hits.Items[0] as TJSONObject;
+        Check(Hit.GetValue<Boolean>('planned'), 'The hit is marked planned');
+      end
+      else
+      begin
+        SawPlanned := True;
+        Check(Row.GetValue<string>('state') = 'Planned', 'An untouched row is Planned');
+        Check(JSONDouble(Marks, 'planned_value') = 100, 'Planned value 100');
+        Check(Marks.FindValue('deviation') = nil, 'No deviation without a hit');
+      end;
+    end;
+    Check(SawPlanned and SawMade, 'Both rows are present');
+  finally
+    Response.Free;
+  end;
+end;
+
+function NewPlannedValue(Item: TItem; TypeId: Integer; Number: Double): Integer;
+var
+  Val: unit_Item.TValue;
+begin
+  Val := unit_Item.TValue.Create;
+  Val.ValueType := Notebook.Manager.Find<TValueType>(TypeId);
+  Val.RecType := TEST_RESULT;
+  Val.Value := Number;
+  Val.CreatedDate := Now;
+  Val.CreatedBy := Notebook.Principal.Id;
+  Val.Item := Item;
+  ApplySource(Val, TValueSourceInfo.Planned(''));
+  Item.Values.Add(Val);
+  Notebook.Manager.Update(Item);
+  Notebook.Manager.Flush;
+  Result := Val.Id;
+end;
+
+procedure TestAddValueRefusesPlanned;
+var
+  Item: TItem;
+  TypeId: Integer;
+  Before: TRowSnapshot;
+  Message: string;
+begin
+  Prepare;
+  Item := NewItem(AddProject(Notebook.Principal), 0, 'Planned refusal');
+  TypeId := NewValueType('Synthetic thickness', 'm', False, 0, 0);
+  Before := TRowSnapshot.Take;
+  Message := ExpectRefused('add_value', Format(
+    '{"item_id":%d,"value_type_id":%d,"value":1e-6,"source_kind":"Planned"}',
+    [Item.Id, TypeId]), 'Invalid source_kind: Planned');
+  Check(Pos('Planned,', Message) = 0, 'The accepted kinds do not list Planned');
+  Check(TRowSnapshot.Take.SameAs(Before), 'The refusal writes nothing');
+end;
+
+procedure TestUpdateAndRemoveRefusePlanned;
+var
+  Item: TItem;
+  TypeId, ValueId: Integer;
+  Before: TRowSnapshot;
+begin
+  Prepare;
+  Item := NewItem(AddProject(Notebook.Principal), 0, 'Planned edit refusal');
+  TypeId := NewValueType('Synthetic thickness', 'm', False, 0, 0);
+  ValueId := NewPlannedValue(Item, TypeId, 1e-6);
+  Before := TRowSnapshot.Take;
+  ExpectRefused('update_value', Format('{"value_id":%d,"value":2e-6}', [ValueId]),
+    'Planned values are confirmed or corrected in the desktop.');
+  ExpectRefused('remove_value', Format('{"value_id":%d}', [ValueId]),
+    'Planned values are confirmed or corrected in the desktop.');
+  Check(TRowSnapshot.Take.SameAs(Before), 'The refusals write nothing');
+  Check(ValueExists(ValueId), 'The Planned value is still stored');
+end;
+
+procedure TestDerivedValueRefusesPlannedInput;
+var
+  Item: TItem;
+  PlannedArea, ForceId, CyclesId: Integer;
+  Before: TRowSnapshot;
+begin
+  Prepare;
+  Item := NewItem(AddProject(Notebook.Principal), 0, 'Planned wear test');
+  PlannedArea := NewPlannedValue(Item, AreaType, 0.004);
+  ForceId := AddManual(Item.Id, ForceType, 5);
+  CyclesId := AddManual(Item.Id, CyclesType, 1000);
+  Before := TRowSnapshot.Take;
+  ExpectRefused('add_derived_value', DerivedCall(Item.Id, WEAR_RATE_FORMULA_ID,
+    PlannedArea, ForceId, CyclesId), 'confirm it in the desktop first');
+  Check(TRowSnapshot.Take.SameAs(Before), 'The refusal writes nothing');
+end;
+
+function SeriesFolderId(ProjectId: Integer): Integer;
+var
+  Projects: TProjectsModel;
+begin
+  Projects := TProjectsModel.Create(Notebook.Manager, Notebook.AccessPolicy);
+  try
+    Projects.AssignUser(Notebook.Principal);
+    Projects.AddFolder('Series folder', '', ProjectId, 0);
+  finally
+    Projects.Free;
+  end;
+  Result := Notebook.Manager.Find<TProject>(ProjectId).Folders.Last.Id;
+end;
+
+procedure TestSeriesToolsRefuseBadTargetFolder;
+var
+  Project, Other: TProject;
+  PowerId, SeriesId, Foreign, Own: Integer;
+  Before, After: string;
+  Rows: TJSONArray;
+
+  function WithFolder(FolderId: Integer): string;
+  begin
+    Result := Format('{"project_id":%d,"title":"Folder plan","factors":' +
+      '[{"value_type_id":%d}],"points":[[100]],"target_folder_id":%d}',
+      [Project.Id, PowerId, FolderId]);
+  end;
+
+  function Snapshot: string;
+  var
+    R: TJSONObject;
+  begin
+    R := Call('get_series_table', Format('{"series_id":%d}', [SeriesId]));
+    try
+      Result := R.GetValue<TJSONObject>('plan').ToJSON;
+    finally
+      R.Free;
+    end;
+  end;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Other := AddProject(Notebook.Principal);
+  PowerId := NewValueType('Folder power', 'W', False, 0, 0);
+  Foreign := SeriesFolderId(Other.Id);
+  Own := SeriesFolderId(Project.Id);
+  ExpectRefused('create_series', WithFolder(99999), 'Folder 99999 not found in this project');
+  ExpectRefused('create_series', WithFolder(Foreign),
+    Format('Folder %d not found in this project', [Foreign]));
+  SeriesId := CallKeyed('create_series', WithFolder(Own), 'series_id');
+  Before := Snapshot;
+  ExpectRefused('update_series_plan', Format('{"series_id":%d,"target_folder_id":99999}',
+    [SeriesId]), 'Folder 99999 not found in this project');
+  ExpectRefused('update_series_plan', Format(
+    '{"series_id":%d,"target_folder_id":%d,"add_points":[[200]]}', [SeriesId, Foreign]),
+    Format('Folder %d not found in this project', [Foreign]));
+  After := Snapshot;
+  Check(Before = After, 'A refused folder leaves the plan unchanged');
+  Rows := SeriesRows(SeriesId);
+  try
+    Check(Rows.Count = 1, 'A refused call adds no point');
+  finally
+    Rows.Free;
+  end;
+end;
+
+procedure TestActiveSeriesPlanChangeRefusedViaMcp;
+var
+  Project: TProject;
+  PowerId, ThicknessId, SeriesId: Integer;
+  Model: TSeriesModel;
+  Before, After: string;
+  Rows: TJSONArray;
+
+  function Snapshot: string;
+  var
+    R: TJSONObject;
+  begin
+    R := Call('get_series_table', Format('{"series_id":%d}', [SeriesId]));
+    try
+      Result := R.GetValue<TJSONObject>('plan').ToJSON;
+    finally
+      R.Free;
+    end;
+  end;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  PowerId := NewValueType('Active power', 'W', False, 0, 0);
+  ThicknessId := NewValueType('Active thickness', 'nm', False, 0, 0);
+  SeriesId := CallKeyed('create_series', PowerPlanJSON(Project.Id, PowerId, '[[100]]'),
+    'series_id');
+  Call('update_series_plan', Format(
+    '{"series_id":%d,"factors":[{"value_type_id":%d,"range_min":100,"range_max":400}]}',
+    [SeriesId, PowerId])).Free;
+  Model := TSeriesModel.Create(Notebook.Manager, Notebook.AccessPolicy);
+  try
+    Model.Start(Notebook.Principal, SeriesId);
+  finally
+    Model.Free;
+  end;
+  Before := Snapshot;
+  ExpectRefused('update_series_plan', Format(
+    '{"series_id":%d,"factors":[{"value_type_id":%d,"range_min":100,"range_max":500}],' +
+    '"add_points":[[200]]}', [SeriesId, PowerId]),
+    'An active series plan is changed in the desktop. MCP can only add points to it.');
+  ExpectRefused('update_series_plan', Format('{"series_id":%d,"responses":[{"value_type_id":%d}]}',
+    [SeriesId, ThicknessId]), 'An active series plan is changed in the desktop');
+  After := Snapshot;
+  Check(Before = After, 'A refused call leaves the plan unchanged');
+  Rows := SeriesRows(SeriesId);
+  try
+    Check(Rows.Count = 1, 'A refused call adds no point');
+  finally
+    Rows.Free;
+  end;
+  Call('update_series_plan', Format(
+    '{"series_id":%d,"purpose":"Adaptive","factors":[{"value_type_id":%d,' +
+    '"range_min":100,"range_max":400}],"add_points":[[250]]}', [SeriesId, PowerId])).Free;
+  Call('update_series_plan', Format('{"series_id":%d,"add_points":[[300]]}',
+    [SeriesId])).Free;
+  Rows := SeriesRows(SeriesId);
+  try
+    Check(Rows.Count = 3, 'Points are added to an Active series');
+  finally
+    Rows.Free;
+  end;
+end;
+
+procedure TestGetValuesShowsPlanned;
+var
+  Project: TProject;
+  Item: TItem;
+  TypeId, ValueId: Integer;
+  Response: TJSONObject;
+  Row: TJSONObject;
+begin
+  Prepare;
+  Project := AddProject(Notebook.Principal);
+  Item := NewItem(Project, 0, 'Planned display');
+  TypeId := NewValueType('Synthetic thickness', 'm', True, 1e-9, 1e-5);
+  ValueId := NewPlannedValue(Item, TypeId, 319.4);
+  Response := Call('get_values', Format('{"item_id":%d}', [Item.Id]));
+  try
+    Row := FindRow(Response.GetValue<TJSONArray>('results'), 'id', ValueId);
+    Check(Assigned(Row), 'get_values lists the Planned value');
+    Check(Row.GetValue<TJSONObject>('source').GetValue<string>('kind') = 'Planned',
+      'The source kind is Planned');
+  finally
+    Response.Free;
+  end;
+  Response := Call('report_value_issues', Format('{"project_id":%d}', [Project.Id]));
+  try
+    Row := FindRow(Response.GetValue<TJSONArray>('values'), 'value_id', ValueId);
+    Check(Assigned(Row), 'report_value_issues lists the Planned value like a Manual one');
+  finally
+    Response.Free;
+  end;
+end;
+
 procedure RunValueSourceTests;
 begin
   RunTest('delete_file dry run lists the Reader values and changes nothing',
@@ -2754,6 +4611,58 @@ begin
     TestFileStatusFollowsRecycleBin);
   RunTest('wiki tools skip markdown records without bytes',
     TestWikiSkipsMarkdownWithoutBytes);
+  RunTest('wiki_create_page stores the page, body and attachments',
+    TestWikiCreateWritesPageAndAttachments);
+  RunTest('wiki_create_page body storage failure leaves no page, row or bytes',
+    TestWikiCreateBodyCopyFailureLeavesNothing);
+  RunTest('wiki_create_page attachment storage failure leaves no page, row or bytes',
+    TestWikiCreateAttachmentCopyFailureLeavesNothing);
+  RunTest('wiki_create_page without a markdown file type writes nothing',
+    TestWikiCreateMissingMarkdownTypeWritesNothing);
+  RunTest('wiki_create_page refuses a title that differs only in case',
+    TestWikiCreateRefusesCaseDuplicate);
+  RunTest('wiki_create_page with a missing attachment source writes nothing',
+    TestWikiCreateMissingAttachmentSourceWritesNothing);
+  RunTest('wiki_update_page failure restores the old body and adds nothing',
+    TestWikiUpdateFailureRestoresBody);
+  RunTest('find_hypotheses_for_item returns Run, Reference and evidence links',
+    TestFindHypothesesReturnsAllLinkKinds);
+  RunTest('find_hypotheses_for_item matches get_hypothesis',
+    TestFindHypothesesMatchesGetHypothesis);
+  RunTest('find_hypotheses_for_item reports missing and hidden items the same way',
+    TestFindHypothesesUnavailableItemsAreUniform);
+  RunTest('find_hypotheses_for_item hides hypotheses of unreadable projects',
+    TestFindHypothesesHidesForeignHypothesis);
+  RunTest('find_hypotheses_for_item honours the session scope',
+    TestFindHypothesesScopedSession);
+  RunTest('find_hypotheses_for_item accepts 1 to 200 positive ids',
+    TestFindHypothesesLimits);
+  RunTest('find_hypotheses_for_item writes nothing',
+    TestFindHypothesesWritesNothing);
+  RunTest('ExactNum writes the shortest text that parses back to the same Double',
+    TestExactNumRoundTrips);
+  RunTest('get_values adds type id, role, item, project and ancestors',
+    TestGetValuesAddsTypeRoleAndAncestors);
+  RunTest('get_values of a root item has no ancestors', TestGetValuesRootItemHasNoAncestors);
+  RunTest('query_values adds type id and ancestors', TestQueryValuesAddsTypeIdAndAncestors);
+  RunTest('value ancestors stop at a missing parent', TestValueAncestorsStopAtMissingParent);
+  RunTest('get_values and query_values keep exact numbers', TestValueToolsKeepExactNumbers);
+  RunTest('list_hypotheses shows the stored outcome and modified date',
+    TestListHypothesesShowsOutcome);
+  RunTest('get_hypothesis keeps exactly one outcome key', TestGetHypothesisHasOneOutcomeKey);
+  RunTest('list_hypotheses keeps its scope filter and fields', TestListHypothesesScopeUnchanged);
+  RunTest('list_series returns the fixture series', TestListSeriesReturnsFixtureSeries);
+  RunTest('get_series_table returns columns and invariant numbers',
+    TestGetSeriesTableCellsAreInvariantNumbers);
+  RunTest('series tools refuse a project outside the scope', TestSeriesToolsRefuseOutOfScope);
+  RunTest('create_series makes a Draft series through MCP', TestCreateSeriesIsDraftViaMcp);
+  RunTest('update_series_plan adds points and changes nothing on refusal',
+    TestUpdateSeriesPlanAddsPoints);
+  RunTest('update_series_plan refusal changes nothing and success bumps once',
+    TestUpdateSeriesPlanRefusedChangesNothing);
+  RunTest('plan tools are refused in read-only mode', TestPlanToolsRefusedInReadOnlyMode);
+  RunTest('get_series_table shows the plan and row states',
+    TestGetSeriesTableShowsPlanAndStates);
   RunTest('add_value Reader source round-trips through get_values', TestReaderSourceRoundTrip);
   RunTest('add_value without source stores Unknown', TestMissingSourceStoresUnknown);
   RunTest('add_value refuses a source file from another project', TestForeignProjectSourceRefused);
@@ -2791,6 +4700,16 @@ begin
     TestUpdateManualValue);
   RunTest('update_value replaces a Reader version and snapshot after a reader fix',
     TestUpdateReaderValueAfterReaderFix);
+  RunTest('add_value refuses the Planned source kind', TestAddValueRefusesPlanned);
+  RunTest('update_value and remove_value refuse a Planned value',
+    TestUpdateAndRemoveRefusePlanned);
+  RunTest('add_derived_value refuses a Planned input', TestDerivedValueRefusesPlannedInput);
+  RunTest('series tools refuse a target folder of another project',
+    TestSeriesToolsRefuseBadTargetFolder);
+  RunTest('update_series_plan changes an Active series only by points',
+    TestActiveSeriesPlanChangeRefusedViaMcp);
+  RunTest('get_values shows a Planned source and report_value_issues lists it',
+    TestGetValuesShowsPlanned);
 end;
 
 end.

@@ -80,9 +80,9 @@ begin
     if ValueType.RangeMax.HasValue and (AValue > ValueType.RangeMax.Value) then
       Include(Result, viAboveRange);
   end;
+  Magnitude := Abs(AValue);
   if ATolerance <= 0 then
     Exit;
-  Magnitude := Abs(AValue);
   if ATolerance > Magnitude then
     Include(Result, viToleranceExceedsValue)
   else if ATolerance < Magnitude / Factor then

@@ -32,15 +32,35 @@ type
     FFilterText: string;
 
     FSignedItems: TDictionary<Integer, Boolean>;
+    FItemsCache: TItems;
     FCommentedItems: TDictionary<Integer, Integer>;
     FTagsCache: TDictionary<Integer, TTags>;
     FLinkCountCache: TDictionary<Integer, Integer>;
     FRunItems: TDictionary<Integer, Boolean>;
     FHypManager: TObjectManager;
+    FEntryLookup: TObjectDictionary<Integer, TLabEntries>;
+    FFileLookup: TObjectDictionary<Integer, TFiles>;
+    FValueLookup: TObjectDictionary<Integer, TValues>;
+    FLoadedEntries: TDictionary<Integer, TLabEntry>;
+    FLoadedFiles: TDictionary<Int64, TFile>;
+    FLoadedValues: TDictionary<Integer, TValue>;
+    FLoadedOwners: TDictionary<Integer, Boolean>;
+    FNoEntries: TLabEntries;
+    FNoFiles: TFiles;
+    FNoValues: TValues;
 
     FOnChanged: TNotifyEvent;
     procedure DoChanged;
     procedure ClearCaches;
+    procedure DropLookups;
+    procedure DropLoadedRecord;
+    procedure EvictRecordedOwners;
+    procedure FillLookups(const AItemIds: TArray<Integer>);
+    procedure ReadEntries(const AItemIds: TArray<Integer>);
+    procedure ReadFiles(const AItemIds: TArray<Integer>);
+    procedure ReadValues(const AItemIds: TArray<Integer>);
+    procedure ForgetLookupChildren;
+    function LiveItem(Item: TItem): TItem;
   public
     constructor Create(
       AItemModel: TItemModel;
@@ -74,6 +94,9 @@ type
     procedure LoadItemData;
     function Items: TItems;
     function ItemMatchesFilter(Item: TItem): Boolean;
+    function EntriesOf(Item: TItem): TLabEntries;
+    function FilesOf(Item: TItem): TFiles;
+    function ValuesOf(Item: TItem): TValues;
     function IsItemSigned(ItemId: Integer): Boolean;
     function GetCommentCount(ItemId: Integer): Integer;
     function GetTagsForItem(ItemId: Integer): TTags;
@@ -115,7 +138,9 @@ type
 implementation
 
 uses
-  System.StrUtils;
+  System.StrUtils, System.Variants,
+  Aurelius.Criteria.Base, Aurelius.Criteria.Linq, Aurelius.Criteria.Projections,
+  unit_HypothesisModel;
 
 
 constructor TItemTreeVM.Create(
@@ -139,11 +164,18 @@ begin
   FCommentModel := ACommentModel;
   FTagModel := ATagModel;
   FItemLinkModel := AItemLinkModel;
+  FNoEntries := TLabEntries.Create;
+  FNoFiles := TFiles.Create;
+  FNoValues := TValues.Create;
 end;
 
 destructor TItemTreeVM.Destroy;
 begin
   ClearCaches;
+  DropLoadedRecord;
+  FNoValues.Free;
+  FNoFiles.Free;
+  FNoEntries.Free;
   inherited;
 end;
 
@@ -162,6 +194,8 @@ end;
 
 procedure TItemTreeVM.DoChanged;
 begin
+  FreeAndNil(FItemsCache);
+  DropLookups;
   if Assigned(FOnChanged) then
     FOnChanged(Self);
 end;
@@ -170,6 +204,8 @@ procedure TItemTreeVM.ClearCaches;
 var
   Pair: TPair<Integer, TTags>;
 begin
+  FreeAndNil(FItemsCache);
+  DropLookups;
   FreeAndNil(FSignedItems);
   FreeAndNil(FCommentedItems);
   FreeAndNil(FLinkCountCache);
@@ -213,6 +249,9 @@ end;
 procedure TItemTreeVM.SetLocation(AProjectId, AFolderId: Integer;
   AAccess: TProjectAccess);
 begin
+  FreeAndNil(FItemsCache);
+  DropLookups;
+  DropLoadedRecord;
   FProjectId := AProjectId;
   FFolderId := AFolderId;
   FProjectAccess := AAccess;
@@ -225,7 +264,6 @@ var
   SigId: Integer;
   AllItemIds: TList<Integer>;
   Item: TItem;
-  AId: Integer;
 begin
   ClearCaches;
   FItemModel.AssignProject(FProjectId, FFolderId);
@@ -239,27 +277,16 @@ begin
     SignedIds.Free;
   end;
 
+  FItemsCache := FItemModel.List;
   AllItemIds := TList<Integer>.Create;
   try
-    // FItemModel.List returns a fresh caller-owned list each call; free the LIST
-    // (entities remain manager-owned) to avoid leaking one per tree rebuild.
-    var Items: TItems := FItemModel.List;
-    try
-      for Item in Items do
-        AllItemIds.Add(Item.Id);
-    finally
-      Items.Free;
-    end;
+    for Item in FItemsCache do
+      AllItemIds.Add(Item.Id);
+    FillLookups(AllItemIds.ToArray);
 
     FCommentedItems := FCommentModel.GetCommentedItemIds(AllItemIds);
-
-    FTagsCache := TDictionary<Integer, TTags>.Create;
-    FLinkCountCache := TDictionary<Integer, Integer>.Create;
-    for AId in AllItemIds do
-    begin
-      FTagsCache.Add(AId, FTagModel.GetTagsForItem(AId));
-      FLinkCountCache.Add(AId, FItemLinkModel.GetLinkCount(AId));
-    end;
+    FTagsCache := FTagModel.GetTagsForItems(AllItemIds.ToArray);
+    FLinkCountCache := FItemLinkModel.GetLinkCounts(AllItemIds.ToArray);
 
     FreeAndNil(FRunItems);
     if Assigned(FHypManager) then
@@ -269,9 +296,319 @@ begin
   end;
 end;
 
+procedure TItemTreeVM.DropLookups;
+begin
+  FreeAndNil(FEntryLookup);
+  FreeAndNil(FFileLookup);
+  FreeAndNil(FValueLookup);
+end;
+
+procedure TItemTreeVM.DropLoadedRecord;
+begin
+  FreeAndNil(FLoadedEntries);
+  FreeAndNil(FLoadedFiles);
+  FreeAndNil(FLoadedValues);
+  FreeAndNil(FLoadedOwners);
+end;
+
+procedure TItemTreeVM.FillLookups(const AItemIds: TArray<Integer>);
+var
+  Id: Integer;
+begin
+  DropLookups;
+  FEntryLookup := TObjectDictionary<Integer, TLabEntries>.Create([doOwnsValues]);
+  FFileLookup := TObjectDictionary<Integer, TFiles>.Create([doOwnsValues]);
+  FValueLookup := TObjectDictionary<Integer, TValues>.Create([doOwnsValues]);
+  if FLoadedEntries = nil then
+  begin
+    FLoadedEntries := TDictionary<Integer, TLabEntry>.Create;
+    FLoadedFiles := TDictionary<Int64, TFile>.Create;
+    FLoadedValues := TDictionary<Integer, TValue>.Create;
+    FLoadedOwners := TDictionary<Integer, Boolean>.Create;
+  end;
+  try
+    for Id in AItemIds do
+    begin
+      FEntryLookup.Add(Id, TLabEntries.Create);
+      FFileLookup.Add(Id, TFiles.Create);
+      FValueLookup.Add(Id, TValues.Create);
+    end;
+    ReadEntries(AItemIds);
+    ReadFiles(AItemIds);
+    ReadValues(AItemIds);
+  except
+    DropLookups;
+    raise;
+  end;
+end;
+
+procedure TItemTreeVM.ReadEntries(const AItemIds: TArray<Integer>);
+var
+  Chunk: TArray<Variant>;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+  Owner: TDictionary<Integer, Integer>;
+  EntryIds: TList<Integer>;
+  Found: TLabEntries;
+  Entry: TLabEntry;
+  OwnerId: Integer;
+begin
+  Owner := TDictionary<Integer, Integer>.Create;
+  EntryIds := TList<Integer>.Create;
+  try
+    for Chunk in unit_HypothesisModel.IdChunks(AItemIds) do
+    begin
+      Rows := FItemModel.Manager.Find<TItem>
+        .CreateAlias('FEntries', 'e')
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop('Id').As_('ItemId'))
+          .Add(TProjections.Prop('e.Id').As_('EntryId')))
+        .Where(Linq['Id']._In(Chunk))
+        .ListValues;
+      try
+        for Row in Rows do
+          if not VarIsNull(Row.Values['EntryId']) then
+            Owner.AddOrSetValue(Integer(Row.Values['EntryId']),
+              Integer(Row.Values['ItemId']));
+      finally
+        Rows.Free;
+      end;
+    end;
+    EntryIds.AddRange(Owner.Keys);
+    EntryIds.Sort;
+    for Chunk in unit_HypothesisModel.IdChunks(EntryIds.ToArray) do
+    begin
+      Found := FItemModel.Manager.Find<TLabEntry>
+        .Where(Linq['Id']._In(Chunk))
+        .OrderBy('Id')
+        .List;
+      try
+        for Entry in Found do
+          if Owner.TryGetValue(Entry.Id, OwnerId) then
+          begin
+            FEntryLookup[OwnerId].Add(Entry);
+            FLoadedEntries.AddOrSetValue(Entry.Id, Entry);
+            FLoadedOwners.AddOrSetValue(OwnerId, True);
+          end;
+      finally
+        Found.Free;
+      end;
+    end;
+  finally
+    EntryIds.Free;
+    Owner.Free;
+  end;
+end;
+
+procedure TItemTreeVM.ReadFiles(const AItemIds: TArray<Integer>);
+var
+  Chunk: TArray<Variant>;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+  Owner: TDictionary<Int64, Integer>;
+  FileIds: TList<Int64>;
+  Found: TFiles;
+  AFile: TFile;
+  OwnerId: Integer;
+begin
+  Owner := TDictionary<Int64, Integer>.Create;
+  FileIds := TList<Int64>.Create;
+  try
+    for Chunk in unit_HypothesisModel.IdChunks(AItemIds) do
+    begin
+      Rows := FItemModel.Manager.Find<TFile>
+        .CreateAlias('Item', 'i')
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop('Id').As_('Id'))
+          .Add(TProjections.Prop('i.Id').As_('ItemId')))
+        .Where(Linq['i.Id']._In(Chunk))
+        .ListValues;
+      try
+        for Row in Rows do
+          Owner.AddOrSetValue(Int64(Row.Values['Id']), Integer(Row.Values['ItemId']));
+      finally
+        Rows.Free;
+      end;
+    end;
+    FileIds.AddRange(Owner.Keys);
+    FileIds.Sort;
+    for Chunk in unit_HypothesisModel.IdChunks(FileIds.ToArray) do
+    begin
+      Found := FItemModel.Manager.Find<TFile>
+        .Where(Linq['Id']._In(Chunk))
+        .OrderBy('Id')
+        .List;
+      try
+        for AFile in Found do
+          if Owner.TryGetValue(AFile.Id, OwnerId) then
+          begin
+            FFileLookup[OwnerId].Add(AFile);
+            FLoadedFiles.AddOrSetValue(AFile.Id, AFile);
+            FLoadedOwners.AddOrSetValue(OwnerId, True);
+          end;
+      finally
+        Found.Free;
+      end;
+    end;
+  finally
+    FileIds.Free;
+    Owner.Free;
+  end;
+end;
+
+procedure TItemTreeVM.ReadValues(const AItemIds: TArray<Integer>);
+var
+  Chunk: TArray<Variant>;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+  Owner: TDictionary<Integer, Integer>;
+  ValueIds: TList<Integer>;
+  Found: TValues;
+  AValue: TValue;
+  OwnerId: Integer;
+begin
+  Owner := TDictionary<Integer, Integer>.Create;
+  ValueIds := TList<Integer>.Create;
+  try
+    for Chunk in unit_HypothesisModel.IdChunks(AItemIds) do
+    begin
+      Rows := FItemModel.Manager.Find<TValue>
+        .CreateAlias('Item', 'i')
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop('Id').As_('Id'))
+          .Add(TProjections.Prop('i.Id').As_('ItemId')))
+        .Where(Linq['i.Id']._In(Chunk))
+        .ListValues;
+      try
+        for Row in Rows do
+          Owner.AddOrSetValue(Integer(Row.Values['Id']), Integer(Row.Values['ItemId']));
+      finally
+        Rows.Free;
+      end;
+    end;
+    ValueIds.AddRange(Owner.Keys);
+    ValueIds.Sort;
+    for Chunk in unit_HypothesisModel.IdChunks(ValueIds.ToArray) do
+    begin
+      Found := FItemModel.Manager.Find<TValue>
+        .Where(Linq['Id']._In(Chunk))
+        .OrderBy('Id')
+        .List;
+      try
+        for AValue in Found do
+          if Owner.TryGetValue(AValue.Id, OwnerId) then
+          begin
+            FValueLookup[OwnerId].Add(AValue);
+            FLoadedValues.AddOrSetValue(AValue.Id, AValue);
+            FLoadedOwners.AddOrSetValue(OwnerId, True);
+          end;
+      finally
+        Found.Free;
+      end;
+    end;
+  finally
+    ValueIds.Free;
+    Owner.Free;
+  end;
+end;
+
+function TItemTreeVM.LiveItem(Item: TItem): TItem;
+begin
+  Result := FItemModel.Manager.Find<TItem>(Item.Id);
+end;
+
+procedure TItemTreeVM.ForgetLookupChildren;
+var
+  Manager: TObjectManager;
+
+  procedure Forget(Child, Cached: TObject);
+  begin
+    if (Cached <> nil) and (Cached = Child) then
+    begin
+      Manager.Evict(Child);
+      Manager.AddOwnership(Child);
+    end;
+  end;
+
+var
+  Entry: TPair<Integer, TLabEntry>;
+  AFile: TPair<Int64, TFile>;
+  Row: TPair<Integer, TValue>;
+begin
+  Manager := FItemModel.Manager;
+  if Assigned(FLoadedEntries) then
+    for Entry in FLoadedEntries do
+      Forget(Entry.Value, Manager.FindCached<TLabEntry>(Entry.Key));
+  if Assigned(FLoadedFiles) then
+    for AFile in FLoadedFiles do
+      Forget(AFile.Value, Manager.FindCached<TFile>(AFile.Key));
+  if Assigned(FLoadedValues) then
+    for Row in FLoadedValues do
+      Forget(Row.Value, Manager.FindCached<TValue>(Row.Key));
+end;
+
 function TItemTreeVM.Items: TItems;
 begin
-  Result := FItemModel.List;
+  if Assigned(FItemsCache) then
+  begin
+    Result := TItems.Create;
+    try
+      Result.AddRange(FItemsCache);
+    except
+      Result.Free;
+      raise;
+    end;
+  end
+  else
+  begin
+    FItemModel.AssignProject(FProjectId, FFolderId);
+    Result := FItemModel.List;
+  end;
+end;
+
+function TItemTreeVM.EntriesOf(Item: TItem): TLabEntries;
+var
+  Live: TItem;
+begin
+  if Item.EntriesLoaded then
+    Exit(Item.Entries);
+  if Assigned(FEntryLookup) and FEntryLookup.TryGetValue(Item.Id, Result) then
+    Exit;
+  Live := LiveItem(Item);
+  if Live = nil then
+    Result := FNoEntries
+  else
+    Result := Live.Entries;
+end;
+
+function TItemTreeVM.FilesOf(Item: TItem): TFiles;
+var
+  Live: TItem;
+begin
+  if Item.FilesLoaded then
+    Exit(Item.Files);
+  if Assigned(FFileLookup) and FFileLookup.TryGetValue(Item.Id, Result) then
+    Exit;
+  Live := LiveItem(Item);
+  if Live = nil then
+    Result := FNoFiles
+  else
+    Result := Live.Files;
+end;
+
+function TItemTreeVM.ValuesOf(Item: TItem): TValues;
+var
+  Live: TItem;
+begin
+  if Item.ValuesLoaded then
+    Exit(Item.Values);
+  if Assigned(FValueLookup) and FValueLookup.TryGetValue(Item.Id, Result) then
+    Exit;
+  Live := LiveItem(Item);
+  if Live = nil then
+    Result := FNoValues
+  else
+    Result := Live.Values;
 end;
 
 function TItemTreeVM.ItemMatchesFilter(Item: TItem): Boolean;
@@ -285,14 +622,14 @@ begin
   Result := ContainsText(Item.Title, FFilterText) or
             ContainsText(Item.Description, FFilterText);
   if not Result then
-    for E in Item.Entries do
+    for E in EntriesOf(Item) do
       if (E is TProtocol) and ContainsText(TProtocol(E).Title, FFilterText) then
       begin
         Result := True;
         Exit;
       end;
   if not Result then
-    for F in Item.Files do
+    for F in FilesOf(Item) do
       if ContainsText(F.Title, FFilterText) or
          ContainsText(F.Description, FFilterText) then
       begin
@@ -547,9 +884,31 @@ begin
   Result := FHistoryModel.UserRecord.LastChild;
 end;
 
+procedure TItemTreeVM.EvictRecordedOwners;
+var
+  Manager: TObjectManager;
+  Pair: TPair<Integer, Boolean>;
+  Cached: TItem;
+begin
+  if not Assigned(FLoadedOwners) then
+    Exit;
+  Manager := FItemModel.Manager;
+  for Pair in FLoadedOwners do
+  begin
+    Cached := Manager.FindCached<TItem>(Pair.Key);
+    if Cached <> nil then
+      Manager.Evict(Cached);
+  end;
+end;
+
 procedure TItemTreeVM.EvictCache;
 begin
+  ForgetLookupChildren;
+  DropLookups;
+  FreeAndNil(FItemsCache);
   FItemModel.EvictCache;
+  EvictRecordedOwners;
+  DropLoadedRecord;
 end;
 
 procedure TItemTreeVM.RefreshTagsForItem(ItemId: Integer);

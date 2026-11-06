@@ -27,6 +27,10 @@ type
     LastError: string;
     LastSyncComplete: Boolean;
     DroppedGroups: Integer;
+    ServerDetail: Boolean;
+    LastSyncUtc: TDateTime;
+    FilesSkipped: Integer;
+    LastErrorCode: string;
     function IsComplete: Boolean;
   end;
 

@@ -27,6 +27,7 @@ type
       AKeyName, AReaderUnits: string; AConversionFactor: Double): TValueSourceInfo; static;
     class function Derived(const AFormulaId: string;
       AFormulaVersion: Integer): TValueSourceInfo; static;
+    class function Planned(const ANote: string): TValueSourceInfo; static;
   end;
 
   EValueSourceError = class(Exception);
@@ -89,12 +90,20 @@ begin
   Result.FormulaVersion := AFormulaVersion;
 end;
 
+class function TValueSourceInfo.Planned(const ANote: string): TValueSourceInfo;
+begin
+  Result := Default(TValueSourceInfo);
+  Result.Kind := vskPlanned;
+  Result.Note := ANote;
+end;
+
 function SourceKindName(Kind: TValueSourceKind): string;
 begin
   case Kind of
     vskReader: Result := 'Reader';
     vskManual: Result := 'Manual';
     vskDerived: Result := 'Derived';
+    vskPlanned: Result := 'Planned';
   else
     Result := 'Unknown';
   end;
@@ -176,6 +185,11 @@ begin
         if Source.FormulaVersion <= 0 then
           raise EValueSourceError.Create('A Derived source requires a positive formula_version');
       end;
+    vskPlanned:
+      if (Source.FileId <> 0) or (Source.ReaderId <> '') or
+        (Source.ReaderVersion <> '') or (Source.KeyName <> '') then
+        raise EValueSourceError.Create(
+          'A Planned source takes no file or reader fields');
   end;
 end;
 
@@ -238,6 +252,8 @@ begin
   else if Previous.Kind = vskDerived then
     Note := Format('Edited by hand; was derived by %s version %d',
       [Previous.FormulaId, Previous.FormulaVersion])
+  else if Previous.Kind = vskPlanned then
+    Note := 'Edited by hand; was a planned value'
   else
     Note := Previous.Note;
   if Length(Note) > MAX_SOURCE_NOTE then

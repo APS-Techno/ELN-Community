@@ -112,6 +112,8 @@ begin
     raise Exception.CreateFmt('Value %d belongs to deleted item %d.',
       [ValueId, Item.Id]);
   CheckProjectWriteAccess(Context, Item.ProjectID);
+  if Result.EffectiveSourceKind = vskPlanned then
+    raise Exception.Create('Planned values are confirmed or corrected in the desktop.');
   if IsItemSignedCheck(Operation, Item.Id) then
     raise Exception.CreateFmt('Item %d is signed; its values cannot be changed.',
       [Item.Id]);
@@ -668,7 +670,7 @@ begin
     'written). Requires write access. Refused when the item is signed or ' +
     'deleted, or when a hypothesis in review or accepted has the item as a ' +
     'run or cites the item or one of its values.',
-    MakeUpdateValueSchema, HandleUpdateValue, tscProjectScoped);
+    MakeUpdateValueSchema, HandleUpdateValue, tscProjectScoped, taWrite);
 
   Registry.Register('remove_value',
     'Remove one stored value from its item. This is a hard delete and cannot ' +
@@ -682,7 +684,7 @@ begin
     'signed or deleted, or when a hypothesis in review or accepted has the ' +
     'item as a run or cites the item or one of its values. Use remove_values ' +
     'to remove several values in one step.',
-    MakeRemoveValueSchema, HandleRemoveValue, tscProjectScoped);
+    MakeRemoveValueSchema, HandleRemoveValue, tscProjectScoped, taWrite);
 
   Registry.Register('remove_values',
     'Remove up to 200 stored values in one all-or-nothing step, for example ' +
@@ -691,7 +693,7 @@ begin
     'error names its index (value_ids[i]) and nothing is removed. A Derived ' +
     'value removed in the same call is not listed as a dependent. One audit ' +
     'row is written per value. This cannot be undone from MCP.',
-    MakeRemoveValuesSchema, HandleRemoveValues, tscProjectScoped);
+    MakeRemoveValuesSchema, HandleRemoveValues, tscProjectScoped, taWrite);
 end;
 
 end.

@@ -111,6 +111,23 @@ object frameContentViewer: TframeContentViewer
         TabOrder = 0
       end
     end
+    object SeriesCard: TCard
+      Left = 0
+      Top = 0
+      Width = 599
+      Height = 609
+      Caption = 'SeriesCard'
+      CardIndex = 3
+      TabOrder = 3
+      inline frmSeries: TframeSeries
+        Left = 0
+        Top = 0
+        Width = 599
+        Height = 609
+        Align = alClient
+        TabOrder = 0
+      end
+    end
   end
   object PreviewHost: TPanel
     Left = 0

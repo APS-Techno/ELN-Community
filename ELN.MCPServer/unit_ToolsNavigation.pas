@@ -28,7 +28,9 @@ uses
   System.SysUtils, System.Generics.Collections, System.Generics.Defaults,
   System.TypInfo, System.DateUtils, System.Rtti,
   Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq,
+  Aurelius.Criteria.Base, Aurelius.Criteria.Projections,
   Aurelius.Types.Nullable,
+  unit_ToolsWrite,
   unit_Item, unit_Project, unit_ItemTypes, unit_ELNDB_Dictionary,
   unit_LabEntry, unit_ValueType, unit_SearchModel,
   unit_SearchPassages, unit_SearchDocumentProvider, unit_HybridSearch,
@@ -87,45 +89,6 @@ begin
     ALevel := TItemLevel(V);
 end;
 
-
-function GetOptBool(const Params: TJSONObject; const Key: string;
-  Default: Boolean): Boolean;
-begin
-  Result := Default;
-  if (Params <> nil) and (Params.FindValue(Key) <> nil) then
-    Result := Params.GetValue<Boolean>(Key);
-end;
-
-function GetOptInt(const Params: TJSONObject; const Key: string;
-  out Value: Integer): Boolean;
-begin
-  Result := (Params <> nil) and (Params.FindValue(Key) <> nil);
-  if Result then
-    Value := Params.GetValue<Integer>(Key);
-end;
-
-function GetOptStr(const Params: TJSONObject; const Key: string;
-  out Value: string): Boolean;
-begin
-  Result := (Params <> nil) and (Params.FindValue(Key) <> nil) and
-            not (Params.FindValue(Key) is TJSONNull);
-  if Result then
-    Value := Params.GetValue<string>(Key);
-end;
-
-function GetReqInt(const Params: TJSONObject; const Key: string): Integer;
-begin
-  if (Params = nil) or (Params.FindValue(Key) = nil) then
-    raise Exception.CreateFmt('Missing required parameter: %s', [Key]);
-  Result := Params.GetValue<Integer>(Key);
-end;
-
-function GetReqStr(const Params: TJSONObject; const Key: string): string;
-begin
-  if (Params = nil) or (Params.FindValue(Key) = nil) then
-    raise Exception.CreateFmt('Missing required parameter: %s', [Key]);
-  Result := Params.GetValue<string>(Key);
-end;
 
 
 type
@@ -233,8 +196,10 @@ var
   Project: TProject;
   Arr: TJSONArray;
   Obj: TJSONObject;
-  ItemDic: TItemDictionary;
-  Items: TList<TItem>;
+  Counts: TDictionary<Integer, Integer>;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+  ItemCount: Integer;
   OwnerName: string;
 begin
   IncludeArchived := GetOptBool(Params, 'include_archived', False);
@@ -246,8 +211,22 @@ begin
       .Where(Linq['IsArchived'] = False)
       .List;
 
-  ItemDic := TItemDictionary.Create;
+  Counts := TDictionary<Integer, Integer>.Create;
   try
+    Rows := Context.Manager.Find<TItem>
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Group('ProjectID').As_('ProjectID'))
+        .Add(TProjections.Count('Id').As_('N')))
+      .Where(Linq['IsDeleted'] = False)
+      .ListValues;
+    try
+      for Row in Rows do
+        Counts.AddOrSetValue(Integer(Row.Values['ProjectID']),
+          Integer(Row.Values['N']));
+    finally
+      Rows.Free;
+    end;
+
     Arr := TJSONArray.Create;
     try
       for Project in Projects do
@@ -257,30 +236,26 @@ begin
         if not IsProjectVisible(Context, Project.Id) then
           Continue;
 
-        Items := Context.Manager.Find<TItem>
-          .Where((ItemDic.ProjectID = Project.Id) and (ItemDic.IsDeleted = False))
-          .List;
-        try
-          Obj := TJSONObject.Create;
-          Obj.AddPair('id', TJSONNumber.Create(Project.Id));
-          Obj.AddPair('title', Project.Title);
-          Obj.AddPair('description', Project.Description);
+        if not Counts.TryGetValue(Project.Id, ItemCount) then
+          ItemCount := 0;
 
-          if Assigned(Project.Owner) then
-            OwnerName := Project.Owner.Username
-          else
-            OwnerName := '';
-          Obj.AddPair('owner', OwnerName);
+        Obj := TJSONObject.Create;
+        Obj.AddPair('id', TJSONNumber.Create(Project.Id));
+        Obj.AddPair('title', Project.Title);
+        Obj.AddPair('description', Project.Description);
 
-          Obj.AddPair('start_date', NullableDateToJSON(Project.StartDate));
-          Obj.AddPair('end_date', NullableDateToJSON(Project.EndDate));
-          Obj.AddPair('is_archived', TJSONBool.Create(Project.IsArchived));
-          Obj.AddPair('item_count', TJSONNumber.Create(Items.Count));
+        if Assigned(Project.Owner) then
+          OwnerName := Project.Owner.Username
+        else
+          OwnerName := '';
+        Obj.AddPair('owner', OwnerName);
 
-          Arr.AddElement(Obj);
-        finally
-          Items.Free;
-        end;
+        Obj.AddPair('start_date', NullableDateToJSON(Project.StartDate));
+        Obj.AddPair('end_date', NullableDateToJSON(Project.EndDate));
+        Obj.AddPair('is_archived', TJSONBool.Create(Project.IsArchived));
+        Obj.AddPair('item_count', TJSONNumber.Create(ItemCount));
+
+        Arr.AddElement(Obj);
       end;
     except
       Arr.Free;
@@ -290,7 +265,7 @@ begin
     Result := TJSONObject.Create;
     Result.AddPair('projects', Arr);
   finally
-    ItemDic.Free;
+    Counts.Free;
     Projects.Free;
   end;
 end;
@@ -1141,12 +1116,12 @@ begin
   Registry.Register('list_projects',
     'List all projects with item counts. Returns project metadata including ' +
     'title, description, owner, dates, and number of items.',
-    MakeListProjectsSchema, HandleListProjects, tscProjectScoped);
+    MakeListProjectsSchema, HandleListProjects, tscProjectScoped, taRead);
 
   Registry.Register('list_folders',
     'List all folders within a project. Returns folder hierarchy with ' +
     'parent references and sort order.',
-    MakeListFoldersSchema, HandleListFolders, tscProjectScoped);
+    MakeListFoldersSchema, HandleListFolders, tscProjectScoped, taRead);
 
   Registry.Register('list_items',
     'List items (experiments, specimens, actions) in a project. ' +
@@ -1156,7 +1131,7 @@ begin
     'ELN client when clicked in a markdown-rendering chat client. ' +
     'Set include_tags:true to get each item''s tags as well (off by default ' +
     'because it costs extra queries).',
-    MakeListItemsSchema, HandleListItems, tscProjectScoped);
+    MakeListItemsSchema, HandleListItems, tscProjectScoped, taRead);
 
   Registry.Register('get_item',
     'Get detailed information about a single item including its children, ' +
@@ -1166,13 +1141,13 @@ begin
     'an eln://item/N (or eln://specimen/<title>) link that opens the item ' +
     'in the desktop ELN client when clicked in a markdown-rendering chat ' +
     'client.',
-    MakeGetItemSchema, HandleGetItem, tscProjectScoped);
+    MakeGetItemSchema, HandleGetItem, tscProjectScoped, taRead);
 
   Registry.Register('search',
     'Full-text search across items, protocols, files, values, and tags. ' +
     'File-name matches include the complete filename, extension, and file ID. ' +
     'Supports multi-word queries with automatic intersection.',
-    MakeSearchSchema, HandleSearch, tscProjectScoped);
+    MakeSearchSchema, HandleSearch, tscProjectScoped, taRead);
 
   Registry.Register('search_semantic',
     'Search by meaning across item titles, descriptions, properties, tags, ' +
@@ -1195,7 +1170,7 @@ begin
     'filters_applied echoes what was enforced, with value limits converted ' +
     'into the unit of each value type. Filters never reach beyond the ' +
     'projects the caller can read.',
-    MakeSearchSemanticSchema, HandleSearchSemantic, tscProjectScoped);
+    MakeSearchSemanticSchema, HandleSearchSemantic, tscProjectScoped, taRead);
 end;
 
 end.

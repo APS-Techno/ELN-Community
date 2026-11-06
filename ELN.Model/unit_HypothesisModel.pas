@@ -72,6 +72,8 @@ type
     KeyValue: TKeyValueSummary;                               // N = 0 when none
     CreatedDate: TDateTime;
     ModifiedDate: TDateTime;                                  // 0 = never modified
+    HasOutcome: Boolean;
+    Outcome: THypothesisOutcome;
   end;
 
   THypothesisRunView = record
@@ -195,6 +197,7 @@ type
 /// long IN (...) or OR chain fails on SQLite (999 parameters, expression
 /// depth 1000).
 function IdChunks(const AIds: TArray<Integer>): TArray<TArray<Variant>>; overload;
+function IdChunks(const AIds: TArray<Int64>): TArray<TArray<Variant>>; overload;
 
 implementation
 
@@ -1410,6 +1413,8 @@ begin
   Result.Status := H.Status;
   Result.CreatedDate := H.CreatedDate;
   if H.ModifiedDate.HasValue then Result.ModifiedDate := H.ModifiedDate.Value;
+  Result.HasOutcome := H.Outcome.HasValue;
+  if Result.HasOutcome then Result.Outcome := H.Outcome.Value;
   // Run rows only: a Reference is not a run (spec 5.2 "no Run rows -> to
   // make"; review #13). Derived state, the to_make filters and every
   // run_count on the wire follow from this one count.

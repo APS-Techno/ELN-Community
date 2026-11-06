@@ -16,6 +16,7 @@ uses
   unit_ItemTreeBatch,
   unit_ItemLinkModel,
   unit_HypothesesVM,
+  unit_SeriesVM,
   System.Messaging,
   unit_ItemTypes,
   unit_Item,
@@ -69,6 +70,7 @@ type
     lblPath: TRzLabel;
     lblName: TRzLabel;
     lblDetails: TRzLabel;
+    lblSeries: TRzLabel;
     pnlLinks: TRzPanel;
     pnlLinksHeader: TRzPanel;
     lblLinksCaption: TRzLabel;
@@ -141,6 +143,9 @@ type
     miBatchMoveTo: TMenuItem;
     miBatchTags: TMenuItem;
     miBatchExport: TMenuItem;
+    miBatchLinkToPlanPoint: TMenuItem;
+    miItemLinkToPlanPoint: TMenuItem;
+    miItemConfirmPlanned: TMenuItem;
     RzPanel1: TRzPanel;
     pnlSearch: TRzPanel;
     Tree: TVirtualStringTree;
@@ -253,6 +258,8 @@ type
     procedure miBatchMoveToClick(Sender: TObject);
     procedure miBatchTagsClick(Sender: TObject);
     procedure miBatchExportClick(Sender: TObject);
+    procedure miLinkToPlanPointClick(Sender: TObject);
+    procedure miConfirmPlannedClick(Sender: TObject);
     procedure TreeKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure tmrStartupTimer(Sender: TObject);
     procedure miItemCheckValueSourcesClick(Sender: TObject);
@@ -294,6 +301,7 @@ type
     FDetailLinks: TArray<TItemLinkInfo>;
     FDetailItemId: Integer;
     FDetailItemTitle: string;
+    FSeriesExtra: Integer;
     // pnlBottom's height with no links, captured from the live control on
     // first use so it already carries this monitor's DPI scaling.
     FDetailsBaseHeight: Integer;
@@ -323,6 +331,7 @@ type
     FOnNavigateItem: TItemNavigateProc;
     FOnPrepareFile: TPrepareItemFileEvent;
     FOnOpenHypotheses: TOpenHypothesisEvent;
+    FOnOpenSeries: TOpenSeriesEvent;
     FOnHypothesisDecisionsChanged: TNotifyEvent;
     FSkippedExtractedValues: Integer;
     procedure PreviewQueueStatus(const AText: string);
@@ -344,6 +353,7 @@ type
     procedure RefreshAfterBatch(const Keys: TArray<string>; const FocusKey: string);
     function ShowSkipsIfEmpty(const Plan: TBatchPlan): Boolean;
     procedure ResetDetailLinks;
+    procedure UpdateSeriesLine(AItem: TItem);
     procedure CaptureSelection(out Keys: TArray<string>; out FocusKey: string);
     function LoadFileKeyValues(AFile: unit_Item.TFile; out Values: TFileKeyValues;
       out Reason: string): Boolean;
@@ -463,6 +473,7 @@ type
     property OnPrepareFile: TPrepareItemFileEvent read FOnPrepareFile write FOnPrepareFile;
     property OnNavigateItem: TItemNavigateProc read FOnNavigateItem write FOnNavigateItem;
     property OnOpenHypotheses: TOpenHypothesisEvent read FOnOpenHypotheses write FOnOpenHypotheses;
+    property OnOpenSeries: TOpenSeriesEvent read FOnOpenSeries write FOnOpenSeries;
     property OnHypothesisDecisionsChanged: TNotifyEvent
       read FOnHypothesisDecisionsChanged write FOnHypothesisDecisionsChanged;
   end;
@@ -529,6 +540,11 @@ uses
   unit_Hypothesis,
   unit_HypothesisModel,
   dlg_HypothesisPick,
+  dlg_SeriesLink,
+  unit_Series,
+  unit_SeriesTable,
+  unit_SeriesModel,
+  unit_SeriesLinkVM,
   dlg_HypothesisEdit,
   unit_TreeAppearance, System.IOUtils, Aurelius.Drivers.Interfaces,
   unit_ItemModel, unit_Project, unit_AuditHelper,
@@ -808,7 +824,8 @@ begin
       if ShowItemDialog(dmNew, Item) then
       begin
         var NewItem := Model.Items.AddItem(Item.Type_, Item.Title, Item.Level, ParentID,
-                                Item.Description, Item.ActionType, nil, Model.User.Id);
+                                Item.Description, Item.ActionType, nil, Model.User.Id,
+                                Item.Properties);
         FVM.SelectItem(NewItem.Id, 0);
         FillTree(FLocation);
         RestoreLastSelection;
@@ -915,7 +932,8 @@ begin
     if ShowItemDialog(dmNew, Item) then
     begin
       var NewItem := Model.Items.AddItem(Item.Type_, Item.Title, Item.Level, FNewItemParentID,
-                              Item.Description, Item.ActionType, nil, Model.User.Id);
+                              Item.Description, Item.ActionType, nil, Model.User.Id,
+                              Item.Properties);
 
       if Item.Type_ = TItemType.Wiki then
         unit_WikiSeeder.WriteReadmeContent(NewItem, Model.User.Id,
@@ -1432,6 +1450,7 @@ begin
   lblPath.Caption := '';
   lblName.Caption := '';
   lblDetails.Caption := '';
+  UpdateSeriesLine(nil);
 
   if Assigned(FLook) then
     FLook.ClearHover;
@@ -1476,7 +1495,7 @@ begin
         if LastChildID = 0 then
           SelectedNode := RootNode;
 
-      for Entry in Item.Entries do
+      for Entry in FVM.EntriesOf(Item) do
         if Entry is TProtocol then
         begin
           ChildNode := InsertProtocol(Entry as TProtocol, RootNode);
@@ -1485,7 +1504,7 @@ begin
         end;
 
       if Item.Type_ <> TItemType.Wiki then
-        for AFile in Item.Files do
+        for AFile in FVM.FilesOf(Item) do
         begin
           ChildNode := InsertFile(AFile, RootNode);
           if (LastItemID = Item.Id) and (LastChildID = AFile.Id) then
@@ -1507,7 +1526,7 @@ begin
         if LastChildID = 0 then
           SelectedNode := RootNode;
 
-      for Entry in Item.Entries do
+      for Entry in FVM.EntriesOf(Item) do
         if Entry is TProtocol then
         begin
           ChildNode := InsertProtocol(Entry as TProtocol, RootNode);
@@ -1516,7 +1535,7 @@ begin
         end;
 
       if Item.Type_ <> TItemType.Wiki then
-        for AFile in Item.Files do
+        for AFile in FVM.FilesOf(Item) do
         begin
           ChildNode := InsertFile(AFile, RootNode);
           if (LastItemID = Item.Id) and (LastChildID = AFile.Id) then
@@ -1801,6 +1820,57 @@ begin
   miBatchTags.Caption := Format('Tags for %d items...', [Length(Targets)]);
   miBatchExport.Visible := not FVM.IsReadOnly and TItemTreeBatch.Allows(boExport, Targets);
   miBatchExport.Caption := Format('Export %d files...', [Length(Targets)]);
+  miBatchLinkToPlanPoint.Visible := TItemTreeBatch.KindsOf(Targets) = [btItem];
+  miBatchLinkToPlanPoint.Enabled := CanEdit and TItemTreeBatch.Allows(boSeriesLink, Targets);
+  miBatchLinkToPlanPoint.Caption := Format('Link %d items to plan point...', [Length(Targets)]);
+end;
+
+procedure TframeItemTree.miLinkToPlanPointClick(Sender: TObject);
+var
+  Targets: TArray<TBatchTarget>;
+  ItemIds: TArray<Integer>;
+  I, ProjectId, SeriesId: Integer;
+begin
+  if not Assigned(FVM) or not FVM.CanEdit then Exit;
+  Targets := SelectedTargets;
+  if not TItemTreeBatch.Allows(boSeriesLink, Targets) then Exit;
+  SetLength(ItemIds, Length(Targets));
+  for I := 0 to High(Targets) do
+    ItemIds[I] := Targets[I].Item.Id;
+  ProjectId := Targets[0].Item.ProjectID;
+  SeriesId := TdlgSeriesLink.Execute(Model.Manager, Model.User, Model.Access,
+    ProjectId, ItemIds);
+  if SeriesId = 0 then Exit;
+  RefreshKeepView;
+  if Assigned(FOnOpenSeries) then
+    FOnOpenSeries(Self, ProjectId, SeriesId);
+end;
+
+procedure TframeItemTree.miConfirmPlannedClick(Sender: TObject);
+var
+  Targets: TArray<TBatchTarget>;
+  SeriesModel: TSeriesModel;
+  Confirmed: Integer;
+begin
+  if not Assigned(FVM) or not FVM.CanEdit then Exit;
+  Targets := SelectedTargets;
+  if (Length(Targets) <> 1) or (Targets[0].Kind <> btItem) then Exit;
+  SeriesModel := TSeriesModel.Create(Model.Manager, Model.Access);
+  try
+    try
+      Confirmed := SeriesModel.ConfirmPlanned(Model.User, Targets[0].Item.Id);
+    except
+      on E: ESeriesError do
+      begin
+        MessageDlg(E.Message, mtWarning, [mbOK], 0);
+        Exit;
+      end;
+    end;
+  finally
+    SeriesModel.Free;
+  end;
+  RefreshKeepView;
+  SetStatusText(Format('%d planned values confirmed.', [Confirmed]));
 end;
 
 procedure TframeItemTree.miBatchDeleteClick(Sender: TObject);
@@ -1916,12 +1986,10 @@ procedure TframeItemTree.ScaleForDPI;
 
   function S(V: Integer): Integer;
   begin
-    Result := MulDiv(V, Screen.PixelsPerInch, 192);
+    Result := MulDiv(V, CurrentPPI, 192);
   end;
 
 begin
-  if Screen.PixelsPerInch = 192 then Exit;
-
   RzToolbar1.ButtonWidth  := S(50);
   RzToolbar1.ButtonHeight := S(50);
   RzToolbar1.RowHeight    := S(60);
@@ -2322,14 +2390,41 @@ begin
   end;
 
   lblDetails.Caption := Details;
+  UpdateSeriesLine(Item);
 
   FDetailItemId := Item.Id;
   FDetailItemTitle := Item.Title;
   FillLinksPanel(Item.Id);
 end;
 
+procedure TframeItemTree.UpdateSeriesLine(AItem: TItem);
+var
+  SeriesModel: TSeriesModel;
+  Memberships: TArray<TSeriesMembership>;
+  Text: string;
+begin
+  FSeriesExtra := 0;
+  lblSeries.Visible := False;
+  if not Assigned(AItem) or (AItem.Parent <> 0) or
+    (AItem.Level = TItemLevel.Folder) then Exit;
+  SeriesModel := TSeriesModel.Create(Model.Manager, Model.Access);
+  try
+    Memberships := SeriesModel.ItemMemberships(Model.User, AItem.Id);
+  finally
+    SeriesModel.Free;
+  end;
+  Text := TSeriesLinkVM.MembershipText(Memberships);
+  if Text = '' then Exit;
+  lblSeries.Caption := Text;
+  lblSeries.Top := lblDetails.Top + lblDetails.Height;
+  lblSeries.Visible := True;
+  FSeriesExtra := lblSeries.Height + lblSeries.Margins.Top + lblSeries.Margins.Bottom;
+end;
+
 procedure TframeItemTree.ResetDetailLinks;
 begin
+  FSeriesExtra := 0;
+  lblSeries.Visible := False;
   FDetailLinks := nil;
   FDetailItemId := 0;
   FDetailItemTitle := '';
@@ -2445,6 +2540,7 @@ begin
   UpdateInfoColors(ItemNoteColor);
   lblName.Caption := Protocol.Title;
   lblDetails.Caption := '';
+  UpdateSeriesLine(nil);
   FContentViewer.DisplayNote(Protocol.Title, Protocol.FormData);
 end;
 
@@ -2453,6 +2549,7 @@ begin
   UpdateInfoColors(ItemFileColor);
   lblName.Caption := Format('File: %s',[AFile.Title]);
   lblDetails.Caption := AFile.Description;
+  UpdateSeriesLine(nil);
 end;
 
 procedure TframeItemTree.UpdateFileButtons;
@@ -3086,8 +3183,8 @@ begin
         X := Badges.DrawAt(X, CellRect, Tag.Name, C, Limit) + Badges.Gap;
       end;
 
-    if Data.Item.Values.Count > 0 then
-      CellText := FormatValuesInline(Data.Item.Values)
+    if FVM.ValuesOf(Data.Item).Count > 0 then
+      CellText := FormatValuesInline(FVM.ValuesOf(Data.Item))
     else
       CellText := Data.Item.Description;
 
@@ -3095,7 +3192,7 @@ begin
     begin
       TargetCanvas.Font.Assign(VST.Font);
       if vsSelected in Node.States then
-        TargetCanvas.Font.Color := VST.Colors.SelectionTextColor
+        TargetCanvas.Font.Color := VST.Colors.GetSelectedNodeFontColor(VST.Focused)
       else if TStyleManager.IsCustomStyleActive then
         TargetCanvas.Font.Color := StyleServices.GetSystemColor(VST.Font.Color)
       else
@@ -3408,6 +3505,12 @@ begin
       FmiItemViewSignature.Visible      := IsSigned;
       FmiItemVerifyIntegrity.Visible    := IsSigned;
 
+      miItemLinkToPlanPoint.Visible := not IsFolder;
+      miItemLinkToPlanPoint.Enabled := CanEdit and
+        TItemTreeBatch.Allows(boSeriesLink, [TBatchTarget.ForItem(Data.Item)]);
+      miItemConfirmPlanned.Visible := not IsFolder and
+        Model.Items.HasPlannedValues(Data.Item.Id);
+      miItemConfirmPlanned.Enabled := CanEdit and not IsSigned;
       miItemHypothesis.Visible := not IsFolder;
       miItemAttachHypothesis.Enabled := CanEdit;
       miItemNewHypothesis.Enabled := CanEdit;
@@ -4403,7 +4506,7 @@ begin
       end;
     end;
     if TargetPath <> OldPath then Model.Storage.DeleteFile(OldPath);
-    Model.Items.EvictCache;
+    FVM.EvictCache;
   finally
     Manager.Free;
     Screen.Cursor := crDefault;
@@ -4593,7 +4696,15 @@ begin
   begin
     FVM.EvictCache;
     FillTree(FLocation);
-    RestoreLastSelection;
+    if Assigned(FSelectedNode) then
+      RestoreLastSelection
+    else
+    begin
+      FItem := nil;
+      FCurrentFile := -1;
+      UpdateInfoColors(CDefaultColor);
+      UpdateFileButtons;
+    end;
   end;
 end;
 
@@ -4773,6 +4884,7 @@ begin
           UpdateInfoColors(ItemProtocolColor);
         lblName.Caption := Data.Protocol.Title;
         lblDetails.Caption := '';
+        UpdateSeriesLine(nil);
         FItem := nil;
         if Assigned(ParentData) and (ParentData.NodeType = ntItem) then
           FItem := ParentData.Item;
@@ -5075,7 +5187,7 @@ begin
   begin
     vstLinks.Clear;
     pnlLinks.Visible := False;
-    pnlBottom.Height := FDetailsBaseHeight;
+    pnlBottom.Height := FDetailsBaseHeight + FSeriesExtra;
     Exit;
   end;
 
@@ -5117,6 +5229,7 @@ begin
     vstLinks.EndUpdate;
   end;
 
+  pnlLinks.Top := pnlBottom.Height;
   pnlLinks.Visible := True;
 
   // pnlLinks is alTop, so growing pnlBottom alone does NOT grow it: an aligned

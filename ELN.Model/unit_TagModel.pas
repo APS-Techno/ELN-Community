@@ -30,6 +30,7 @@ type
     procedure AssignTag(ItemId, TagId: Integer);
     procedure UnassignTag(ItemId, TagId: Integer);
     function GetTagsForItem(ItemId: Integer): TTags;
+    function GetTagsForItems(const ItemIds: TArray<Integer>): TDictionary<Integer, TTags>;
     function GetItemIdsForTag(TagId: Integer): TList<Integer>;
     function IsTagAssigned(ItemId, TagId: Integer): Boolean;
   end;
@@ -38,7 +39,8 @@ implementation
 
 uses
   Aurelius.Criteria.Base,
-  unit_TimeHelper;
+  unit_TimeHelper,
+  unit_HypothesisModel;
 
 
 constructor TTagModel.Create(Manager: TObjectManager);
@@ -187,6 +189,77 @@ begin
     end;
   finally
     Links.Free;
+  end;
+end;
+
+function TTagModel.GetTagsForItems(const ItemIds: TArray<Integer>): TDictionary<Integer, TTags>;
+var
+  Chunk: TArray<Variant>;
+  Links, Part: TItemTags;
+  Link: TItemTag;
+  Found: TTags;
+  TagIds: TList<Integer>;
+  Seen: TDictionary<Integer, Boolean>;
+  Tag: TTag;
+  Id: Integer;
+  Pair: TPair<Integer, TTags>;
+begin
+  Result := TDictionary<Integer, TTags>.Create;
+  try
+    for Id in ItemIds do
+      if not Result.ContainsKey(Id) then
+        Result.Add(Id, TTags.Create);
+
+    Links := TItemTags.Create;
+    try
+      for Chunk in IdChunks(ItemIds) do
+      begin
+        Part := FManager.Find<TItemTag>
+          .Where(Linq['ItemId']._In(Chunk))
+          .OrderBy(FItemTagDic.Id)
+          .List;
+        try
+          Links.AddRange(Part);
+        finally
+          Part.Free;
+        end;
+      end;
+
+      TagIds := TList<Integer>.Create;
+      Seen := TDictionary<Integer, Boolean>.Create;
+      try
+        for Link in Links do
+          if not Seen.ContainsKey(Link.TagId) then
+          begin
+            Seen.Add(Link.TagId, True);
+            TagIds.Add(Link.TagId);
+          end;
+        for Chunk in IdChunks(TagIds.ToArray) do
+        begin
+          Found := FManager.Find<TTag>
+            .Where(Linq['Id']._In(Chunk))
+            .List;
+          Found.Free;
+        end;
+      finally
+        Seen.Free;
+        TagIds.Free;
+      end;
+
+      for Link in Links do
+      begin
+        Tag := FManager.Find<TTag>(Link.TagId);
+        if Assigned(Tag) then
+          Result[Link.ItemId].Add(Tag);
+      end;
+    finally
+      Links.Free;
+    end;
+  except
+    for Pair in Result do
+      Pair.Value.Free;
+    Result.Free;
+    raise;
   end;
 end;
 

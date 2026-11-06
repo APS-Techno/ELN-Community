@@ -71,6 +71,7 @@ type
     destructor Destroy; override;
 
     procedure LoadForNew(AllowedLevels: TItemLevels);
+    procedure Prefill(AItem: TItem);
     procedure LoadForEdit(Item: TItem; AllowedLevels: TItemLevels);
 
     procedure SetLevel(Value: TItemLevel);
@@ -268,6 +269,37 @@ begin
     FLevel := TItemLevel.Action;
 
   FilterItemTypes;
+  DoChanged;
+end;
+
+procedure TActionDialogVM.Prefill(AItem: TItem);
+var
+  I: Integer;
+begin
+  if FIsEditMode or (AItem = nil) then
+    Exit;
+  FTitle := AItem.Title;
+  for I := 0 to High(FItemTypes) do
+    if FItemTypes[I] = AItem.Type_ then
+    begin
+      FSelectedItemTypeIndex := I;
+      FilterActionTypes;
+      Break;
+    end;
+  if Assigned(AItem.ActionType) then
+    for I := 0 to FActionTypes.Count - 1 do
+      if FActionTypes[I].Id = AItem.ActionType.Id then
+      begin
+        SetActionTypeIndex(I);
+        Break;
+      end;
+  if Assigned(AItem.Equipment) then
+    for I := 0 to FEquipments.Count - 1 do
+      if FEquipments[I].Id = AItem.Equipment.Id then
+      begin
+        FSelectedEquipmentIndex := I;
+        Break;
+      end;
   DoChanged;
 end;
 

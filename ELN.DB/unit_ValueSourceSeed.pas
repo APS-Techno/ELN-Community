@@ -115,7 +115,7 @@ begin
     Rows := Manager.Find<TReaderValueMapping>.List;
     try
       Add('aps.xrcx', 'Period', 'A', 'Period', 'm', 1e-10);
-      Add('aps.xrcx', '<Material> Thickness', 'A', 'Thickness', 'm', 1e-10);
+      Add('aps.xrcx', '<Material> Thickness', 'A', 'Thickness', 'nm', 0.1);
       Add('aps.xrcx', '<Material> Roughness', 'A', 'Roughness', 'm', 1e-10);
       Add('aps.xrcx', 'Chi2', '', 'Chi2', '', 1);
       Add('aps.zrw', 'Fn', 'N', 'Normal force', 'N', 1);
@@ -126,7 +126,7 @@ begin
       Add('aps.zrw', 'I', 'A', 'Current', 'A', 1);
       Add('aps.zrw', 'R', 'Ohm', 'Resistance', 'Ohm', 1);
       Add('aps.zrw', 'V', 'V', 'Voltage', 'V', 1);
-      Add('aps.fibps', 'Step Height', 'um', 'Thickness', 'm', 1e-6);
+      Add('aps.fibps', 'Step Height', 'um', 'Thickness', 'nm', 1000);
       Add('aps.fibps', 'Wear Area', 'um2', 'Wear area', 'mm' + #$00B2, 1e-6);
       Add('aps.mit', 'Hardness', 'GPa', 'Hardness', 'GPa', 1);
       Add('aps.mit', 'Modulus', 'GPa', 'Modulus', 'GPa', 1);

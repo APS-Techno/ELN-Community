@@ -3,8 +3,6 @@
 interface
 uses
   SysUtils,
-  Aurelius.Bind.BaseDataset,
-  Aurelius.Bind.Dataset,
   Aurelius.Drivers.Interfaces,
   Aurelius.Engine.DatabaseManager,
   Aurelius.Engine.ObjectManager,
@@ -35,9 +33,6 @@ type
       FManager: TObjectManager;
       FProjectID, FFolderID: integer;
       procedure CollectLiveSubtree(Item: TItem; AList: TList<TItem>);
-      function NewValue(ValueType: TValueType; RecType: TRecType;
-        AValue: double; UserId: Integer; Item: TItem; Tol: double;
-        const Description: string; const Source: TValueSourceInfo): TValue;
       procedure DiscardValue(Item: TItem; Val: TValue);
       procedure UpdateReaderValue(Val: TValue; ValueType: TValueType;
         RecType: TRecType; AValue: double; UserId: Integer; Item: TItem;
@@ -45,7 +40,6 @@ type
         const AnalysisSnapshot: string);
 
    protected
-      function GetDataSet: TAureliusDataset; override;
       function GetItemsList: TItems;
     public
       constructor Create(Manager: TObjectManager);
@@ -92,7 +86,12 @@ type
         const Source: TValueSourceInfo; const AnalysisSnapshot: string;
         Occurrence: Integer);
       function ReaderValuesOf(Item: TItem; FileId: Int64): TArray<TValue>;
+      function NewValue(ValueType: TValueType; RecType: TRecType;
+        AValue: double; UserId: Integer; Item: TItem; Tol: double;
+        const Description: string; const Source: TValueSourceInfo): TValue;
       procedure RemoveValue(Val: TValue; var Item: TItem; UserId: Integer);
+      function HasPlannedValues(AItemId: Integer): Boolean;
+      function ConfirmPlannedValues(AUserId, AItemId: Integer): Integer;
       function RemoveFile(AFile: TFile; var Item: TItem; UserId: Integer): Boolean;
       function RemoveEntry(Entry: TLabEntry; var Item: TItem; UserId: Integer): Boolean;
 
@@ -272,8 +271,6 @@ constructor TItemModel.Create;
 begin
   inherited Create;
   FManager := Manager;
-  FDataSet := CreateDataSet;
-  FDataSet.Manager := FManager;
   FDic := TItemDictionary.Create;
 end;
 
@@ -544,6 +541,50 @@ begin
   end;
 end;
 
+function TItemModel.HasPlannedValues(AItemId: Integer): Boolean;
+var
+  Item: TItem;
+  Val: TValue;
+begin
+  Result := False;
+  Item := FManager.Find<TItem>(AItemId);
+  if Item = nil then
+    Exit;
+  for Val in Item.Values do
+    if Val.EffectiveSourceKind = vskPlanned then
+      Exit(True);
+end;
+
+function TItemModel.ConfirmPlannedValues(AUserId, AItemId: Integer): Integer;
+var
+  Item: TItem;
+  Val: TValue;
+  Confirmed: TList<TValue>;
+begin
+  Result := 0;
+  Item := FManager.Find<TItem>(AItemId);
+  if (Item = nil) or IsItemSignedCheck(FManager, AItemId) then
+    Exit;
+  Confirmed := TList<TValue>.Create;
+  try
+    for Val in Item.Values do
+      if Val.EffectiveSourceKind = vskPlanned then
+        Confirmed.Add(Val);
+    if Confirmed.Count = 0 then
+      Exit;
+    for Val in Confirmed do
+      ApplySource(Val, TValueSourceInfo.Manual('Confirmed planned value'));
+    if not TConflictHandler.SafeFlush(FManager) then
+      Exit;
+    for Val in Confirmed do
+      RecordAudit(FManager, aetValue, Val.Id, aoUpdate, AUserId,
+        'Confirmed planned value ' + Val.ValueType.Title);
+    Result := Confirmed.Count;
+  finally
+    Confirmed.Free;
+  end;
+end;
+
 function TItemModel.RemoveFile(AFile: TFile; var Item: TItem; UserId: Integer): Boolean;
 var
   FileId: Int64;
@@ -630,14 +671,6 @@ begin
   RecordAudit(FManager, EntityType, EntryId, aoDelete, UserId,
     'Removed entry "' + EntryTitle + '" from item "' + Item.Title + '"');
   Result := True;
-end;
-
-function TItemModel.GetDataSet: TAureliusDataset;
-begin
-  if not Assigned(FDataSet) then
-    OpenDataSet;
-
-  Result := FDataSet;
 end;
 
 function TItemModel.GetItem(const ID: integer): TItem;
@@ -866,8 +899,6 @@ end;
 
 procedure TItemModel.OpenDataSet;
 begin
-  FDataSet.SetSourceCriteria(FManager.Find<TItem>);
-  FDataSet.Open;
 end;
 
 function TItemModel.IsItemEmpty(Item: TItem): Boolean;
@@ -1175,12 +1206,15 @@ begin
   try
     for Item in Items do
     begin
-      for Entry in Item.Entries do
-        FManager.Evict(Entry);
-      for AFile in Item.Files do
-        FManager.Evict(AFile);
-      for Val in Item.Values do
-        FManager.Evict(Val);
+      if Item.EntriesLoaded then
+        for Entry in Item.Entries do
+          FManager.Evict(Entry);
+      if Item.FilesLoaded then
+        for AFile in Item.Files do
+          FManager.Evict(AFile);
+      if Item.ValuesLoaded then
+        for Val in Item.Values do
+          FManager.Evict(Val);
       FManager.Evict(Item);
     end;
   finally

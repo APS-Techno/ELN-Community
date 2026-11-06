@@ -91,7 +91,7 @@ type
     [Version]
     FVersion: Integer;
 
-    [ManyValuedAssociation([], CascadeTypeAll - [TCascadeType.Remove])]
+    [ManyValuedAssociation([TAssociationProp.Lazy], CascadeTypeAll - [TCascadeType.Remove])]
     [ForeignJoinColumn('ProjectID', [TColumnProp.Required])]
     FFolders: Proxy<TFoldersList>;
 
@@ -110,6 +110,7 @@ type
 
     constructor Create; virtual;
     destructor Destroy; override;
+    function FoldersLoaded: Boolean;
 
     property Id: Integer read FId write FId;
     property Owner: TUser read GetOwner write SetOwner;
@@ -230,6 +231,11 @@ end;
 function TProject.GetFolders: TFoldersList;
 begin
   Result := FFolders.Value;
+end;
+
+function TProject.FoldersLoaded: Boolean;
+begin
+  Result := FFolders.Available;
 end;
 
 function TProject.GetOwner: TUser;

@@ -10,6 +10,7 @@ uses
   System.Generics.Collections,
   Aurelius.Engine.ObjectManager,
   unit_User,
+  unit_Hypothesis,
   unit_HypothesisModel,
   unit_ProjectAccessPolicy;
 
@@ -27,6 +28,39 @@ function NeedsMyApproval(AManager: TObjectManager;
 /// frees. Queries only the requested ids (chunked IN), never the whole table.
 function RunItemIds(AManager: TObjectManager;
   const AItemIds: TArray<Integer>): TDictionary<Integer, Boolean>;
+
+type
+  THypothesisLinkKind = (hlkRun, hlkReference, hlkEvidence);
+
+  THypothesisItemLink = record
+    ItemId, HypothesisId: Integer;
+    Kind: THypothesisLinkKind;
+    EvidenceId: Integer;
+    FileId: Int64;
+    ValueId: Integer;
+  end;
+
+  THypothesisHead = record
+    Id, ProjectId: Integer;
+    Title: string;
+    Status: THypothesisStatus;
+    HasOutcome: Boolean;
+    Outcome: THypothesisOutcome;
+  end;
+
+const
+  HypothesisLinkKindNames: array[THypothesisLinkKind] of string =
+    ('Run', 'Reference', 'Evidence');
+
+/// Every stored run, reference and evidence row of AItemIds, ordered by item,
+/// hypothesis, kind and evidence id. EvidenceId, FileId and ValueId are 0 when
+/// absent. No access filtering: the caller decides what may be shown.
+function LinksForItems(AManager: TObjectManager;
+  const AItemIds: TArray<Integer>): TArray<THypothesisItemLink>;
+
+/// The listed hypotheses that exist, keyed by id. Caller frees.
+function HypothesisHeads(AManager: TObjectManager;
+  const AIds: TArray<Integer>): TDictionary<Integer, THypothesisHead>;
 
 type
   THypProjectBadge = record
@@ -50,8 +84,8 @@ uses
   Aurelius.Criteria.Base,
   Aurelius.Criteria.Linq,
   Aurelius.Criteria.Projections,
-  unit_Hypothesis,
-  unit_HypothesisRun;
+  unit_HypothesisRun,
+  unit_HypothesisEvidence;
 
 const
   // Ids per IN (...) list; same limit and reasoning as
@@ -190,6 +224,136 @@ begin
         for Row in Rows do
           if not VarIsNull(Row.Values['ItemId']) then
             Result.AddOrSetValue(Integer(Row.Values['ItemId']), True);
+      finally
+        Rows.Free;
+      end;
+    end;
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+function VarInt(const V: Variant): Int64;
+begin
+  if VarIsNull(V) then
+    Result := 0
+  else
+    Result := V;
+end;
+
+function LinksForItems(AManager: TObjectManager;
+  const AItemIds: TArray<Integer>): TArray<THypothesisItemLink>;
+var
+  Chunk: TArray<Variant>;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+  Links: TList<THypothesisItemLink>;
+  Link: THypothesisItemLink;
+begin
+  Links := TList<THypothesisItemLink>.Create;
+  try
+    for Chunk in IdChunks(AItemIds) do
+    begin
+      Rows := AManager.Find<THypothesisRun>
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop('ItemId').As_('ItemId'))
+          .Add(TProjections.Prop('HypothesisId').As_('HypothesisId'))
+          .Add(TProjections.Prop('Role').As_('Role')))
+        .Where(Linq['ItemId']._In(Chunk))
+        .ListValues;
+      try
+        for Row in Rows do
+        begin
+          Link := Default(THypothesisItemLink);
+          Link.ItemId := VarInt(Row.Values['ItemId']);
+          Link.HypothesisId := VarInt(Row.Values['HypothesisId']);
+          if VarInt(Row.Values['Role']) = Ord(hrrReference) then
+            Link.Kind := hlkReference
+          else
+            Link.Kind := hlkRun;
+          Links.Add(Link);
+        end;
+      finally
+        Rows.Free;
+      end;
+
+      Rows := AManager.Find<THypothesisEvidence>
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop('Id').As_('Id'))
+          .Add(TProjections.Prop('ItemId').As_('ItemId'))
+          .Add(TProjections.Prop('HypothesisId').As_('HypothesisId'))
+          .Add(TProjections.Prop('FileId').As_('FileId'))
+          .Add(TProjections.Prop('ValueId').As_('ValueId')))
+        .Where(Linq['ItemId']._In(Chunk))
+        .ListValues;
+      try
+        for Row in Rows do
+        begin
+          Link := Default(THypothesisItemLink);
+          Link.Kind := hlkEvidence;
+          Link.EvidenceId := VarInt(Row.Values['Id']);
+          Link.ItemId := VarInt(Row.Values['ItemId']);
+          Link.HypothesisId := VarInt(Row.Values['HypothesisId']);
+          Link.FileId := VarInt(Row.Values['FileId']);
+          Link.ValueId := VarInt(Row.Values['ValueId']);
+          Links.Add(Link);
+        end;
+      finally
+        Rows.Free;
+      end;
+    end;
+    Links.Sort(TComparer<THypothesisItemLink>.Construct(
+      function(const A, B: THypothesisItemLink): Integer
+      begin
+        Result := A.ItemId - B.ItemId;
+        if Result = 0 then
+          Result := A.HypothesisId - B.HypothesisId;
+        if Result = 0 then
+          Result := Ord(A.Kind) - Ord(B.Kind);
+        if Result = 0 then
+          Result := A.EvidenceId - B.EvidenceId;
+      end));
+    Result := Links.ToArray;
+  finally
+    Links.Free;
+  end;
+end;
+
+function HypothesisHeads(AManager: TObjectManager;
+  const AIds: TArray<Integer>): TDictionary<Integer, THypothesisHead>;
+var
+  Chunk: TArray<Variant>;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+  Head: THypothesisHead;
+begin
+  Result := TDictionary<Integer, THypothesisHead>.Create;
+  try
+    for Chunk in IdChunks(AIds) do
+    begin
+      Rows := AManager.Find<THypothesis>
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop('Id').As_('Id'))
+          .Add(TProjections.Prop('ProjectId').As_('ProjectId'))
+          .Add(TProjections.Prop('Title').As_('Title'))
+          .Add(TProjections.Prop('Status').As_('Status'))
+          .Add(TProjections.Prop('Outcome').As_('Outcome')))
+        .Where(Linq['Id']._In(Chunk))
+        .ListValues;
+      try
+        for Row in Rows do
+        begin
+          Head := Default(THypothesisHead);
+          Head.Id := VarInt(Row.Values['Id']);
+          Head.ProjectId := VarInt(Row.Values['ProjectId']);
+          Head.Title := VarToStr(Row.Values['Title']);
+          Head.Status := THypothesisStatus(VarInt(Row.Values['Status']));
+          Head.HasOutcome := not VarIsNull(Row.Values['Outcome']);
+          if Head.HasOutcome then
+            Head.Outcome := THypothesisOutcome(VarInt(Row.Values['Outcome']));
+          Result.Add(Head.Id, Head);
+        end;
       finally
         Rows.Free;
       end;

@@ -53,6 +53,7 @@ type
     procedure RemoveLink(LinkId: Integer);
     function GetLinksForItem(ItemId: Integer): TArray<TItemLinkInfo>;
     function GetLinkCount(ItemId: Integer): Integer;
+    function GetLinkCounts(const ItemIds: TArray<Integer>): TDictionary<Integer, Integer>;
     function IsLinked(ItemId1, ItemId2: Integer): Boolean;
     procedure RemoveAllLinks(ItemId: Integer);
   end;
@@ -61,6 +62,8 @@ implementation
 
 uses
   Aurelius.Criteria.Base,
+  Aurelius.Criteria.Projections,
+  unit_HypothesisModel,
   unit_Item,
   unit_Project,
   unit_ItemLinkMigrationSeed,
@@ -263,6 +266,104 @@ end;
 function TItemLinkModel.GetLinkCount(ItemId: Integer): Integer;
 begin
   Result := Length(GetLinksForItem(ItemId));
+end;
+
+function TItemLinkModel.GetLinkCounts(const ItemIds: TArray<Integer>): TDictionary<Integer, Integer>;
+var
+  Near, Far: TList<Integer>;
+  FarIds: TList<Integer>;
+  SeenFar: TDictionary<Integer, Boolean>;
+  FarProject: TDictionary<Integer, Integer>;
+  Id, I, ProjectId: Integer;
+
+  procedure Collect(const NearProp, FarProp: string);
+  var
+    Rows: TObjectList<TCriteriaResult>;
+    Row: TCriteriaResult;
+    Chunk: TArray<Variant>;
+  begin
+    for Chunk in IdChunks(ItemIds) do
+    begin
+      Rows := FManager.Find<TItemLink>
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop(NearProp).As_('NearId'))
+          .Add(TProjections.Prop(FarProp).As_('FarId')))
+        .Where(Linq[NearProp]._In(Chunk))
+        .ListValues;
+      try
+        for Row in Rows do
+        begin
+          Near.Add(Integer(Row.Values['NearId']));
+          Far.Add(Integer(Row.Values['FarId']));
+        end;
+      finally
+        Rows.Free;
+      end;
+    end;
+  end;
+
+  procedure LoadFarProjects;
+  var
+    Rows: TObjectList<TCriteriaResult>;
+    Row: TCriteriaResult;
+    Chunk: TArray<Variant>;
+    FarId: Integer;
+  begin
+    for FarId in Far do
+      if not SeenFar.ContainsKey(FarId) then
+      begin
+        SeenFar.Add(FarId, True);
+        FarIds.Add(FarId);
+      end;
+    for Chunk in IdChunks(FarIds.ToArray) do
+    begin
+      Rows := FManager.Find<TItem>
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop('Id').As_('ItemId'))
+          .Add(TProjections.Prop('ProjectID').As_('ProjectId')))
+        .Where(Linq['Id']._In(Chunk))
+        .ListValues;
+      try
+        for Row in Rows do
+          FarProject.AddOrSetValue(Integer(Row.Values['ItemId']),
+            Integer(Row.Values['ProjectId']));
+      finally
+        Rows.Free;
+      end;
+    end;
+  end;
+
+begin
+  Result := TDictionary<Integer, Integer>.Create;
+  try
+    for Id in ItemIds do
+      Result.AddOrSetValue(Id, 0);
+
+    Near := TList<Integer>.Create;
+    Far := TList<Integer>.Create;
+    FarIds := TList<Integer>.Create;
+    SeenFar := TDictionary<Integer, Boolean>.Create;
+    FarProject := TDictionary<Integer, Integer>.Create;
+    try
+      Collect('SourceItemId', 'TargetItemId');
+      Collect('TargetItemId', 'SourceItemId');
+      if not FUnrestricted then
+        LoadFarProjects;
+      for I := 0 to Near.Count - 1 do
+        if FUnrestricted or not FarProject.TryGetValue(Far[I], ProjectId) or
+           CanSeeProject(ProjectId) then
+          Result[Near[I]] := Result[Near[I]] + 1;
+    finally
+      FarProject.Free;
+      SeenFar.Free;
+      FarIds.Free;
+      Far.Free;
+      Near.Free;
+    end;
+  except
+    Result.Free;
+    raise;
+  end;
 end;
 
 function TItemLinkModel.IsLinked(ItemId1, ItemId2: Integer): Boolean;

@@ -78,6 +78,17 @@ object dlgSearch: TdlgSearch
       TabOrder = 3
       OnClick = chkRerankClick
     end
+    object chkAutoComplete: TCheckBox
+      Left = 304
+      Top = 41
+      Width = 140
+      Height = 19
+      Caption = 'Autocomplete'
+      Checked = True
+      State = cbChecked
+      TabOrder = 4
+      OnClick = chkAutoCompleteClick
+    end
   end
   object pnlFilters: TPanel
     Left = 0
@@ -129,24 +140,24 @@ object dlgSearch: TdlgSearch
         'Other'
         'Wiki')
     end
-    object lblCreated: TLabel
+    object chkDateFrom: TCheckBox
       AlignWithMargins = True
       Left = 314
       Top = 3
-      Width = 48
+      Width = 92
       Height = 24
       Margins.Left = 8
       Margins.Top = 3
-      Margins.Right = 0
+      Margins.Right = 4
       Margins.Bottom = 3
       Align = alLeft
-      AutoSize = False
-      Caption = 'Created'
-      Layout = tlCenter
+      Caption = 'Created from'
+      TabOrder = 2
+      OnClick = chkDateClick
     end
     object dtpFrom: TDateTimePicker
       AlignWithMargins = True
-      Left = 362
+      Left = 410
       Top = 3
       Width = 104
       Height = 24
@@ -157,28 +168,26 @@ object dlgSearch: TdlgSearch
       Align = alLeft
       Date = 46000.000000000000000000
       Time = 0.500000000000000000
-      ShowCheckbox = True
-      TabOrder = 2
+      TabOrder = 3
     end
-    object lblTo: TLabel
+    object chkDateTo: TCheckBox
       AlignWithMargins = True
-      Left = 466
+      Left = 518
       Top = 3
-      Width = 22
+      Width = 34
       Height = 24
-      Margins.Left = 0
+      Margins.Left = 8
       Margins.Top = 3
-      Margins.Right = 0
+      Margins.Right = 4
       Margins.Bottom = 3
       Align = alLeft
-      Alignment = taCenter
-      AutoSize = False
       Caption = 'to'
-      Layout = tlCenter
+      TabOrder = 4
+      OnClick = chkDateClick
     end
     object dtpTo: TDateTimePicker
       AlignWithMargins = True
-      Left = 488
+      Left = 556
       Top = 3
       Width = 104
       Height = 24
@@ -189,8 +198,7 @@ object dlgSearch: TdlgSearch
       Align = alLeft
       Date = 46000.000000000000000000
       Time = 0.500000000000000000
-      ShowCheckbox = True
-      TabOrder = 3
+      TabOrder = 5
     end
   end
   object pnlBottom: TPanel
@@ -270,6 +278,8 @@ object dlgSearch: TdlgSearch
     ShowHint = False
     TabOrder = 3
     ViewStyle = vsReport
+    OnColumnClick = ListViewColumnClick
+    OnCompare = ListViewCompare
     OnDblClick = ListViewDblClick
     OnKeyDown = ListViewKeyDown
     OnSelectItem = ListViewSelectItem

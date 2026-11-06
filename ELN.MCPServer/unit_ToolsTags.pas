@@ -39,15 +39,6 @@ resourcestring
     'Invalid color "%s": expected 6 hex digits with a leading # (e.g. #00C000).';
 
 
-function GetOptBool(const Params: TJSONObject; const Key: string;
-  Default: Boolean): Boolean;
-begin
-  Result := Default;
-  if (Params <> nil) and (Params.FindValue(Key) <> nil) and
-     not (Params.FindValue(Key) is TJSONNull) then
-    Result := Params.GetValue<Boolean>(Key);
-end;
-
 function IsHexColor(const AHex: string): Boolean;
 var
   I: Integer;
@@ -596,7 +587,7 @@ begin
     'unique in this database; create_tag refuses a name that already exists ' +
     'unless allow_duplicate_name is true, and the error names the existing ' +
     'id(s). Requires write access.',
-    MakeCreateTagSchema, HandleCreateTag, tscGlobalRef);
+    MakeCreateTagSchema, HandleCreateTag, tscGlobalRef, taWrite);
 
   Registry.Register('assign_tag',
     'Assign one tag to one or more items. Identify the tag by tag_id or ' +
@@ -606,7 +597,7 @@ begin
     'a tag an item already has is a no-op, not a duplicate. All items are ' +
     'validated before any change is applied. Refuses signed items. Requires ' +
     'write access.',
-    MakeAssignTagSchema, HandleAssignTag, tscProjectScoped);
+    MakeAssignTagSchema, HandleAssignTag, tscProjectScoped, taWrite);
 
   Registry.Register('unassign_tag',
     'Remove one tag from one or more items. Identify the tag by tag_id or ' +
@@ -616,12 +607,12 @@ begin
     'Removing a tag an item does not have is a no-op, not an error. All items ' +
     'are validated before any change is applied. Refuses signed items. ' +
     'Requires write access.',
-    MakeUnassignTagSchema, HandleUnassignTag, tscProjectScoped);
+    MakeUnassignTagSchema, HandleUnassignTag, tscProjectScoped, taWrite);
 
   Registry.Register('get_item_tags',
     'List the tags assigned to an item. Returns each tag''s stored color ' +
     '(#BBGGRR) and color_rgb (#RRGGBB). Read-only.',
-    MakeGetItemTagsSchema, HandleGetItemTags, tscProjectScoped);
+    MakeGetItemTagsSchema, HandleGetItemTags, tscProjectScoped, taRead);
 end;
 
 end.

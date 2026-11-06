@@ -180,6 +180,76 @@ Without `--notebook`, Desktop reopens the last successfully opened notebook from
 
 When no notebook is open, the welcome message and New/Open buttons are centered as one block in the workspace. Resizing and display scaling preserve their relative spacing and keep the block centered.
 
+## Version 2.4.0.83
+
+This release also contains the changes of versions 2.3.1.56 to 2.3.2.69 below. Those versions were not published separately.
+
+Experiment series: **Project → Series...** plans a set of depositions that you compare, for example one deposition at 100 W, 200 W and 300 W. A plan has one or two factors with their levels, fixed conditions, responses and a target folder. Each plan point becomes one deposition. **Make deposition...** opens the new procedure dialog with the levels and fixed conditions as planned condition values; **Link existing deposition...** and **Link to plan point...** in the item tree add depositions that were made before. **Confirm planned values** replaces the planned mark when the deposition went as planned. The series view shows one table row for each point with the values of the deposition and its measurements, a plot with tolerance error bars, grouping and a linear trend, and exports the table to the clipboard or a CSV file for Origin. The plan dialogs accept a number with another unit of the same kind, for example `2 mTorr` for a value type in Pa. **Open deposition** and opening an item from the Hypotheses view select the item and keep the view open. MCP: the new tools `list_series`, `get_series_table`, `create_series` and `update_series_plan`. An assistant makes a series in Draft status; only a person in the desktop starts it and makes, links or confirms its depositions.
+
+Notebook format 6 adds the experiment-series tables. Desktop asks before it upgrades a notebook and first copies the database beside the original. ELN Community 2.3 and older cannot open an upgraded notebook; keep the backup copy if you must go back.
+
+Thickness is stored in nm. New notebooks have the Thickness value type in nm, and the XRCX and FIBPS reader mappings convert to nm. The upgrade changes a Thickness value type in m to nm and multiplies its stored values, tolerances, conversion factors, range limits and reader mapping factors by 10⁹ one time. When you change the unit of a value type that has stored values or reader mappings in **Reference Data → Value Types...**, the ELN asks for a conversion factor and converts the values, tolerances and mapping factors in one step, with an audit log entry.
+
+The Search window searches only the projects that the Projects panel shows, so a clicked result always opens. A click on a column header sorts the results; a second click reverses the order. The selected row of a tree without the keyboard focus has a clear frame in the selection colour. The New Specimen dialog keeps the custom properties that you enter before the first Save. The status bar has a **Mastering ELN textbook** link that opens the online textbook.
+
+MCP: optional parameters accept `null` as not given. Boolean parameters also accept the text `"true"`, `"false"`, `"1"` and `"0"` in any case; other text is refused. `get_audit_log` sets `truncated` from the rows that the caller can see. The ZRW reader counts logger overflow readings (1e37 and more) as bad rows.
+
+## Version 2.3.2.69
+
+This release also contains the changes of versions 2.3.1.56 to 2.3.1.66 below. Those versions were not published separately.
+
+MCP: `query_values`, `correlate_values`, `report_value_issues` and `get_audit_log` now return `truncated`. It is `true` when more rows matched than `limit`, and `false` when the response has all matching rows. For `get_audit_log`, the flag is set before the project visibility filter, so it can be `true` when fewer than `limit` rows are returned.
+
+The Search window turns on the date filter only from the **Created from** and **Created to** check boxes. A change of a picker date no longer turns the filter on. The result count shows the active date range.
+
+The supervisor project tree loads the projects, groups and folders of all owners with a small, fixed number of queries. Before, it ran one project query, one group query and two folder queries for each owner. Every owner keeps a node. The item tree and the project tree use the same toolbar, filter and tree spacing, and the item tree header height follows the header font.
+
+## Version 2.3.1.66
+
+The entries, files and values of an item, and the folders of a project, now load only when code reads them. Before, each item that loaded also ran three queries for these lists, and each project ran one. The item tree reads the entries, files and values of all items in a folder with a small, fixed number of queries. The project tree reads the folders of all projects with two. A folder on a remote database opens faster the first time. The rules for code that reads these lists are in `docs/domain-lazy-collections.md`.
+
+## Version 2.3.1.65
+
+Desktop no longer loads all items and all visible projects when a notebook opens. Before, the open loaded every item of the notebook with its entries, files and values, and every visible project with its folders, into datasets that no code used. Now the open runs a small, fixed number of queries, so a notebook on a remote database opens faster.
+
+## Version 2.3.1.64
+
+The item tree now reads the items of a folder one time for each fill. It reads the tags, link counts and comment counts of all items in the folder with a small, fixed number of queries. Before, it ran one tag query and two link queries for each item, and one more query for each link. On a remote database, a folder opens faster. The tags, link counts and comment counts do not change. Export and report use the items that the tree shows.
+
+## Version 2.3.1.63
+
+The MCP tools `list_projects`, `list_tags` and `get_project_stats` now count with grouped queries and id queries. They do not load item objects, so the number of SQL statements does not increase with the number of items, files, values or tags. This prevents the time-out of `list_projects` on a remote database.
+
+`list_tags` now counts only the items that are not deleted and that are in a project that the caller can read. Before, the count also included deleted items and items in other projects.
+
+## Version 2.3.1.62
+
+A status refresh from a server that sends no index state (a server older than 0.9.2) now replaces the old detail in the Search window. Before, the detail of an earlier 0.9.2 answer stayed until the program restarted.
+
+## Version 2.3.1.61
+
+A search in the Search window no longer replaces the server index detail in the status line. The detail stays until the next status refresh. The document `docs/search-remote-api.md` now says that `last_sync_utc` is the end of the last sync run without an error.
+
+## Version 2.3.1.60
+
+The Search window clears the status tooltip when the status line shows another text. The percentage in the status line no longer overflows for very large indexes.
+
+## Version 2.3.1.59
+
+The Search window shows the state of the server search index when the server sends it: `Indexing… reading files 1,200 of 6,000`, `Indexing… 74 % (9,376 of 12,615 passages) · updated 10:58`, `Index complete: 12,615 passages · updated 10:58`, or `Index not updated since 10:58: the file storage is not reachable`, with ` · 12 files skipped` when files were skipped. The full text is also the tooltip of the status line. A server that does not send the state keeps the old texts.
+
+## Version 2.3.1.58
+
+The startup splash scales with the display: on a high-DPI screen such as 4K at 200 %, the window, labels and artwork grow with the scale factor, and the artwork is drawn from a 2x image. The Search window shows the hourglass cursor while a search by meaning runs. A new **Autocomplete** check box in the Search window turns off completion of the typed query from the query history; the choice is saved.
+
+## Version 2.3.1.57
+
+Attachment storage paths no longer depend on the platform. `CleanFileName` now replaces the Windows set of invalid characters (control characters and `" * / : < > ? \ |`) on every platform and keeps `~`, so the Linux search sync finds the files that Windows clients stored.
+
+## Version 2.3.1.56
+
+MCP: the new tool `find_hypotheses_for_item` lists, for up to 200 items, the hypotheses that link to each item as a run, a reference or cited evidence. `get_values` and `query_values` add `type_id`, `rec_type` and `ancestor_ids` (root first), and give each value and tolerance with all the digits needed to read back the stored number. `list_hypotheses` and the other hypothesis summaries add `outcome` and `modified_date`. `wiki_create_page` and `wiki_update_page` now make all their record and file changes or none; a failed update puts back the previous page text.
+
 ## Version 2.3.0.55
 
 Search by meaning: the Search dialog finds items and attached files by meaning as well as by words, in many languages. Tools → Semantic Search Setup downloads the models, ONNX Runtime and PDFium once (about 666 MB). The index reads the text of PDF, Office (Word, Excel, PowerPoint), HTML, JSON, XML, CSV, RTF, Markdown and text attachments. Results are grouped by item, can be filtered by project, item type and creation date (the MCP tool also by value), and can be reranked. The Search window floats, keeps a query history with autocomplete and shows the full match text in a bottom panel. The MCP tool `search_semantic` gives the same search to an assistant.
@@ -266,7 +336,9 @@ selected viewer together after this interface change. Do not load older plugin
 binaries. File identities need no migration: SQLite integer columns already
 preserve these values.
 
-Current source builds use notebook format 5. Format 4 added reader-to-value-type
+Current source builds use notebook format 6. Format 6 adds the experiment-series
+tables (`Series`, `SeriesMembers`, `SeriesColumns`, `SeriesFactors`, `SeriesFixedConditions`,
+`SeriesSlots`, `SeriesSlotLevels`). Format 4 added reader-to-value-type
 mapping rules and saves the original reader unit and applied conversion factor
 with each new Reader value. Default rules include deposition and recipe
 conditions, XRCX layer values, and the demonstration reader keys. The recipe
@@ -283,7 +355,7 @@ BN/DLC material labels of `Parameters.PowerBN`, `.CurrentC`, `.TimeBN`,
 `.TimeC` and `.TimeCtop`. A parameter with another unit stays unmapped. The
 seed runs only when a
 notebook is created or upgraded and adds only missing rules. An existing
-format-5 notebook does not get the new rules automatically: add them through
+current-format notebook does not get the new rules automatically: add them through
 `Reference Data → Value Types... → Reader mappings...`. A mapping
 does not install a reader or add keys to an existing reader. Format 5 adds the
 Derived source kind: the formula ID and version on the value (`DataValues`
@@ -368,11 +440,11 @@ version is not available; the value is not recomputed); `dependency_cycle`;
 input tree). A Derived value with only Manual inputs is therefore always listed
 with `not_fully_rerunnable`.
 
-Desktop asks before upgrading a format-2, format-3 or format-4 notebook. It
+Desktop asks before upgrading a format-2, format-3, format-4 or format-5 notebook. It
 first copies the database beside the original as
 `<name>.format<old-version>-backup-<timestamp>-<guid>.sqlite`, then adds the schema,
 seeds missing mapping defaults and the Wear area, Normal force, Cycles and Wear
-rate value types, and stamps format 5. Existing values keep their source kind
+rate value types, and stamps format 6. Existing values keep their source kind
 and A1 provenance. A notebook that already has a Wear rate type in another unit
 gets a second Wear rate type in mm³/(N·mm). It preserves existing
 values and descriptions. Legacy Reader values keep their original raw-output

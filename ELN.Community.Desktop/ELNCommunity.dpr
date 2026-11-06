@@ -18,6 +18,7 @@ uses
   frame_ContentViewer in '..\ELN.Desktop\Views\frame_ContentViewer.pas',
   frame_Dashboard in '..\ELN.Desktop\Views\frame_Dashboard.pas',
   frame_Hypotheses in '..\ELN.Desktop\Views\frame_Hypotheses.pas',
+  frame_Series in '..\ELN.Desktop\Views\frame_Series.pas',
   editor_FileTypes in '..\ELN.Desktop\Editors\editor_FileTypes.pas' {edFileTypes},
   editor_EquipmentTypes in '..\ELN.Desktop\Editors\editor_EquipmentTypes.pas' {edEquipmentTypes},
   editor_Equipment in '..\ELN.Desktop\Editors\editor_Equipment.pas' {edEquipment},
@@ -63,6 +64,7 @@ uses
   unit_RtfTextExtractor in '..\ELN.Search\unit_RtfTextExtractor.pas',
   unit_TextExtractorRegistry in '..\ELN.Search\unit_TextExtractorRegistry.pas',
   unit_FileTextStage in '..\ELN.Search\unit_FileTextStage.pas',
+  unit_SearchStatusText in '..\ELN.Desktop\Dialogs\Search\unit_SearchStatusText.pas',
   dlg_SearchSetup in '..\ELN.Desktop\Dialogs\Search\dlg_SearchSetup.pas' {dlgSearchSetup};
 
 {$R *.res}

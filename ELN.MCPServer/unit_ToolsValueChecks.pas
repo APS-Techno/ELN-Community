@@ -308,6 +308,7 @@ begin
   Result.AddPair('tolerance_factor', TJSONNumber.Create(Factor));
   Result.AddPair('count', TJSONNumber.Create(Rows.Count));
   Result.AddPair('total', TJSONNumber.Create(Length(Issues)));
+  Result.AddPair('truncated', TJSONBool.Create(Length(Issues) > Limit));
   Result.AddPair('values', Rows);
 end;
 
@@ -673,7 +674,7 @@ begin
     'is not available; the value is not recomputed), dependency_cycle, ' +
     'read_failed and not_fully_rerunnable (an input in the tree is Manual ' +
     'or Unknown).',
-    MakeDriftSchema, HandleCheckValueDrift, tscProjectScoped);
+    MakeDriftSchema, HandleCheckValueDrift, tscProjectScoped, taRead);
 
   Registry.Register('report_value_issues',
     'Read-only. Lists stored values outside their value type range ' +
@@ -681,8 +682,9 @@ begin
     'tolerance_exceeds_value when tolerance > |value|, ' +
     'tolerance_scale_mismatch when tolerance < |value| / tolerance_factor. ' +
     'Covers one project_id or all visible projects. Changes nothing; ' +
-    'correct a value only after checking its source.',
-    MakeIssuesSchema, HandleReportValueIssues, tscProjectScoped);
+    'correct a value only after checking its source. truncated is true ' +
+    'when more rows matched than limit.',
+    MakeIssuesSchema, HandleReportValueIssues, tscProjectScoped, taRead);
 
   Registry.Register('check_storage',
     'Read-only. Checks that attachment bytes are in notebook storage and ' +
@@ -695,7 +697,7 @@ begin
     'report in previously_reported with their current status (not_found ' +
     'when the file does not exist or is outside this session''s scope). ' +
     'Never repairs or writes; use repair_files for missing bytes.',
-    MakeStorageSchema, HandleCheckStorage, tscProjectScoped);
+    MakeStorageSchema, HandleCheckStorage, tscProjectScoped, taRead);
 end;
 
 end.

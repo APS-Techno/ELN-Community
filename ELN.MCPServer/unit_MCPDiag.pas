@@ -32,10 +32,9 @@ function IsMkColStatusOk(StatusCode: Integer): Boolean;
   modified.', 'WebDAV upload failed for: ...'). Those are safe and useful, so
   they are passed through verbatim.
 
-  Anything else is an infrastructure exception - a descendant class such as
-  EFDDBEngineException or EAureliusException - whose message can contain SQL
-  text, connection strings or file paths. Those are replaced with a generic
-  message naming only the class, the log path and the correlation ref. }
+  An exact Exception or an EToolAccessRefused passes through; any other
+  descendant is masked with a generic message naming only the class, the log
+  path and the correlation ref. }
 function ClientErrorMessage(E: Exception; const Ref: string): string;
 
 implementation
@@ -44,7 +43,8 @@ uses
   System.Classes,
   System.IOUtils,
   System.DateUtils,
-  System.SyncObjs;
+  System.SyncObjs,
+  unit_MCPTools;
 
 var
   // Serialises MCPLog across threads so two concurrent tool calls cannot
@@ -101,10 +101,7 @@ end;
 
 function ClientErrorMessage(E: Exception; const Ref: string): string;
 begin
-  // Exact class match, not "is": a tool's deliberate raise Exception.Create(...)
-  // is user-facing and safe; any descendant is infrastructure and its message
-  // may carry SQL text, connection strings or server paths.
-  if E.ClassType = Exception then
+  if (E.ClassType = Exception) or (E is EToolAccessRefused) then
     Result := E.Message + ' [ref ' + Ref + ']'
   else
     Result := Format('Tool execution failed (%s). See %s [ref %s]',

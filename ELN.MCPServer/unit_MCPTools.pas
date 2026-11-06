@@ -23,6 +23,10 @@ type
     /// (equipment, action types, value types, file types, audit rules).
     tscGlobalRef);
 
+  TToolAccess = (taUnclassified, taRead, taWrite);
+
+  EToolAccessRefused = class(Exception);
+
   TToolContext = record
     Manager: TObjectManager;
     StorageRoot: string;
@@ -54,22 +58,26 @@ type
     InputSchema: TJSONObject;  // JSON Schema for parameters - owned by TToolDef
     Handler: TToolHandler;
     Scoping: TToolScoping;
+    Access: TToolAccess;
   end;
 
   TToolRegistry = class
   private
     FTools: TList<TToolDef>;
     FContext: TToolContext;
+    FReadOnly: Boolean;
   public
     constructor Create(const AContext: TToolContext);
     destructor Destroy; override;
     procedure Register(const Name, Description: string;
       InputSchema: TJSONObject; Handler: TToolHandler;
-      Scoping: TToolScoping = tscUnclassified);
+      Scoping: TToolScoping = tscUnclassified;
+      Access: TToolAccess = taUnclassified);
     // Replaces one existing definition and takes ownership of the new schema.
     procedure Replace(const Name, Description: string;
       InputSchema: TJSONObject; Handler: TToolHandler;
-      Scoping: TToolScoping = tscUnclassified);
+      Scoping: TToolScoping = tscUnclassified;
+      Access: TToolAccess = taUnclassified);
     function GetToolsList: TJSONArray;
     function Execute(const ToolName: string; const Params: TJSONObject): TJSONObject;
     function HasTool(const Name: string): Boolean;
@@ -79,7 +87,10 @@ type
     // Update the registry's context copy, not just the caller's scope.
     procedure SetScope(const AScope: TArray<Integer>);
     function IsScoped: Boolean;
+    procedure EnterReadOnly;
+    function IsReadOnly: Boolean;
     function ScopingOf(const Name: string): TToolScoping;
+    function AccessOf(const Name: string): TToolAccess;
   end;
 
 // Applies to global tools as well as project-scoped handlers.
@@ -130,7 +141,8 @@ begin
 end;
 
 procedure TToolRegistry.Register(const Name, Description: string;
-  InputSchema: TJSONObject; Handler: TToolHandler; Scoping: TToolScoping);
+  InputSchema: TJSONObject; Handler: TToolHandler; Scoping: TToolScoping;
+  Access: TToolAccess);
 var
   Def: TToolDef;
 begin
@@ -139,11 +151,13 @@ begin
   Def.InputSchema := InputSchema;
   Def.Handler := Handler;
   Def.Scoping := Scoping;
+  Def.Access := Access;
   FTools.Add(Def);
 end;
 
 procedure TToolRegistry.Replace(const Name, Description: string;
-  InputSchema: TJSONObject; Handler: TToolHandler; Scoping: TToolScoping);
+  InputSchema: TJSONObject; Handler: TToolHandler; Scoping: TToolScoping;
+  Access: TToolAccess);
 var
   I: Integer;
   Def: TToolDef;
@@ -157,6 +171,7 @@ begin
       Def.InputSchema := InputSchema;
       Def.Handler := Handler;
       Def.Scoping := Scoping;
+      Def.Access := Access;
       FTools[I] := Def;
       Exit;
     end;
@@ -174,6 +189,8 @@ begin
   for I := 0 to FTools.Count - 1 do
   begin
     Def := FTools[I];
+    if FReadOnly and (Def.Access <> taRead) then
+      Continue;
     ToolObj := TJSONObject.Create;
     ToolObj.AddPair('name', Def.Name);
     ToolObj.AddPair('description', Def.Description);
@@ -202,6 +219,9 @@ begin
           'refused. Classify it where it is registered: its Registry.Register ' +
           'call in the tool group''s unit_ToolsXxx (groups are listed in ' +
           'unit_ToolCatalog.RegisterAllTools).', [ToolName]);
+      if FReadOnly and (Def.Access <> taRead) then
+        raise EToolAccessRefused.CreateFmt(
+          'Tool "%s" is not available in a read-only session.', [ToolName]);
       Exit(Def.Handler(Params, FContext));
     end;
   end;
@@ -216,6 +236,26 @@ begin
     if FTools[I].Name = Name then
       Exit(FTools[I].Scoping);
   raise Exception.CreateFmt('Tool not found: %s', [Name]);
+end;
+
+function TToolRegistry.AccessOf(const Name: string): TToolAccess;
+var
+  I: Integer;
+begin
+  for I := 0 to FTools.Count - 1 do
+    if FTools[I].Name = Name then
+      Exit(FTools[I].Access);
+  raise Exception.CreateFmt('Tool not found: %s', [Name]);
+end;
+
+procedure TToolRegistry.EnterReadOnly;
+begin
+  FReadOnly := True;
+end;
+
+function TToolRegistry.IsReadOnly: Boolean;
+begin
+  Result := FReadOnly;
 end;
 
 function TToolRegistry.HasTool(const Name: string): Boolean;

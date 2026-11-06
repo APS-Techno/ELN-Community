@@ -208,6 +208,11 @@ object dmTreeImages: TdmTreeImages
         CollectionIndex = 10
         CollectionName = 'Project\Analyze'
         Name = 'Analyze'
+      end
+      item
+        CollectionIndex = 11
+        CollectionName = 'Project\Series'
+        Name = 'Series'
       end>
     ImageCollection = ProjectImageCollection
     Width = 48
@@ -599,6 +604,36 @@ object dmTreeImages: TdmTreeImages
         CollectionIndex = 69
         CollectionName = 'Menu\Semantic Search'
         Name = 'Semantic Search'
+      end
+      item
+        CollectionIndex = 70
+        CollectionName = 'Menu\Series'
+        Name = 'Series'
+      end
+      item
+        CollectionIndex = 71
+        CollectionName = 'Menu\Link Plan Point'
+        Name = 'Link Plan Point'
+      end
+      item
+        CollectionIndex = 72
+        CollectionName = 'Menu\Confirm Planned'
+        Name = 'Confirm Planned'
+      end
+      item
+        CollectionIndex = 73
+        CollectionName = 'Menu\Mark Failed'
+        Name = 'Mark Failed'
+      end
+      item
+        CollectionIndex = 74
+        CollectionName = 'Menu\Unlink'
+        Name = 'Unlink'
+      end
+      item
+        CollectionIndex = 75
+        CollectionName = 'Menu\Remove Point'
+        Name = 'Remove Point'
       end>
     ImageCollection = MenuImageCollection
     Width = 40

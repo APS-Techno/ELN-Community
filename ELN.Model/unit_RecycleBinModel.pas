@@ -21,7 +21,12 @@ type
     procedure ExecSQL(const ASQL: string);
     procedure CollectSubtree(AItem: TItem; AList: TList<TItem>);
     procedure PurgeItemRows(AItemId: Integer);
-    function PurgeItems(AItems: TList<TItem>): Boolean;
+    procedure ReadChildKeys(const AItemIds: TArray<Integer>;
+      out AFileIds: TArray<Int64>; out AValueIds, AEntryIds: TArray<Integer>);
+    procedure EvictCachedChildren(const AFileIds: TArray<Int64>;
+      const AValueIds, AEntryIds: TArray<Integer>);
+    function PurgeItems(AItems: TList<TItem>; AUserId: Integer): Boolean;
+    procedure AuditSeriesMembership(const AItemIds: TArray<Integer>; AUserId: Integer);
   public
     constructor Create(Manager: TObjectManager);
     destructor Destroy; override;
@@ -41,10 +46,13 @@ type
 implementation
 
 uses
+  System.Variants,
   Aurelius.Drivers.Interfaces,
   Aurelius.Criteria.Base,
   Aurelius.Criteria.Projections,
   unit_Hypothesis,
+  unit_SeriesMember,
+  unit_LabEntry,
   unit_AnalysisSettingsModel,
   unit_HypothesisGuard,
   unit_HypothesisModel,
@@ -55,7 +63,7 @@ const
   // Delete by item ID, not the cached graph: unloaded children still hold FKs,
   // and non-FK references can target reused item IDs. ProtocolStatusHistory
   // must go before LabEntries or its parent-ID subselect finds nothing.
-  ItemChildDeletes: array[0..10] of string = (
+  ItemChildDeletes: array[0..11] of string = (
     'DELETE FROM Files WHERE ItemID = %ID%',
     'DELETE FROM DataValues WHERE ItemID = %ID%',
     'DELETE FROM ProtocolStatusHistory WHERE ProtocolId IN '+
@@ -73,7 +81,8 @@ const
     'DELETE FROM HypothesisEvidence WHERE ItemId = %ID%',
     // Per-user expanded state: item ids can be reused (SQLite), so the
     // purged item's rows go now, not at the next DB Maintenance.
-    'DELETE FROM UserTreeState WHERE NodeKind = 5 AND NodeId = %ID%'
+    'DELETE FROM UserTreeState WHERE NodeKind = 5 AND NodeId = %ID%',
+    'DELETE FROM SeriesMembers WHERE ItemId = %ID%'
   );
 
 constructor TRecycleBinModel.Create(Manager: TObjectManager);
@@ -156,6 +165,94 @@ begin
       [rfReplaceAll]));
 end;
 
+procedure TRecycleBinModel.ReadChildKeys(const AItemIds: TArray<Integer>;
+  out AFileIds: TArray<Int64>; out AValueIds, AEntryIds: TArray<Integer>);
+var
+  Chunk: TArray<Variant>;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+  FileIds: TList<Int64>;
+  ValueIds, EntryIds: TList<Integer>;
+begin
+  FileIds := TList<Int64>.Create;
+  ValueIds := TList<Integer>.Create;
+  EntryIds := TList<Integer>.Create;
+  try
+    for Chunk in IdChunks(AItemIds) do
+    begin
+      Rows := FManager.Find<unit_Item.TFile>
+        .CreateAlias('Item', 'i')
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop('Id').As_('Id')))
+        .Where(Linq['i.Id']._In(Chunk))
+        .ListValues;
+      try
+        for Row in Rows do
+          FileIds.Add(Int64(Row.Values['Id']));
+      finally
+        Rows.Free;
+      end;
+      Rows := FManager.Find<unit_Item.TValue>
+        .CreateAlias('Item', 'i')
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop('Id').As_('Id')))
+        .Where(Linq['i.Id']._In(Chunk))
+        .ListValues;
+      try
+        for Row in Rows do
+          ValueIds.Add(Integer(Row.Values['Id']));
+      finally
+        Rows.Free;
+      end;
+      Rows := FManager.Find<TItem>
+        .CreateAlias('FEntries', 'e')
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Prop('e.Id').As_('Id')))
+        .Where(Linq['Id']._In(Chunk))
+        .ListValues;
+      try
+        for Row in Rows do
+          if not VarIsNull(Row.Values['Id']) then
+            EntryIds.Add(Integer(Row.Values['Id']));
+      finally
+        Rows.Free;
+      end;
+    end;
+    AFileIds := FileIds.ToArray;
+    AValueIds := ValueIds.ToArray;
+    AEntryIds := EntryIds.ToArray;
+  finally
+    EntryIds.Free;
+    ValueIds.Free;
+    FileIds.Free;
+  end;
+end;
+
+// Evict cascades only into loaded lists; a child read on its own stays cached.
+// The manager keeps ownership, as in ForgetCachedRow.
+procedure TRecycleBinModel.EvictCachedChildren(const AFileIds: TArray<Int64>;
+  const AValueIds, AEntryIds: TArray<Integer>);
+
+  procedure Forget(Cached: TObject);
+  begin
+    if Cached = nil then
+      Exit;
+    FManager.Evict(Cached);
+    FManager.AddOwnership(Cached);
+  end;
+
+var
+  FileId: Int64;
+  Id: Integer;
+begin
+  for FileId in AFileIds do
+    Forget(FManager.FindCached<unit_Item.TFile>(FileId));
+  for Id in AValueIds do
+    Forget(FManager.FindCached<unit_Item.TValue>(Id));
+  for Id in AEntryIds do
+    Forget(FManager.FindCached<TLabEntry>(Id));
+end;
+
 procedure TRecycleBinModel.CollectSubtree(AItem: TItem; AList: TList<TItem>);
 var
   Children: TList<TItem>;
@@ -178,13 +275,41 @@ begin
   end;
 end;
 
-function TRecycleBinModel.PurgeItems(AItems: TList<TItem>): Boolean;
+procedure TRecycleBinModel.AuditSeriesMembership(
+  const AItemIds: TArray<Integer>; AUserId: Integer);
+var
+  Chunk: TArray<Variant>;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+begin
+  for Chunk in IdChunks(AItemIds) do
+  begin
+    Rows := FManager.Find<TSeriesMember>
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Prop('SeriesId').As_('SeriesId'))
+        .Add(TProjections.Prop('ItemId').As_('ItemId')))
+      .Where(Linq['ItemId']._In(Chunk))
+      .ListValues;
+    try
+      for Row in Rows do
+        RecordAudit(FManager, aetSeries, Integer(Row.Values['SeriesId']), aoUpdate,
+          AUserId, Format('Purged item %d from the recycle bin; removed from the series.',
+            [Integer(Row.Values['ItemId'])]));
+    finally
+      Rows.Free;
+    end;
+  end;
+end;
+
+function TRecycleBinModel.PurgeItems(AItems: TList<TItem>; AUserId: Integer): Boolean;
 var
   Item: TItem;
   Transaction: IDBTransaction;
   HypId, I: Integer;
   HypStatus: THypothesisStatus;
   Ids: TArray<Integer>;
+  FileIds: TArray<Int64>;
+  ValueIds, EntryIds: TArray<Integer>;
   Chunk: TArray<Variant>;
   Rows: TObjectList<TCriteriaResult>;
   Restored: Boolean;
@@ -233,6 +358,9 @@ begin
         Exit(False);
       end;
 
+    ReadChildKeys(Ids, FileIds, ValueIds, EntryIds);
+    AuditSeriesMembership(Ids, AUserId);
+
     for Item in AItems do
     begin
       PurgeItemRows(Item.Id);
@@ -248,6 +376,7 @@ begin
   // Flush, which would otherwise try to write rows that no longer exist.
   for Item in AItems do
     FManager.Evict(Item);
+  EvictCachedChildren(FileIds, ValueIds, EntryIds);
   Result := True;
 end;
 
@@ -264,7 +393,7 @@ begin
   Subtree := TList<TItem>.Create;
   try
     CollectSubtree(Item, Subtree);
-    Result := PurgeItems(Subtree);
+    Result := PurgeItems(Subtree, UserId);
   finally
     Subtree.Free;
   end;
@@ -372,7 +501,7 @@ begin
       // False here means another session locked or restored one of them
       // between the walk above and now, and the purge rolled back: NOTHING
       // was deleted, so every subtree queued for it was kept too (MO-8).
-      ARefused := not PurgeItems(ToPurge);
+      ARefused := not PurgeItems(ToPurge, UserId);
       Purged := not ARefused;
       if ARefused then
         Inc(AKeptRootCount, PurgeRootCount);

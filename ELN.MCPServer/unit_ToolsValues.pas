@@ -11,12 +11,13 @@ implementation
 
 uses
   System.SysUtils, System.JSON, System.Generics.Collections, System.TypInfo,
-  System.DateUtils, System.Rtti,
+  System.DateUtils, System.Rtti, System.Variants,
   Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq,
+  Aurelius.Criteria.Base, Aurelius.Criteria.Projections,
   Aurelius.Types.Nullable,
   unit_Item, unit_Project, unit_ItemTypes, unit_ELNDB_Dictionary,
   unit_ValueType, unit_JSONCompact, unit_ToolScope, unit_ToolHelpers,
-  unit_ValueChecks;
+  unit_ValueChecks, unit_ToolsWrite;
 
 
 function DateToISO(const DT: TDateTime): string;
@@ -50,38 +51,6 @@ begin
   Result := V >= 0;
   if Result then
     AType := TRecType(V);
-end;
-
-function GetOptBool(const Params: TJSONObject; const Key: string;
-  Default: Boolean): Boolean;
-begin
-  Result := Default;
-  if (Params <> nil) and (Params.FindValue(Key) <> nil) then
-    Result := Params.GetValue<Boolean>(Key);
-end;
-
-function GetOptInt(const Params: TJSONObject; const Key: string;
-  out Value: Integer): Boolean;
-begin
-  Result := (Params <> nil) and (Params.FindValue(Key) <> nil);
-  if Result then
-    Value := Params.GetValue<Integer>(Key);
-end;
-
-function GetOptStr(const Params: TJSONObject; const Key: string;
-  out Value: string): Boolean;
-begin
-  Result := (Params <> nil) and (Params.FindValue(Key) <> nil) and
-            not (Params.FindValue(Key) is TJSONNull);
-  if Result then
-    Value := Params.GetValue<string>(Key);
-end;
-
-function GetReqInt(const Params: TJSONObject; const Key: string): Integer;
-begin
-  if (Params = nil) or (Params.FindValue(Key) = nil) then
-    raise Exception.CreateFmt('Missing required parameter: %s', [Key]);
-  Result := Params.GetValue<Integer>(Key);
 end;
 
 function ValueToJSON(V: TValue): TJSONObject;
@@ -128,6 +97,8 @@ var
   VT: TValueType;
   CondArr, ResArr: TJSONArray;
   Obj: TJSONObject;
+  Chains: TDictionary<Integer, TAncestorChain>;
+  Chain: TAncestorChain;
 begin
   ItemId := GetReqInt(Params, 'item_id');
   RequireItemRead(Context, ItemId);
@@ -136,39 +107,47 @@ begin
   if not Assigned(Item) then
     raise Exception.CreateFmt('Item not found: %d', [ItemId]);
 
+  Chains := AncestorChains(Context.Manager, [ItemId]);
+  try
+    Chain := Chains[ItemId];
+  finally
+    Chains.Free;
+  end;
+
   CondArr := TJSONArray.Create;
   ResArr := TJSONArray.Create;
   try
     for V in Item.Values do
     begin
       Obj := TJSONObject.Create;
+      case V.RecType of
+        EXP_CONDITION: CondArr.AddElement(Obj);
+      else
+        ResArr.AddElement(Obj);
+      end;
       Obj.AddPair('id', TJSONNumber.Create(V.Id));
 
       VT := V.ValueType;
       if Assigned(VT) then
       begin
+        Obj.AddPair('type_id', TJSONNumber.Create(VT.Id));
         Obj.AddPair('type_symbol', VT.Symbol);
         Obj.AddPair('type_title', VT.Title);
         Obj.AddPair('units', VT.Units);
       end
       else
       begin
+        Obj.AddPair('type_id', TJSONNull.Create);
         Obj.AddPair('type_symbol', '');
         Obj.AddPair('type_title', '');
         Obj.AddPair('units', '');
       end;
 
-      Obj.AddPair('value', SmartNum(V.Value));
-      Obj.AddPair('tolerance', SmartNum(V.Tol));
+      Obj.AddPair('rec_type', RecTypeToStr(V.RecType));
+      Obj.AddPair('value', ExactNum(V.Value));
+      Obj.AddPair('tolerance', ExactNum(V.Tol));
       Obj.AddPair('description', V.Description);
       Obj.AddPair('source', ValueSourceJSON(V));
-
-      case V.RecType of
-        EXP_CONDITION: CondArr.AddElement(Obj);
-        TEST_RESULT:   ResArr.AddElement(Obj);
-      else
-        ResArr.AddElement(Obj);
-      end;
     end;
   except
     CondArr.Free;
@@ -177,8 +156,135 @@ begin
   end;
 
   Result := TJSONObject.Create;
+  Result.AddPair('item_id', TJSONNumber.Create(ItemId));
+  Result.AddPair('project_id', TJSONNumber.Create(Item.ProjectID));
+  Result.AddPair('ancestor_ids', AncestorIdsJSON(Chain));
+  if Chain.Incomplete then
+    Result.AddPair('ancestors_incomplete', TJSONBool.Create(True));
   Result.AddPair('conditions', CondArr);
   Result.AddPair('results', ResArr);
+end;
+
+function RemainingItemExpr(const Context: TToolContext; Items: TList<TItem>;
+  FromIndex: Integer; HasDateFrom: Boolean; DateFrom: TDateTime;
+  HasDateTo: Boolean; DateTo: TDateTime; out Expr: TLinqExpression): Boolean;
+var
+  Seen: TDictionary<Integer, Boolean>;
+  Projects: TList<Variant>;
+  I: Integer;
+  Visible: Boolean;
+begin
+  Seen := TDictionary<Integer, Boolean>.Create;
+  Projects := TList<Variant>.Create;
+  try
+    for I := FromIndex to Items.Count - 1 do
+      if not Seen.TryGetValue(Items[I].ProjectID, Visible) then
+      begin
+        Visible := IsProjectVisible(Context, Items[I].ProjectID);
+        Seen.Add(Items[I].ProjectID, Visible);
+        if Visible then
+          Projects.Add(Items[I].ProjectID);
+      end;
+    Result := Projects.Count > 0;
+    if not Result then
+      Exit;
+    Expr := (Linq['i.IsDeleted'] = False) and
+      (Linq['i.Id'] >= Items[FromIndex].Id) and
+      Linq['i.ProjectID']._In(Projects.ToArray);
+    if HasDateFrom then
+      Expr := Expr and (Linq['i.CreatedDate'] >= VarFromDateTime(DateFrom));
+    if HasDateTo then
+      Expr := Expr and (Linq['i.CreatedDate'] <= VarFromDateTime(DateTo));
+  finally
+    Projects.Free;
+    Seen.Free;
+  end;
+end;
+
+function HasMoreValues(Manager: TObjectManager; const ItemExpr: TLinqExpression;
+  HasRecType: Boolean; RecType: TRecType; HasValueType: Boolean;
+  const ValueTypeName: string): Boolean;
+var
+  Expr: TLinqExpression;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+begin
+  Result := False;
+  Expr := ItemExpr;
+  if HasRecType then
+    Expr := Expr and (Linq['RecType'] = Ord(RecType));
+  if HasValueType then
+    Rows := Manager.Find<TValue>
+      .CreateAlias('Item', 'i')
+      .CreateAlias('ValueType', 'vt')
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Group('vt.Title').As_('Title'))
+        .Add(TProjections.Group('vt.Symbol').As_('Symbol')))
+      .Where(Expr)
+      .ListValues
+  else
+    Rows := Manager.Find<TValue>
+      .CreateAlias('Item', 'i')
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Prop('Id').As_('Id')))
+      .Where(Expr)
+      .Take(1)
+      .ListValues;
+  try
+    if not HasValueType then
+      Exit(Rows.Count > 0);
+    for Row in Rows do
+      if ValueTypeNameMatches(VarToStr(Row.Values['Title']),
+        VarToStr(Row.Values['Symbol']), ValueTypeName) then
+        Exit(True);
+  finally
+    Rows.Free;
+  end;
+end;
+
+function HasMorePairs(Manager: TObjectManager; const ItemExpr: TLinqExpression;
+  HasCondType: Boolean; CondTypeId: Integer; HasResType: Boolean;
+  ResTypeId: Integer): Boolean;
+var
+  CondExpr, ResExpr, Expr: TLinqExpression;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+begin
+  Result := False;
+  CondExpr := Linq['RecType'] = Ord(EXP_CONDITION);
+  if HasCondType then
+    CondExpr := CondExpr and (Linq['vt.Id'] = CondTypeId);
+  ResExpr := Linq['RecType'] = Ord(TEST_RESULT);
+  if HasResType then
+    ResExpr := ResExpr and (Linq['vt.Id'] = ResTypeId);
+  Expr := ItemExpr and (CondExpr or ResExpr);
+  if HasCondType or HasResType then
+    Rows := Manager.Find<TValue>
+      .CreateAlias('Item', 'i')
+      .CreateAlias('ValueType', 'vt')
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Group('i.Id').As_('ItemId'))
+        .Add(TProjections.Min('RecType').As_('MinRec'))
+        .Add(TProjections.Max('RecType').As_('MaxRec')))
+      .Where(Expr)
+      .ListValues
+  else
+    Rows := Manager.Find<TValue>
+      .CreateAlias('Item', 'i')
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Group('i.Id').As_('ItemId'))
+        .Add(TProjections.Min('RecType').As_('MinRec'))
+        .Add(TProjections.Max('RecType').As_('MaxRec')))
+      .Where(Expr)
+      .ListValues;
+  try
+    for Row in Rows do
+      if (Integer(Row.Values['MinRec']) = Ord(EXP_CONDITION)) and
+         (Integer(Row.Values['MaxRec']) = Ord(TEST_RESULT)) then
+        Exit(True);
+  finally
+    Rows.Free;
+  end;
 end;
 
 function HandleQueryValues(const Params: TJSONObject;
@@ -201,8 +307,18 @@ var
   Criteria: TLinqExpression;
   MatchesType: Boolean;
   Project: TProject;
+  ProjectTitles: TDictionary<Integer, string>;
   ProjectTitle: string;
+  RowItems: TList<TPair<TJSONObject, Integer>>;
+  RowItem: TPair<TJSONObject, Integer>;
+  ItemIds: TList<Integer>;
+  Chains: TDictionary<Integer, TAncestorChain>;
+  Chain: TAncestorChain;
+  Truncated: Boolean;
+  Idx: Integer;
+  ItemExpr: TLinqExpression;
 begin
+  Truncated := False;
   DateFrom := 0;
   DateTo := 0;
   HasProject := GetOptInt(Params, 'project_id', ProjectId);
@@ -242,88 +358,133 @@ begin
 
     Items := Context.Manager.Find<TItem>
       .Where(Criteria)
+      .OrderBy('Id')
       .List;
   finally
     ItemDic.Free;
   end;
 
   Arr := TJSONArray.Create;
+  ProjectTitles := TDictionary<Integer, string>.Create;
+  RowItems := TList<TPair<TJSONObject, Integer>>.Create;
+  ItemIds := TList<Integer>.Create;
   try
     try
-      for Item in Items do
-      begin
-        // Scope filter: rows from invisible projects are dropped, not
-        // refused - this tool reaches across projects by design.
-        if not IsProjectVisible(Context, Item.ProjectID) then
-          Continue;
-
-        Project := Context.Manager.Find<TProject>(Item.ProjectID);
-        if Assigned(Project) then
-          ProjectTitle := Project.Title
-        else
-          ProjectTitle := '';
-
-        for V in Item.Values do
+      try
+        for Idx := 0 to Items.Count - 1 do
         begin
-          if HasRecType and (V.RecType <> FilterRecType) then
+          Item := Items[Idx];
+          if Arr.Count >= Limit then
+          begin
+            if RemainingItemExpr(Context, Items, Idx, HasDateFrom, DateFrom,
+              HasDateTo, DateTo, ItemExpr) then
+              Truncated := HasMoreValues(Context.Manager, ItemExpr, HasRecType,
+                FilterRecType, HasValueType, ValueTypeStr);
+            Break;
+          end;
+
+          // Scope filter: rows from invisible projects are dropped, not
+          // refused - this tool reaches across projects by design.
+          if not IsProjectVisible(Context, Item.ProjectID) then
             Continue;
 
-          VT := V.ValueType;
-          if HasValueType then
+          if not ProjectTitles.TryGetValue(Item.ProjectID, ProjectTitle) then
           begin
-            MatchesType := False;
-            if Assigned(VT) then
-              MatchesType := ValueTypeNameMatches(VT.Title, VT.Symbol, ValueTypeStr);
-            if not MatchesType then
+            Project := Context.Manager.Find<TProject>(Item.ProjectID);
+            if Assigned(Project) then
+              ProjectTitle := Project.Title
+            else
+              ProjectTitle := '';
+            ProjectTitles.Add(Item.ProjectID, ProjectTitle);
+          end;
+
+          for V in Item.Values do
+          begin
+            if HasRecType and (V.RecType <> FilterRecType) then
               Continue;
+
+            VT := V.ValueType;
+            if HasValueType then
+            begin
+              MatchesType := False;
+              if Assigned(VT) then
+                MatchesType := ValueTypeNameMatches(VT.Title, VT.Symbol, ValueTypeStr);
+              if not MatchesType then
+                Continue;
+            end;
+
+            if Arr.Count >= Limit then
+            begin
+              Truncated := True;
+              Break;
+            end;
+
+            Obj := TJSONObject.Create;
+            Arr.AddElement(Obj);
+            Obj.AddPair('value_id', TJSONNumber.Create(V.Id));
+            Obj.AddPair('item_id', TJSONNumber.Create(Item.Id));
+            Obj.AddPair('item_title', Item.Title);
+            Obj.AddPair('project_id', TJSONNumber.Create(Item.ProjectID));
+            Obj.AddPair('project_title', ProjectTitle);
+
+            if Assigned(VT) then
+            begin
+              Obj.AddPair('type_id', TJSONNumber.Create(VT.Id));
+              Obj.AddPair('type_symbol', VT.Symbol);
+              Obj.AddPair('type_title', VT.Title);
+              Obj.AddPair('units', VT.Units);
+            end
+            else
+            begin
+              Obj.AddPair('type_id', TJSONNull.Create);
+              Obj.AddPair('type_symbol', '');
+              Obj.AddPair('type_title', '');
+              Obj.AddPair('units', '');
+            end;
+
+            Obj.AddPair('value', ExactNum(V.Value));
+            Obj.AddPair('tolerance', ExactNum(V.Tol));
+            Obj.AddPair('rec_type', RecTypeToStr(V.RecType));
+            Obj.AddPair('created_date', DateToISO(V.CreatedDate));
+            Obj.AddPair('source', ValueSourceJSON(V));
+            RowItems.Add(TPair<TJSONObject, Integer>.Create(Obj, Item.Id));
+            if not ItemIds.Contains(Item.Id) then
+              ItemIds.Add(Item.Id);
           end;
 
-          Obj := TJSONObject.Create;
-          Obj.AddPair('value_id', TJSONNumber.Create(V.Id));
-          Obj.AddPair('item_id', TJSONNumber.Create(Item.Id));
-          Obj.AddPair('item_title', Item.Title);
-          Obj.AddPair('project_id', TJSONNumber.Create(Item.ProjectID));
-          Obj.AddPair('project_title', ProjectTitle);
-
-          if Assigned(VT) then
-          begin
-            Obj.AddPair('type_symbol', VT.Symbol);
-            Obj.AddPair('type_title', VT.Title);
-            Obj.AddPair('units', VT.Units);
-          end
-          else
-          begin
-            Obj.AddPair('type_symbol', '');
-            Obj.AddPair('type_title', '');
-            Obj.AddPair('units', '');
-          end;
-
-          Obj.AddPair('value', SmartNum(V.Value));
-          Obj.AddPair('tolerance', SmartNum(V.Tol));
-          Obj.AddPair('rec_type', RecTypeToStr(V.RecType));
-          Obj.AddPair('created_date', DateToISO(V.CreatedDate));
-          Obj.AddPair('source', ValueSourceJSON(V));
-
-          Arr.AddElement(Obj);
-
-          if Arr.Count >= Limit then
+          if Truncated then
             Break;
         end;
-
-        if Arr.Count >= Limit then
-          Break;
+      finally
+        Items.Free;
       end;
-    finally
-      Items.Free;
+
+      Chains := AncestorChains(Context.Manager, ItemIds.ToArray);
+      try
+        for RowItem in RowItems do
+        begin
+          Chain := Chains[RowItem.Value];
+          RowItem.Key.AddPair('ancestor_ids', AncestorIdsJSON(Chain));
+          if Chain.Incomplete then
+            RowItem.Key.AddPair('ancestors_incomplete', TJSONBool.Create(True));
+        end;
+      finally
+        Chains.Free;
+      end;
+    except
+      Arr.Free;
+      raise;
     end;
-  except
-    Arr.Free;
-    raise;
+  finally
+    ItemIds.Free;
+    RowItems.Free;
+    ProjectTitles.Free;
   end;
 
   Result := TJSONObject.Create;
   Result.AddPair('values', Arr);
   Result.AddPair('limit', TJSONNumber.Create(Limit));
+  Result.AddPair('truncated', TJSONBool.Create(Truncated));
 end;
 
 function HandleListValueTypes(const Params: TJSONObject;
@@ -403,6 +564,9 @@ var
   HasCond, HasRes: Boolean;
   Criteria: TLinqExpression;
   Count: Integer;
+  Truncated: Boolean;
+  Idx: Integer;
+  ItemExpr: TLinqExpression;
 begin
   HasProject := GetOptInt(Params, 'project_id', ProjectId);
   HasCondType := GetOptInt(Params, 'condition_type_id', CondTypeId);
@@ -429,6 +593,7 @@ begin
 
     Items := Context.Manager.Find<TItem>
       .Where(Criteria)
+      .OrderBy('Id')
       .List;
   finally
     ItemDic.Free;
@@ -436,12 +601,20 @@ begin
 
   Arr := TJSONArray.Create;
   Count := 0;
+  Truncated := False;
   try
     try
-      for Item in Items do
+      for Idx := 0 to Items.Count - 1 do
       begin
+        Item := Items[Idx];
         if Count >= Limit then
+        begin
+          if RemainingItemExpr(Context, Items, Idx, False, 0, False, 0,
+            ItemExpr) then
+            Truncated := HasMorePairs(Context.Manager, ItemExpr, HasCondType,
+              CondTypeId, HasResType, ResTypeId);
           Break;
+        end;
 
         if not IsProjectVisible(Context, Item.ProjectID) then
           Continue;
@@ -549,6 +722,7 @@ begin
   Result.AddPair('items', Arr);
   Result.AddPair('count', TJSONNumber.Create(Count));
   Result.AddPair('limit', TJSONNumber.Create(Limit));
+  Result.AddPair('truncated', TJSONBool.Create(Truncated));
 end;
 
 
@@ -665,14 +839,15 @@ begin
     'its type symbol, title, units, tolerance, description and source ' +
     '(kind Reader, Manual or Unknown, with file_id, reader_id, ' +
     'reader_version, key_name and note when recorded).',
-    MakeGetValuesSchema, HandleGetValues, tscProjectScoped);
+    MakeGetValuesSchema, HandleGetValues, tscProjectScoped, taRead);
 
   Registry.Register('query_values',
     'Search for values across items with optional filters by project, ' +
     'value type (title or symbol), record type (EXP_CONDITION or ' +
     'TEST_RESULT), and date range. Returns value details with item and ' +
-    'project context and the value source.',
-    MakeQueryValuesSchema, HandleQueryValues, tscProjectScoped);
+    'project context and the value source. truncated is true when more ' +
+    'rows matched than limit.',
+    MakeQueryValuesSchema, HandleQueryValues, tscProjectScoped, taRead);
 
   Registry.Register('list_value_types',
     'List all defined value types (measurement parameters). Each type has ' +
@@ -681,15 +856,16 @@ begin
     'tolerance_factor is the notebook limit for the tolerance check: a ' +
     'tolerance must not exceed |value| and must not be smaller than ' +
     '|value| / tolerance_factor. Optionally filter by category ID.',
-    MakeListValueTypesSchema, HandleListValueTypes, tscGlobalRef);
+    MakeListValueTypesSchema, HandleListValueTypes, tscGlobalRef, taRead);
 
   Registry.Register('correlate_values',
     'Find correlations between experimental conditions and test results. ' +
     'Returns items that have both condition and result values, paired for ' +
     'analysis. At least one of project_id, condition_type_id, or ' +
     'result_type_id must be provided. This is the primary analytical tool ' +
-    'for discovering relationships between inputs and outputs.',
-    MakeCorrelateValuesSchema, HandleCorrelateValues, tscProjectScoped);
+    'for discovering relationships between inputs and outputs. truncated ' +
+    'is true when more rows matched than limit.',
+    MakeCorrelateValuesSchema, HandleCorrelateValues, tscProjectScoped, taRead);
 end;
 
 end.

@@ -25,6 +25,9 @@ type
     [Test] procedure PercentUnitLookupIsLiteral;
     [Test] procedure RememberedChoiceIsPersistedAndReplacesExactRule;
     [Test] procedure DimensionlessValueTypePostsFromEditorDataset;
+    [Test] procedure ThicknessMappingsResolveNanometres;
+    [Test] procedure SchemaUpdateConvertsThicknessToNanometresIdempotently;
+    [Test] procedure ValueTypeUnitChangeConvertsOrBlocksAndAudits;
   end;
 
 implementation
@@ -34,7 +37,8 @@ uses
   Winapi.ActiveX,
   unit_DepositionData, unit_ELNPluginTypes,
   Data.DB,
-  unit_ReaderValueMapping, unit_ReaderValueMappingModel, unit_ValueType, unit_ValueTypeModel;
+  unit_ReaderValueMapping, unit_ReaderValueMappingModel, unit_ValueType, unit_ValueTypeModel,
+  unit_SchemaUpdate, unit_Item, unit_ItemTypes, unit_Project, unit_AuditLog, unit_ValueSource;
 
 procedure TReaderValueMappingTests.Setup;
 begin
@@ -306,7 +310,7 @@ begin
     Assert.IsNotNull(Resolution.ValueType);
     Assert.AreEqual('Thickness', Resolution.ValueType.Title);
     Assert.AreEqual('C', Resolution.LabelText);
-    Assert.AreEqual(1e-10, Resolution.Factor, 1e-22);
+    Assert.AreEqual(0.1, Resolution.Factor, 1e-12);
     Resolution := Resolver.Resolve('aps.xrcx', 'Co Roughness (stack 1 layer 3)', 'A');
     Assert.IsNotNull(Resolution.ValueType);
     Assert.AreEqual('Roughness', Resolution.ValueType.Title);
@@ -520,6 +524,219 @@ begin
     DS.Post;
     Assert.IsNotNull(Types.FindByTitleUnits('Synthetic count', ''),
       'A value type without a unit, such as Cycles, must be stored');
+  finally
+    Types.Free;
+  end;
+end;
+
+procedure TReaderValueMappingTests.ThicknessMappingsResolveNanometres;
+var
+  Resolver: TReaderValueMappingModel;
+  Resolution: TReaderValueResolution;
+begin
+  Resolver := TReaderValueMappingModel.Create(FNotebook.Manager);
+  try
+    Resolution := Resolver.Resolve('aps.xrcx', 'Ru Thickness', 'A');
+    Assert.IsNotNull(Resolution.ValueType);
+    Assert.AreEqual('Thickness', Resolution.ValueType.Title);
+    Assert.AreEqual('nm', Resolution.ValueType.Units);
+    Assert.AreEqual(0.1, Resolution.Factor, 1e-12);
+
+    Resolution := Resolver.Resolve('aps.fibps', 'Step Height', 'um');
+    Assert.IsNotNull(Resolution.ValueType);
+    Assert.AreEqual('Thickness', Resolution.ValueType.Title);
+    Assert.AreEqual('nm', Resolution.ValueType.Units);
+    Assert.AreEqual(1000.0, Resolution.Factor, 1e-9);
+  finally
+    Resolver.Free;
+  end;
+end;
+
+procedure TReaderValueMappingTests.SchemaUpdateConvertsThicknessToNanometresIdempotently;
+var
+  Types: TValueTypeModel;
+  VT, OtherVT: TValueType;
+  Rows: TList<TReaderValueMapping>;
+  Row: TReaderValueMapping;
+  Project: TProject;
+  Item: TItem;
+  Val, Other: TValue;
+  ValId, OtherId: Integer;
+  Resolver: TReaderValueMappingModel;
+  Resolution: TReaderValueResolution;
+begin
+  Types := TValueTypeModel.Create(FNotebook.Manager);
+  try
+    VT := Types.FindByTitleUnits('Thickness', 'nm');
+    if VT = nil then
+      VT := Types.FindByTitleUnits('Thickness', 'm');
+    Assert.IsNotNull(VT, 'Thickness type must exist');
+    VT.Units := 'm';
+    VT.RangeMin := 1e-9;
+    VT.RangeMax := 1e-6;
+    OtherVT := Types.FindByTitleUnits('Roughness', 'm');
+    Assert.IsNotNull(OtherVT, 'Roughness type in m must exist');
+    FNotebook.Manager.Flush;
+  finally
+    Types.Free;
+  end;
+  Rows := FNotebook.Manager.Find<TReaderValueMapping>.List;
+  try
+    for Row in Rows do
+      if Assigned(Row.ValueType) and (Row.ValueType.Id = VT.Id) then
+        if (Row.ReaderId = 'aps.xrcx') and (Row.ReaderUnits = 'A') then
+          Row.Factor := 1e-10
+        else if (Row.ReaderId = 'aps.fibps') and (Row.ReaderUnits = 'um') then
+          Row.Factor := 1e-6;
+    FNotebook.Manager.Flush;
+  finally
+    Rows.Free;
+  end;
+  Project := TProject.Create;
+  Project.Title := 'Synthetic project';
+  Project.FileFolder := 'synthetic';
+  Project.Owner := FNotebook.Principal;
+  Project.CreatedBy := FNotebook.Principal.Id;
+  Project.CreatedDate := Now;
+  FNotebook.Manager.Save(Project);
+  Item := TItem.Create;
+  Item.Title := 'Synthetic item';
+  Item.ProjectID := Project.Id;
+  Item.CreatedBy := FNotebook.Principal.Id;
+  Item.CreatedDate := Now;
+  FNotebook.Manager.Save(Item);
+  Val := TValue.Create;
+  Val.Item := Item;
+  Val.ValueType := VT;
+  Val.RecType := TEST_RESULT;
+  Val.Value := 2.2042e-7;
+  Val.Tol := 3.37e-9;
+  Val.ConversionFactor := 1e-10;
+  Val.CreatedDate := Now;
+  FNotebook.Manager.Save(Val);
+  Other := TValue.Create;
+  Other.Item := Item;
+  Other.ValueType := OtherVT;
+  Other.RecType := TEST_RESULT;
+  Other.Value := 4.5e-10;
+  Other.Tol := 1e-11;
+  Other.CreatedDate := Now;
+  FNotebook.Manager.Save(Other);
+  FNotebook.Manager.Flush;
+  ValId := Val.Id;
+  OtherId := Other.Id;
+
+  UpdateDatabaseAdditive(FNotebook.Connection);
+  UpdateDatabaseAdditive(FNotebook.Connection);
+
+  FNotebook.Manager.Clear;
+  VT := FNotebook.Manager.Find<TValueType>(VT.Id);
+  Assert.AreEqual('nm', VT.Units, 'Schema update sets Thickness units to nm');
+  Assert.AreEqual(1.0, VT.RangeMin.Value, 1e-9);
+  Assert.AreEqual(1000.0, VT.RangeMax.Value, 1e-6);
+  Val := FNotebook.Manager.Find<TValue>(ValId);
+  Assert.AreEqual(220.42, Val.Value, 1e-9, 'Stored metres become nanometres once');
+  Assert.AreEqual(3.37, Val.Tol, 1e-12);
+  Assert.AreEqual(0.1, Val.ConversionFactor.Value, 1e-12);
+  Other := FNotebook.Manager.Find<TValue>(OtherId);
+  Assert.AreEqual(4.5e-10, Other.Value, 1e-22, 'Other types in m stay unchanged');
+  Assert.AreEqual(1e-11, Other.Tol, 1e-23);
+  Resolver := TReaderValueMappingModel.Create(FNotebook.Manager);
+  try
+    Resolution := Resolver.Resolve('aps.xrcx', 'Ru Thickness', 'A');
+    Assert.AreEqual('nm', Resolution.ValueType.Units);
+    Assert.AreEqual(0.1, Resolution.Factor, 1e-12);
+    Resolution := Resolver.Resolve('aps.fibps', 'Step Height', 'um');
+    Assert.AreEqual('nm', Resolution.ValueType.Units);
+    Assert.AreEqual(1000.0, Resolution.Factor, 1e-9);
+  finally
+    Resolver.Free;
+  end;
+end;
+
+procedure TReaderValueMappingTests.ValueTypeUnitChangeConvertsOrBlocksAndAudits;
+var
+  Types: TValueTypeModel;
+  VT: TValueType;
+  Project: TProject;
+  Item: TItem;
+  Val: TValue;
+  Mapping: TReaderValueMapping;
+  ValId, MapId, TypeId: Integer;
+  Audits: TList<TAuditLog>;
+  FoundAudit: Boolean;
+begin
+  Types := TValueTypeModel.Create(FNotebook.Manager);
+  try
+    Types.AddType('d2', 'Custom depth', 'm', 0);
+    VT := Types.FindByTitleUnits('Custom depth', 'm');
+    Assert.IsNotNull(VT);
+    VT.RangeMin := 1e-9;
+    VT.RangeMax := 1e-5;
+    TypeId := VT.Id;
+    Project := TProject.Create;
+    Project.Title := 'Depth project';
+    Project.FileFolder := 'depth';
+    Project.Owner := FNotebook.Principal;
+    Project.CreatedBy := FNotebook.Principal.Id;
+    Project.CreatedDate := Now;
+    FNotebook.Manager.Save(Project);
+    Item := TItem.Create;
+    Item.Title := 'Depth item';
+    Item.ProjectID := Project.Id;
+    Item.CreatedBy := FNotebook.Principal.Id;
+    Item.CreatedDate := Now;
+    FNotebook.Manager.Save(Item);
+    Val := TValue.Create;
+    Val.Item := Item;
+    Val.ValueType := VT;
+    Val.RecType := TEST_RESULT;
+    Val.Value := 2e-7;
+    Val.Tol := 5e-9;
+    Val.CreatedDate := Now;
+    ApplySource(Val, TValueSourceInfo.Reader(1, 'synthetic.depth', '1', 'Depth', 'um', 1e-6));
+    FNotebook.Manager.Save(Val);
+    Mapping := TReaderValueMapping.Create;
+    Mapping.ReaderId := 'synthetic.depth';
+    Mapping.KeyPattern := 'Depth';
+    Mapping.ReaderUnits := 'um';
+    Mapping.ValueType := VT;
+    Mapping.Factor := 1e-6;
+    FNotebook.Manager.Save(Mapping);
+    FNotebook.Manager.Flush;
+    ValId := Val.Id;
+    MapId := Mapping.Id;
+
+    Assert.WillRaise(
+      procedure
+      begin
+        Types.ChangeUnits(TypeId, 'nm', 0, FNotebook.Principal.Id);
+      end, EArgumentException);
+
+    Types.ChangeUnits(TypeId, 'nm', 1e9, FNotebook.Principal.Id);
+    FNotebook.Manager.Clear;
+    VT := FNotebook.Manager.Find<TValueType>(TypeId);
+    Assert.AreEqual('nm', VT.Units);
+    Assert.AreEqual(1.0, VT.RangeMin.Value, 1e-9);
+    Assert.AreEqual(10000.0, VT.RangeMax.Value, 1e-6);
+    Val := FNotebook.Manager.Find<TValue>(ValId);
+    Assert.AreEqual(200.0, Val.Value, 1e-9);
+    Assert.AreEqual(5.0, Val.Tol, 1e-9);
+    Assert.AreEqual(1000.0, Val.ConversionFactor.Value, 1e-9);
+    Mapping := FNotebook.Manager.Find<TReaderValueMapping>(MapId);
+    Assert.AreEqual(1000.0, Mapping.Factor, 1e-9);
+    Audits := FNotebook.Manager.Find<TAuditLog>.List;
+    try
+      FoundAudit := False;
+      for var Log in Audits do
+        if (Log.EntityType = aetSetting) and (Log.EntityId = TypeId) and
+          (Pos('Custom depth', Log.Description) > 0) and
+          (Pos('1E9', UpperCase(Log.Description)) + Pos('1000000000', Log.Description) > 0) then
+          FoundAudit := True;
+      Assert.IsTrue(FoundAudit, 'Unit change must write an audit row');
+    finally
+      Audits.Free;
+    end;
   finally
     Types.Free;
   end;

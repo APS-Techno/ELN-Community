@@ -15,10 +15,10 @@ const
   APPROVAL_HINT = 'Approving a proposal and accepting a conclusion are done ' +
     'by a human in the ELN desktop or web app; no MCP tool can do either.';
 
-  HYPOTHESIS_TOOL_NAMES: array[0..10] of string = ('list_hypotheses',
-    'get_hypothesis', 'get_hypothesis_tree', 'propose_hypothesis',
-    'update_hypothesis', 'attach_run', 'detach_run', 'cite_evidence',
-    'remove_evidence', 'submit_conclusion', 'abandon_hypothesis');
+  HYPOTHESIS_TOOL_NAMES: array[0..11] of string = ('list_hypotheses',
+    'get_hypothesis', 'get_hypothesis_tree', 'find_hypotheses_for_item',
+    'propose_hypothesis', 'update_hypothesis', 'attach_run', 'detach_run',
+    'cite_evidence', 'remove_evidence', 'submit_conclusion', 'abandon_hypothesis');
 
 procedure RegisterHypothesisTools(Registry: TToolRegistry);
 
@@ -30,6 +30,8 @@ function HandleListHypotheses(const Params: TJSONObject;
 function HandleGetHypothesis(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 function HandleGetHypothesisTree(const Params: TJSONObject;
+  const Context: TToolContext): TJSONObject;
+function HandleFindHypothesesForItem(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 function HandleProposeHypothesis(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -51,13 +53,17 @@ function HandleAbandonHypothesis(const Params: TJSONObject;
 implementation
 
 uses
-  System.DateUtils,
+  System.DateUtils, System.Variants,
+  System.Generics.Collections,
+  Aurelius.Criteria.Base, Aurelius.Criteria.Linq, Aurelius.Criteria.Projections,
   unit_User,
+  unit_Item,
   unit_Hypothesis,
   unit_HypothesisRun,
   unit_HypothesisEvidence,
   unit_HypothesisRules,
   unit_HypothesisModel,
+  unit_HypothesisQueries,
   unit_ToolScope,
   unit_ToolsWrite;
 
@@ -226,6 +232,14 @@ begin
   Result.AddPair('evidence_count', TJSONNumber.Create(S.EvidenceCount));
   Result.AddPair('version', TJSONNumber.Create(S.Version));
   Result.AddPair('key_value', KeyValueJSON(S));
+  if S.HasOutcome then
+    Result.AddPair('outcome', HypothesisOutcomeNames[S.Outcome])
+  else
+    Result.AddPair('outcome', TJSONNull.Create);
+  if S.ModifiedDate = 0 then
+    Result.AddPair('modified_date', TJSONNull.Create)
+  else
+    Result.AddPair('modified_date', DateToISO8601(S.ModifiedDate, True));
 end;
 
 function PendingGate(AStatus: THypothesisStatus; out AGate: THypothesisGate): Boolean;
@@ -279,6 +293,19 @@ begin
   for I := 0 to High(ARequired) do
     Req.Add(ARequired[I]);
   Result.AddPair('required', Req);
+end;
+
+function ItemIdsProp: TJSONObject;
+var
+  Items: TJSONObject;
+begin
+  Result := Prop('array', 'Item ids, 1 to 200');
+  Items := TJSONObject.Create;
+  Items.AddPair('type', 'integer');
+  Items.AddPair('minimum', TJSONNumber.Create(1));
+  Result.AddPair('items', Items);
+  Result.AddPair('minItems', TJSONNumber.Create(1));
+  Result.AddPair('maxItems', TJSONNumber.Create(200));
 end;
 
 
@@ -337,6 +364,191 @@ begin
     end);
 end;
 
+const
+  MAX_LINKED_ITEMS = 200;
+
+function RequestedItemIds(const Params: TJSONObject): TArray<Integer>;
+var
+  Value, Element: TJSONValue;
+  Ids: TList<Integer>;
+  Id: Integer;
+begin
+  Value := nil;
+  if Params <> nil then
+    Value := Params.FindValue('item_ids');
+  if not (Value is TJSONArray) or (TJSONArray(Value).Count = 0) or
+    (TJSONArray(Value).Count > MAX_LINKED_ITEMS) then
+    raise Exception.CreateFmt('item_ids must be an array of 1 to %d positive item ids.',
+      [MAX_LINKED_ITEMS]);
+  Ids := TList<Integer>.Create;
+  try
+    for Element in TJSONArray(Value) do
+    begin
+      if not (Element is TJSONNumber) or not TryStrToInt(Element.Value, Id) or (Id <= 0) then
+        raise Exception.CreateFmt('item_ids must be an array of 1 to %d positive item ids.',
+          [MAX_LINKED_ITEMS]);
+      if not Ids.Contains(Id) then
+        Ids.Add(Id);
+    end;
+    Result := Ids.ToArray;
+  finally
+    Ids.Free;
+  end;
+end;
+
+type
+  TLinkedItem = record
+    ProjectId: Integer;
+    IsDeleted: Boolean;
+  end;
+
+function LoadLinkedItems(const Context: TToolContext;
+  const Ids: TArray<Integer>): TDictionary<Integer, TLinkedItem>;
+var
+  Keys: TArray<Variant>;
+  I: Integer;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+  Item: TLinkedItem;
+begin
+  SetLength(Keys, Length(Ids));
+  for I := 0 to High(Ids) do
+    Keys[I] := Ids[I];
+  Result := TDictionary<Integer, TLinkedItem>.Create;
+  try
+    Rows := Context.Manager.Find<TItem>
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Prop('Id').As_('Id'))
+        .Add(TProjections.Prop('ProjectID').As_('ProjectID'))
+        .Add(TProjections.Prop('IsDeleted').As_('IsDeleted')))
+      .Where(Linq['Id']._In(Keys))
+      .ListValues;
+    try
+      for Row in Rows do
+      begin
+        Item.ProjectId := Row.Values['ProjectID'];
+        Item.IsDeleted := not VarIsNull(Row.Values['IsDeleted']) and
+          Boolean(Row.Values['IsDeleted']);
+        if IsProjectVisible(Context, Item.ProjectId) then
+          Result.Add(Integer(Row.Values['Id']), Item);
+      end;
+    finally
+      Rows.Free;
+    end;
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+function LinkJSON(const Link: THypothesisItemLink): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('kind', HypothesisLinkKindNames[Link.Kind]);
+  if Link.Kind = hlkEvidence then
+  begin
+    Result.AddPair('evidence_id', TJSONNumber.Create(Link.EvidenceId));
+    Result.AddPair('file_id', IntOrNull(Link.FileId));
+    Result.AddPair('value_id', IntOrNull(Link.ValueId));
+  end;
+end;
+
+function HeadJSON(const Head: THypothesisHead): TJSONObject;
+begin
+  Result := TJSONObject.Create;
+  Result.AddPair('hypothesis_id', TJSONNumber.Create(Head.Id));
+  Result.AddPair('project_id', TJSONNumber.Create(Head.ProjectId));
+  Result.AddPair('title', Head.Title);
+  Result.AddPair('status', HypothesisStatusNames[Head.Status]);
+  if Head.HasOutcome then
+    Result.AddPair('outcome', HypothesisOutcomeNames[Head.Outcome])
+  else
+    Result.AddPair('outcome', TJSONNull.Create);
+end;
+
+function HandleFindHypothesesForItem(const Params: TJSONObject;
+  const Context: TToolContext): TJSONObject;
+var
+  Ids, HypIds: TArray<Integer>;
+  Items: TDictionary<Integer, TLinkedItem>;
+  Heads: TDictionary<Integer, THypothesisHead>;
+  Links: TArray<THypothesisItemLink>;
+  Link, Previous: THypothesisItemLink;
+  Item: TLinkedItem;
+  Head: THypothesisHead;
+  HypSet: TDictionary<Integer, Boolean>;
+  Id, I, Start: Integer;
+  ItemsArr, HypArr, LinksArr: TJSONArray;
+  Entry, HypObj: TJSONObject;
+begin
+  Ids := RequestedItemIds(Params);
+  Heads := nil;
+  HypSet := nil;
+  Items := LoadLinkedItems(Context, Ids);
+  try
+    Links := LinksForItems(Context.Manager, Items.Keys.ToArray);
+    HypSet := TDictionary<Integer, Boolean>.Create;
+    for Link in Links do
+      HypSet.AddOrSetValue(Link.HypothesisId, True);
+    HypIds := HypSet.Keys.ToArray;
+    Heads := HypothesisHeads(Context.Manager, HypIds);
+
+    Result := TJSONObject.Create;
+    try
+      ItemsArr := TJSONArray.Create;
+      Result.AddPair('items', ItemsArr);
+      for Id in Ids do
+      begin
+        Entry := TJSONObject.Create;
+        ItemsArr.AddElement(Entry);
+        Entry.AddPair('item_id', TJSONNumber.Create(Id));
+        if not Items.TryGetValue(Id, Item) then
+        begin
+          Entry.AddPair('error', Format('Item %d is not available.', [Id]));
+          Continue;
+        end;
+        if Item.IsDeleted then
+          Entry.AddPair('is_deleted', TJSONBool.Create(True));
+        HypArr := TJSONArray.Create;
+        Entry.AddPair('hypotheses', HypArr);
+        HypObj := nil;
+        LinksArr := nil;
+        Start := -1;
+        for I := 0 to High(Links) do
+        begin
+          Link := Links[I];
+          if Link.ItemId <> Id then
+            Continue;
+          if not Heads.TryGetValue(Link.HypothesisId, Head) or
+            not IsProjectVisible(Context, Head.ProjectId) then
+            Continue;
+          if (Start >= 0) and (Previous.HypothesisId = Link.HypothesisId) and
+            (Previous.Kind = Link.Kind) and (Previous.EvidenceId = Link.EvidenceId) and
+            (Previous.FileId = Link.FileId) and (Previous.ValueId = Link.ValueId) then
+            Continue;
+          if (HypObj = nil) or (Previous.HypothesisId <> Link.HypothesisId) then
+          begin
+            HypObj := HeadJSON(Head);
+            HypArr.AddElement(HypObj);
+            LinksArr := TJSONArray.Create;
+            HypObj.AddPair('links', LinksArr);
+          end;
+          LinksArr.AddElement(LinkJSON(Link));
+          Previous := Link;
+          Start := I;
+        end;
+      end;
+    except
+      Result.Free;
+      raise;
+    end;
+  finally
+    Heads.Free;
+    HypSet.Free;
+    Items.Free;
+  end;
+end;
+
 
 function DoGetHypothesis(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
@@ -367,10 +579,6 @@ begin
   try
     Result.AddPair('statement', D.Statement);
     Result.AddPair('change', D.Change);
-    if D.HasOutcome then
-      Result.AddPair('outcome', HypothesisOutcomeNames[D.Outcome])
-    else
-      Result.AddPair('outcome', TJSONNull.Create);
     Result.AddPair('conclusion', D.Conclusion);
     Result.AddPair('content_hash', D.ContentHash);
     Result.AddPair('created_device_id', IntOrNull(D.CreatedDeviceId));
@@ -870,7 +1078,7 @@ begin
        PropEnum('Derived state of Approved nodes', HypDerivedStateNames),
        Prop('integer', 'Only this hypothesis and its descendants'),
        Prop('integer', 'Only hypotheses created by this user id')], []),
-    HandleListHypotheses, tscProjectScoped);
+    HandleListHypotheses, tscProjectScoped, taRead);
 
   Registry.Register('get_hypothesis',
     'One hypothesis with its runs, cited evidence (flagged changed/missing when ' +
@@ -878,7 +1086,7 @@ begin
     'ids, and whether its pending gate could be passed by the human behind this ' +
     'identity (can_approve). ' + APPROVAL_HINT,
     Schema(['hypothesis_id'], [Prop('integer', 'Hypothesis id')], ['hypothesis_id']),
-    HandleGetHypothesis, tscProjectScoped);
+    HandleGetHypothesis, tscProjectScoped, taRead);
 
   Registry.Register('get_hypothesis_tree',
     'Compact tree of a project''s hypotheses (or one subtree), each node with its ' +
@@ -887,7 +1095,16 @@ begin
     Schema(['project_id', 'root_id'],
       [Prop('integer', 'Project id'),
        Prop('integer', 'Optional: only this node and its descendants')], ['project_id']),
-    HandleGetHypothesisTree, tscProjectScoped);
+    HandleGetHypothesisTree, tscProjectScoped, taRead);
+
+  Registry.Register('find_hypotheses_for_item',
+    'For each item id (1 to 200 per call), the hypotheses you can see that link ' +
+    'to it, with each link: Run, Reference, or Evidence (evidence_id, file_id, ' +
+    'value_id). Returns only direct stored links: runs, references and cited ' +
+    'evidence. Links of descendant items are not included. A missing or hidden ' +
+    'item gets "error": "Item N is not available.". Read-only.',
+    Schema(['item_ids'], [ItemIdsProp], ['item_ids']),
+    HandleFindHypothesesForItem, tscProjectScoped, taRead);
 
   Registry.Register('propose_hypothesis',
     'Propose a hypothesis: what you expect and why (statement), and what differs ' +
@@ -902,7 +1119,7 @@ begin
        Prop('string', 'What differs from the parent (markdown)'),
        Prop('integer', 'Optional value type id of the headline quantity')],
       ['project_id', 'title', 'statement']),
-    HandleProposeHypothesis, tscProjectScoped);
+    HandleProposeHypothesis, tscProjectScoped, taWrite);
 
   Registry.Register('update_hypothesis',
     'Edit your own hypothesis while it is still Proposed (only the author, only ' +
@@ -918,7 +1135,7 @@ begin
        Prop('string', 'New change'),
        Prop('integer', 'Headline value type id; 0 clears')],
       ['hypothesis_id', 'version']),
-    HandleUpdateHypothesis, tscProjectScoped);
+    HandleUpdateHypothesis, tscProjectScoped, taWrite);
 
   Registry.Register('attach_run',
     'Attach an item (Proc, Item or Action) to an Approved hypothesis. role Run ' +
@@ -930,7 +1147,7 @@ begin
       [Prop('integer', 'Hypothesis id'), Prop('integer', 'Item id'),
        PropEnum('Run or Reference', HypothesisRunRoleNames)],
       ['hypothesis_id', 'item_id']),
-    HandleAttachRun, tscProjectScoped);
+    HandleAttachRun, tscProjectScoped, taWrite);
 
   Registry.Register('detach_run',
     'Detach an item from an Approved hypothesis. Each change bumps the ' +
@@ -939,7 +1156,7 @@ begin
     Schema(['hypothesis_id', 'item_id'],
       [Prop('integer', 'Hypothesis id'), Prop('integer', 'Item id')],
       ['hypothesis_id', 'item_id']),
-    HandleDetachRun, tscProjectScoped);
+    HandleDetachRun, tscProjectScoped, taWrite);
 
   Registry.Register('cite_evidence',
     'Cite evidence for an Approved hypothesis: an item as a whole, or one of its ' +
@@ -953,7 +1170,7 @@ begin
        Prop('integer', 'Optional value id of that item'),
        Prop('string', 'Why this supports or refutes the hypothesis (max 500)')],
       ['hypothesis_id', 'item_id']),
-    HandleCiteEvidence, tscProjectScoped);
+    HandleCiteEvidence, tscProjectScoped, taWrite);
 
   Registry.Register('remove_evidence',
     'Remove a citation from an Approved hypothesis. Each change bumps the ' +
@@ -962,7 +1179,7 @@ begin
     Schema(['hypothesis_id', 'evidence_id'],
       [Prop('integer', 'Hypothesis id'), Prop('integer', 'Evidence id from get_hypothesis')],
       ['hypothesis_id', 'evidence_id']),
-    HandleRemoveEvidence, tscProjectScoped);
+    HandleRemoveEvidence, tscProjectScoped, taWrite);
 
   Registry.Register('submit_conclusion',
     'Submit the conclusion of an Approved hypothesis for human review: the ' +
@@ -976,7 +1193,7 @@ begin
        Prop('string', 'Conclusion (markdown)'),
        PropEnum('Supported, Refuted or Inconclusive', HypothesisOutcomeNames)],
       ['hypothesis_id', 'version', 'conclusion', 'outcome']),
-    HandleSubmitConclusion, tscProjectScoped);
+    HandleSubmitConclusion, tscProjectScoped, taWrite);
 
   Registry.Register('abandon_hypothesis',
     'Abandon your own Approved hypothesis (author only through MCP; a comment is ' +
@@ -985,7 +1202,7 @@ begin
       [Prop('integer', 'Hypothesis id'), Prop('integer', 'Version from get_hypothesis'),
        Prop('string', Format('Why it is abandoned (max %d characters)', [MAX_HYP_COMMENT]))],
       ['hypothesis_id', 'version', 'comment']),
-    HandleAbandonHypothesis, tscProjectScoped);
+    HandleAbandonHypothesis, tscProjectScoped, taWrite);
 end;
 
 end.

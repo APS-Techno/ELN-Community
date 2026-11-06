@@ -70,6 +70,9 @@
     <DCCReference Include="test_SearchDoubles.pas"/>
     <DCCReference Include="test_SemanticSearchTool.pas"/>
     <DCCReference Include="test_SemanticSearchDialog.pas"/>
+    <DCCReference Include="test_SearchDateFilter.pas"/>
+    <DCCReference Include="..\ELN.Desktop\Dialogs\Search\unit_SearchStatusText.pas"/>
+    <DCCReference Include="test_SearchStatusText.pas"/>
     <DCCReference Include="test_ProjectTreeIdentity.pas"/>
     <DCCReference Include="test_ViewerParsers.pas"/>
     <DCCReference Include="test_ViewerValues.pas"/>
@@ -103,6 +106,8 @@
     <DCCReference Include="..\ELN.Search\unit_SearchArtifacts.pas"/>
     <DCCReference Include="..\ELN.Search\unit_CrossEncoder.pas"/>
     <DCCReference Include="test_SearchEmbedding.pas"/>
+    <DCCReference Include="..\ELN.Model\unit_FilePaths.pas"/>
+    <DCCReference Include="test_FilePaths.pas"/>
   </ItemGroup>
   <ItemGroup Condition="'$(MainSource)'=='SearchIndexTests.dpr' Or '$(MainSource)'=='SearchHarness.dpr'">
     <DCCReference Include="..\ELN.Search\unit_SearchPassages.pas"/>

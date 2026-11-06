@@ -59,6 +59,7 @@ const
   EntryManifest = 'test.json';
   EntryLegacy = 'Data.dat';
   TextUnit = 'text';
+  ScpiOverflowLimit = 1e37;
 
 function HasName(Zip: TZipFile; const Wanted: string): Boolean;
 var
@@ -341,7 +342,7 @@ begin
     for J := 0 to Cols - 1 do
       if Ok and not SameText(Units[J], TextUnit) then
         Ok := TryStrToFloat(F[J + 2], V, TFormatSettings.Invariant) and
-          not IsNan(V) and not IsInfinite(V);
+          not IsNan(V) and not IsInfinite(V) and (Abs(V) < ScpiOverflowLimit);
     if not Ok then
     begin
       Inc(Result.BadRows);

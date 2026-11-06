@@ -13,13 +13,13 @@ uses
   Winapi.Windows,
   System.SysUtils, System.JSON, System.StrUtils,
   System.IOUtils, System.Classes, System.Generics.Collections,
-  Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq,
+  Aurelius.Engine.ObjectManager, Aurelius.Criteria.Linq, Aurelius.Drivers.Interfaces,
   unit_Project, unit_Item, unit_ItemTypes, unit_FileType,
   unit_ELNDB_Dictionary,
   unit_ConflictHandler, unit_AuditLog, unit_AuditHelper,
   unit_TimeHelper, unit_FilePaths,
   unit_SignatureModel,
-  unit_ToolsWrite, unit_ToolScope;
+  unit_ToolsWrite, unit_ToolScope, unit_ToolHelpers, unit_MCPDiag;
 
 
 const
@@ -294,59 +294,144 @@ begin
   end;
 end;
 
-// Callers must pass permission and signed-item checks before attaching files.
-procedure AppendAttachments(const Context: TToolContext; Item: TItem;
-  Attachments: TJSONArray; ResponseObj: TJSONObject);
+type
+  TWikiAttachment = record
+    Path, Title: string;
+    FileTypeId: Integer;
+  end;
+
+function ResolveAttachments(const Context: TToolContext;
+  const Params: TJSONObject): TArray<TWikiAttachment>;
 var
+  Value: TJSONValue;
+  Arr: TJSONArray;
   I: Integer;
-  AttPath, AttTitle: string;
-  AttType: TFileType;
-  Info: TAttachedFileInfo;
-  AttachedArr: TJSONArray;
-  ExistingArr: TJSONValue;
-  AttObj: TJSONObject;
 begin
-  ExistingArr := ResponseObj.FindValue('attachments');
-  if ExistingArr is TJSONArray then
-    AttachedArr := TJSONArray(ExistingArr)
+  Result := nil;
+  if Params = nil then
+    Exit;
+  Value := Params.FindValue('attachments');
+  if not (Value is TJSONArray) then
+    Exit;
+  Arr := TJSONArray(Value);
+  SetLength(Result, Arr.Count);
+  for I := 0 to Arr.Count - 1 do
+  begin
+    Result[I].Path := (Arr.Items[I] as TJSONString).Value;
+    CheckUploadPathAllowed(Context, Result[I].Path);
+    if not FileExists(Result[I].Path) then
+      raise Exception.CreateFmt('Attachment not found: %s', [Result[I].Path]);
+    Result[I].FileTypeId := ResolveFileTypeByExt(Context, Result[I].Path).Id;
+    Result[I].Title := TPath.GetFileNameWithoutExtension(Result[I].Path);
+  end;
+end;
+
+// Adds the file row inside the caller's open transaction, then stores the
+// bytes and records their path in Written so a rollback can delete them.
+function StageFileOnItem(const Context: TToolContext; Manager: TObjectManager;
+  Item: TItem; const SourcePath: string; FileType: TFileType;
+  const Title: string; Written: TStrings): TFile;
+var
+  Project: TProject;
+  Path: string;
+begin
+  Result := TFile.Create;
+  Result.FileType := FileType;
+  Result.Title := Title;
+  Result.Hash := ComputeFileMD5(SourcePath);
+  Result.CreatedDate := UTCNow;
+  Result.CreatedBy := Context.User.Id;
+  Result.Item := Item;
+  Item.Files.Add(Result);
+  Manager.Update(Item);
+  if not TConflictHandler.SafeFlush(Manager) then
+    raise Exception.Create('The file record could not be saved.');
+  Project := Manager.Find<TProject>(Item.ProjectID);
+  Path := AttachmentRelativePath(Project.FileFolder, Item.FolderName, Result.FullName);
+  Context.Storage.CopyIn(SourcePath, Path);
+  Written.Add(Path);
+end;
+
+procedure StageAttachments(const Context: TToolContext; Manager: TObjectManager;
+  Item: TItem; const Attachments: TArray<TWikiAttachment>; Written: TStrings;
+  Response: TJSONObject);
+var
+  Attachment: TWikiAttachment;
+  F: TFile;
+  Arr: TJSONArray;
+  Obj: TJSONObject;
+begin
+  if Length(Attachments) = 0 then
+    Exit;
+  Arr := TJSONArray.Create;
+  Response.AddPair('attachments', Arr);
+  for Attachment in Attachments do
+  begin
+    F := StageFileOnItem(Context, Manager, Item, Attachment.Path,
+      Manager.Find<TFileType>(Attachment.FileTypeId), Attachment.Title, Written);
+    RecordAudit(Manager, aetFile, F.Id, aoCreate, Context.User.Id,
+      'MCP: Added file "' + Attachment.Title + '" to item "' + Item.Title + '"');
+    Obj := TJSONObject.Create;
+    Obj.AddPair('id',        TJSONNumber.Create(F.Id));
+    Obj.AddPair('title',     F.Title);
+    Obj.AddPair('full_name', F.FullName);
+    Arr.AddElement(Obj);
+  end;
+end;
+
+procedure DeleteWrittenPaths(const Context: TToolContext; Written: TStrings;
+  var Errors: string);
+var
+  Path: string;
+begin
+  for Path in Written do
+    try
+      Context.Storage.DeleteFile(Path);
+    except
+      on E: Exception do
+        Errors := Errors + Format('; could not delete stored bytes %s: %s',
+          [Path, E.Message]);
+    end;
+end;
+
+function WikiTempPath(const Kind: string; Id: Int64): string;
+begin
+  Result := TPath.Combine(TPath.GetTempPath,
+    Format('eln-wiki-%s-%d-%d.md', [Kind, GetCurrentThreadId, Id]));
+end;
+
+procedure DeleteTempFile(const Path: string);
+begin
+  if (Path <> '') and System.IOUtils.TFile.Exists(Path) then
+    System.IOUtils.TFile.Delete(Path);
+end;
+
+// The transport forwards a message verbatim only for the exact Exception
+// class; rewrapping any other class would expose driver or storage text.
+function CleanupFailure(E: Exception; const Errors: string): Exception;
+begin
+  MCPLog(Format('wiki write failed: %s: %s%s', [E.ClassName, E.Message, Errors]));
+  if E.ClassType = Exception then
+    Result := Exception.Create(E.Message + Errors)
   else
-  begin
-    AttachedArr := TJSONArray.Create;
-    ResponseObj.AddPair('attachments', AttachedArr);
-  end;
-
-  for I := 0 to Attachments.Count - 1 do
-  begin
-    AttPath := (Attachments.Items[I] as TJSONString).Value;
-    CheckUploadPathAllowed(Context, AttPath);
-    if not FileExists(AttPath) then
-      raise Exception.CreateFmt('Attachment not found: %s', [AttPath]);
-    AttType := ResolveFileTypeByExt(Context, AttPath);
-    AttTitle := TPath.GetFileNameWithoutExtension(AttPath);
-    Info := AttachFileToItem(Context, Item.Id, AttPath, AttType.Id, AttTitle);
-
-    AttObj := TJSONObject.Create;
-    AttObj.AddPair('id',        TJSONNumber.Create(Info.Id));
-    AttObj.AddPair('title',     Info.Title);
-    AttObj.AddPair('full_name', Info.FullName);
-    AttachedArr.AddElement(AttObj);
-  end;
+    Result := Exception.Create('The wiki page was not saved and its cleanup ' +
+      'was incomplete. See the MCP server log.');
 end;
 
 
 function HandleWikiCreatePage(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
-  ProjectId: Integer;
-  Section, Title, BodyMd, CanonicalSection: string;
+  ProjectId, WikiFolderId, SectionFolderId, MdFileTypeId, ItemId: Integer;
+  Section, Title, BodyMd, CanonicalSection, Slug, TempPath, Errors: string;
   Project: TProject;
-  WikiFolderId, SectionFolderId: Integer;
-  Existing: TItem;
-  Item: TItem;
-  MdFileType: TFileType;
-  Slug, TempPath, RemotePath, Hash: string;
-  F: unit_Item.TFile;
-  Attachments: TJSONArray;
+  Existing, Item: TItem;
+  MdFile: TFile;
+  Attachments: TArray<TWikiAttachment>;
+  Operation: TObjectManager;
+  Transaction: IDBTransaction;
+  Committed: Boolean;
+  Written: TStringList;
 begin
   ProjectId := GetReqInt(Params, 'project_id');
   Section   := GetReqStr(Params, 'section');
@@ -364,6 +449,9 @@ begin
   if not Assigned(Project) then
     raise Exception.CreateFmt('Project not found: %d', [ProjectId]);
 
+  MdFileTypeId := ResolveMarkdownFileType(Context).Id;
+  Attachments := ResolveAttachments(Context, Params);
+
   WikiFolderId    := FindOrCreateFolder(Context, ProjectId, 0,            'Wiki');
   SectionFolderId := FindOrCreateFolder(Context, ProjectId, WikiFolderId, CanonicalSection);
 
@@ -374,76 +462,78 @@ begin
       '(item id %d). To edit it, call wiki_update_page(item_id=%d, ...).',
       [Title, CanonicalSection, Existing.Id, Existing.Id]);
 
-  Item := TItem.Create;
-  Item.Title       := Title;
-  Item.Level       := TItemLevel.Item;
-  Item.Type_       := TItemType.Wiki;
-  Item.ProjectID   := ProjectId;
-  Item.FolderID    := SectionFolderId;
-  Item.Parent      := 0;
-  Item.CreatedDate := UTCNow;
-  Item.CreatedBy   := Context.User.Id;
-  Item.Expanded    := True;
-  Context.Manager.Save(Item);
-  TConflictHandler.SafeFlush(Context.Manager);
-  RecordAudit(Context.Manager, aetItem, Item.Id, aoCreate, Context.User.Id,
-    Format('MCP: Wiki - created page "%s" in Wiki/%s',
-      [Title, CanonicalSection]));
-
-  MdFileType := ResolveMarkdownFileType(Context);
   Slug := SlugifyTitle(Title);
-  TempPath := TPath.Combine(TPath.GetTempPath,
-    Format('eln-wiki-%d-%s.md', [GetCurrentThreadId, Slug]));
+  TempPath := WikiTempPath('create', ProjectId);
   // Write UTF-8 bytes WITHOUT a BOM. TFile.WriteAllText with TEncoding.UTF8
   // emits a BOM via GetPreamble, which then surfaces as a literal U+FEFF at
   // the head of every wiki body when read back.
   System.IOUtils.TFile.WriteAllBytes(TempPath, TEncoding.UTF8.GetBytes(BodyMd));
-  try
-    Hash := ComputeFileMD5(TempPath);
-
-    F := unit_Item.TFile.Create;
-    F.FileType    := MdFileType;
-    F.Title       := Slug;
-    F.Hash        := Hash;
-    F.CreatedDate := UTCNow;
-    F.CreatedBy   := Context.User.Id;
-    F.Item        := Item;
-    Item.Files.Add(F);
-    Context.Manager.Update(Item);
-    TConflictHandler.SafeFlush(Context.Manager);
-
-    RemotePath := Format('Projects/%s/%s/%s', [
-      CleanFileName(Project.FileFolder),
-      CleanFileName(Item.FolderName),
-      F.FullName]);
-    Context.Storage.CopyIn(TempPath, RemotePath);
-
-    RecordAudit(Context.Manager, aetFile, F.Id, aoCreate, Context.User.Id,
-      Format('MCP: Wiki - wrote body to "%s"', [F.FullName]));
-  finally
-    if System.IOUtils.TFile.Exists(TempPath) then
-      System.IOUtils.TFile.Delete(TempPath);
-  end;
 
   Result := TJSONObject.Create;
+  Written := TStringList.Create;
+  Operation := TObjectManager.Create(Context.Manager.Connection);
   try
-  Result.AddPair('item_id',           TJSONNumber.Create(Item.Id));
-  Result.AddPair('project_id',        TJSONNumber.Create(ProjectId));
-  Result.AddPair('wiki_folder_id',    TJSONNumber.Create(WikiFolderId));
-  Result.AddPair('section_folder_id', TJSONNumber.Create(SectionFolderId));
-  Result.AddPair('section',           CanonicalSection);
-  Result.AddPair('title',             Title);
-  Result.AddPair('md_file_id',        TJSONNumber.Create(F.Id));
-  Result.AddPair('md_file_name',      F.FullName);
+    try
+      Transaction := TConflictHandler.BeginOperationTransaction(Context.Manager);
+      Committed := False;
+      try
+        Item := TItem.Create;
+        Item.Title       := Title;
+        Item.Level       := TItemLevel.Item;
+        Item.Type_       := TItemType.Wiki;
+        Item.ProjectID   := ProjectId;
+        Item.FolderID    := SectionFolderId;
+        Item.Parent      := 0;
+        Item.CreatedDate := UTCNow;
+        Item.CreatedBy   := Context.User.Id;
+        Item.Expanded    := True;
+        Operation.Save(Item);
+        if not TConflictHandler.SafeFlush(Operation) then
+          raise Exception.Create('The page item could not be saved.');
+        ItemId := Item.Id;
+        Operation.Evict(Item);
+        Item.Free;
+        Item := Operation.Find<TItem>(ItemId);
+        RecordAudit(Operation, aetItem, ItemId, aoCreate, Context.User.Id,
+          Format('MCP: Wiki - created page "%s" in Wiki/%s',
+            [Title, CanonicalSection]));
 
-  Attachments := nil;
-  if (Params <> nil) and (Params.FindValue('attachments') is TJSONArray) then
-    Attachments := TJSONArray(Params.FindValue('attachments'));
-  if (Attachments <> nil) and (Attachments.Count > 0) then
-    AppendAttachments(Context, Item, Attachments, Result);
-  except
-    Result.Free;
-    raise;
+        MdFile := StageFileOnItem(Context, Operation, Item, TempPath,
+          Operation.Find<TFileType>(MdFileTypeId), Slug, Written);
+        RecordAudit(Operation, aetFile, MdFile.Id, aoCreate, Context.User.Id,
+          Format('MCP: Wiki - wrote body to "%s"', [MdFile.FullName]));
+
+        Result.AddPair('item_id',           TJSONNumber.Create(ItemId));
+        Result.AddPair('project_id',        TJSONNumber.Create(ProjectId));
+        Result.AddPair('wiki_folder_id',    TJSONNumber.Create(WikiFolderId));
+        Result.AddPair('section_folder_id', TJSONNumber.Create(SectionFolderId));
+        Result.AddPair('section',           CanonicalSection);
+        Result.AddPair('title',             Title);
+        Result.AddPair('md_file_id',        TJSONNumber.Create(MdFile.Id));
+        Result.AddPair('md_file_name',      MdFile.FullName);
+        StageAttachments(Context, Operation, Item, Attachments, Written, Result);
+
+        Transaction.Commit;
+        Committed := True;
+      finally
+        if not Committed then
+          Transaction.Rollback;
+      end;
+    except
+      on E: Exception do
+      begin
+        Errors := '';
+        DeleteWrittenPaths(Context, Written, Errors);
+        Result.Free;
+        if Errors = '' then
+          raise;
+        raise CleanupFailure(E, Errors);
+      end;
+    end;
+  finally
+    TConflictHandler.FreeOperationManager(Operation);
+    Written.Free;
+    DeleteTempFile(TempPath);
   end;
 end;
 
@@ -476,20 +566,22 @@ function HandleWikiUpdatePage(const Params: TJSONObject;
   const Context: TToolContext): TJSONObject;
 var
   ItemId: Integer;
-  BodyMd: string;
-  HasBody, HasAttachments: Boolean;
-  Attachments: TJSONArray;
+  MdFileId: Int64;
+  BodyMd, MdPath, TempPath, BackupPath, Errors: string;
+  HasBody, BodyReplaced, Committed: Boolean;
+  Attachments: TArray<TWikiAttachment>;
   Item: TItem;
   Project: TProject;
-  MdFile: TFile;
-  TempPath, RemotePath, Hash: string;
+  MdFile, Cached: TFile;
+  Operation: TObjectManager;
+  Transaction: IDBTransaction;
+  Written: TStringList;
 begin
   ItemId := GetReqInt(Params, 'item_id');
   HasBody := GetOptStr(Params, 'body_md', BodyMd);
-  HasAttachments := (Params <> nil) and
+  if not HasBody and not ((Params <> nil) and
     (Params.FindValue('attachments') is TJSONArray) and
-    (TJSONArray(Params.FindValue('attachments')).Count > 0);
-  if not (HasBody or HasAttachments) then
+    (TJSONArray(Params.FindValue('attachments')).Count > 0)) then
     raise Exception.Create('Provide at least one of body_md or attachments.');
 
   RequireItemRead(Context, ItemId);
@@ -505,55 +597,99 @@ begin
     raise Exception.Create('Item is signed and cannot be modified.');
 
   Project := Context.Manager.Find<TProject>(Item.ProjectID);
+  Attachments := ResolveAttachments(Context, Params);
 
-  Result := TJSONObject.Create;
-  try
-  Result.AddPair('item_id', TJSONNumber.Create(Item.Id));
-
+  MdFileId := 0;
+  TempPath := '';
+  BackupPath := '';
   if HasBody then
   begin
     MdFile := FindWikiMarkdown(Context, Item);
+    MdFileId := MdFile.Id;
+    MdPath := AttachmentRelativePath(Project.FileFolder, Item.FolderName, MdFile.FullName);
+    // Name temp files from the numeric file Id only: the title comes from the
+    // DB and could escape %TEMP% or contain characters Windows rejects.
+    TempPath := WikiTempPath('update', MdFileId);
+    BackupPath := WikiTempPath('backup', MdFileId);
+  end;
 
-    // Name the temp file from safe data only. MdFile.Title comes from the DB
-    // (settable via upload_file/rename), so a title containing '\..\' could
-    // escape %TEMP% (arbitrary local write) and '*?"<>|' would raise. Use the
-    // numeric file Id instead.
-    TempPath := TPath.Combine(TPath.GetTempPath,
-      Format('eln-wiki-update-%d-%d.md', [GetCurrentThreadId, MdFile.Id]));
-    // Write UTF-8 bytes WITHOUT a BOM (see HandleWikiCreatePage for rationale).
-    System.IOUtils.TFile.WriteAllBytes(TempPath, TEncoding.UTF8.GetBytes(BodyMd));
+  Result := TJSONObject.Create;
+  Written := TStringList.Create;
+  Operation := TObjectManager.Create(Context.Manager.Connection);
+  BodyReplaced := False;
+  try
     try
-      Hash := ComputeFileMD5(TempPath);
-      RemotePath := Format('Projects/%s/%s/%s', [
-        CleanFileName(Project.FileFolder),
-        CleanFileName(Item.FolderName),
-        MdFile.FullName]);
-      Context.Storage.CopyIn(TempPath, RemotePath);
-
-      MdFile.Hash         := Hash;
-      MdFile.ModifiedDate := UTCNow;
-      MdFile.ModifiedBy   := Context.User.Id;
-      TConflictHandler.SafeFlush(Context.Manager);
-      RecordAudit(Context.Manager, aetFile, MdFile.Id, aoUpdate,
-        Context.User.Id,
-        Format('MCP: Wiki - updated body of "%s"', [MdFile.FullName]));
-
-      Result.AddPair('md_file_id',   TJSONNumber.Create(MdFile.Id));
-      Result.AddPair('md_file_name', MdFile.FullName);
-    finally
-      if System.IOUtils.TFile.Exists(TempPath) then
-        System.IOUtils.TFile.Delete(TempPath);
+      if HasBody then
+      begin
+        // Write UTF-8 bytes WITHOUT a BOM (see HandleWikiCreatePage).
+        System.IOUtils.TFile.WriteAllBytes(TempPath, TEncoding.UTF8.GetBytes(BodyMd));
+        Context.Storage.CopyOut(MdPath, BackupPath);
+      end;
+      Transaction := TConflictHandler.BeginOperationTransaction(Context.Manager);
+      Committed := False;
+      try
+        Result.AddPair('item_id', TJSONNumber.Create(ItemId));
+        if HasBody then
+        begin
+          MdFile := Operation.Find<TFile>(MdFileId);
+          Context.Storage.CopyIn(TempPath, MdPath);
+          BodyReplaced := True;
+          MdFile.Hash         := ComputeFileMD5(TempPath);
+          MdFile.ModifiedDate := UTCNow;
+          MdFile.ModifiedBy   := Context.User.Id;
+          if not TConflictHandler.SafeFlush(Operation) then
+            raise Exception.Create('The page body record could not be saved.');
+          RecordAudit(Operation, aetFile, MdFileId, aoUpdate, Context.User.Id,
+            Format('MCP: Wiki - updated body of "%s"', [MdFile.FullName]));
+          Result.AddPair('md_file_id',   TJSONNumber.Create(MdFileId));
+          Result.AddPair('md_file_name', MdFile.FullName);
+        end;
+        StageAttachments(Context, Operation, Operation.Find<TItem>(ItemId),
+          Attachments, Written, Result);
+        Transaction.Commit;
+        Committed := True;
+      finally
+        if not Committed then
+          Transaction.Rollback;
+      end;
+    except
+      on E: Exception do
+      begin
+        Errors := '';
+        if BodyReplaced then
+          try
+            Context.Storage.CopyIn(BackupPath, MdPath);
+          except
+            on R: Exception do
+              Errors := Errors + Format('; could not restore the previous body %s: %s',
+                [MdPath, R.Message]);
+          end;
+        DeleteWrittenPaths(Context, Written, Errors);
+        Result.Free;
+        if Errors = '' then
+          raise;
+        raise CleanupFailure(E, Errors);
+      end;
     end;
+  finally
+    TConflictHandler.FreeOperationManager(Operation);
+    Written.Free;
+    DeleteTempFile(TempPath);
+    DeleteTempFile(BackupPath);
   end;
 
-  if HasAttachments then
-  begin
-    Attachments := TJSONArray(Params.FindValue('attachments'));
-    AppendAttachments(Context, Item, Attachments, Result);
-  end;
+  try
+    RefreshCachedItem(Context, ItemId);
+    if MdFileId <> 0 then
+    begin
+      Cached := Context.Manager.FindCached<TFile>(MdFileId);
+      if Assigned(Cached) and not Context.Manager.HasChanges(Cached) then
+        Context.Manager.Refresh(Cached);
+    end;
   except
-    Result.Free;
-    raise;
+    on E: Exception do
+      MCPLog(Format('wiki_update_page: item %d is saved, but the session cache ' +
+        'refresh failed: %s: %s', [ItemId, E.ClassName, E.Message]));
   end;
 end;
 
@@ -662,19 +798,19 @@ begin
     '(Goals/Ideas/Literature/Analysis/References). Idempotently creates Wiki/ ' +
     'and Wiki/{section}/ folders if missing, creates the page item, writes body_md ' +
     'as a .md file, and uploads any attachments. Returns the created item id.',
-    MakeWikiCreatePageSchema, HandleWikiCreatePage, tscProjectScoped);
+    MakeWikiCreatePageSchema, HandleWikiCreatePage, tscProjectScoped, taWrite);
 
   Registry.Register('wiki_update_page',
     'Update an existing wiki page: replace its body_md and/or append attachments. ' +
     'Body replacement rewrites the page''s .md file in place (same filename). ' +
     'Attachments are added; existing files are never removed.',
-    MakeWikiUpdatePageSchema, HandleWikiUpdatePage, tscProjectScoped);
+    MakeWikiUpdatePageSchema, HandleWikiUpdatePage, tscProjectScoped, taWrite);
 
   Registry.Register('wiki_get_page',
     'Read a wiki page: downloads the attached .md from WebDAV and returns its ' +
     'body inline as body_md (UTF-8), plus item/project/folder metadata and any ' +
     'non-.md attachments. Works for any item whose first .md file is its body.',
-    MakeWikiGetPageSchema, HandleWikiGetPage, tscProjectScoped);
+    MakeWikiGetPageSchema, HandleWikiGetPage, tscProjectScoped, taRead);
 end;
 
 end.

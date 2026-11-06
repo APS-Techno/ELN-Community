@@ -32,6 +32,7 @@ type
     procedure Connect(const DatabasePath: string);
     constructor CreateForUpgrade(const DatabasePath: string);
     procedure VerifyCurrentSchema;
+    function HasCurrentSchema: Boolean;
     procedure ReadPrincipal;
     class function CheckedDatabasePath(const DatabasePath: string): string; static;
     class function CheckedStorage(const DatabasePath, StorageRoot: string):
@@ -87,7 +88,7 @@ uses
 
 const
   LOCAL_FORMAT_KEY = 'COMMUNITY_FORMAT_VERSION';
-  LOCAL_FORMAT_VERSION = '5';
+  LOCAL_FORMAT_VERSION = '6';
   LOCAL_STORAGE_KEY = 'COMMUNITY_ATTACHMENT_DIR';
 
 function IsAbsoluteDirectory(const Path: string): Boolean;
@@ -98,7 +99,7 @@ end;
 
 function IsUpgradableFormat(const Stored: string): Boolean;
 begin
-  Result := (Stored = '2') or (Stored = '3') or (Stored = '4');
+  Result := (Stored = '2') or (Stored = '3') or (Stored = '4') or (Stored = '5');
 end;
 
 class function TLocalNotebook.CheckedDatabasePath(const DatabasePath: string): string;
@@ -385,6 +386,11 @@ begin
   if not Assigned(FormatSetting) or
     (FormatSetting.SettingValue <> LOCAL_FORMAT_VERSION) then
     raise ELocalNotebookError.Create('Unsupported local notebook format; conversion is required');
+  if not HasCurrentSchema then
+    raise ELocalNotebookUpgradeRequired.CreateFmt(
+      'This notebook was made by a pre-release build and lacks tables of format %s. ' +
+      'Upgrade it to finish format %s; the upgrade first copies the database ' +
+      'beside the original', [LOCAL_FORMAT_VERSION, LOCAL_FORMAT_VERSION]);
   if StorageRoot = '' then
     UseSavedStorageRoot;
   ReadPrincipal;
@@ -422,6 +428,26 @@ begin
   Statement.SetSQLCommand('SELECT ResultValueId, Role, InputValueId, InputValue ' +
     'FROM DerivedValueInputs WHERE 1 = 0');
   Statement.ExecuteQuery;
+  Statement := FConnection.CreateStatement;
+  Statement.SetSQLCommand('SELECT S.Id, M.ItemId, C.ColumnRole, C.EntryLabel ' +
+    'FROM Series S, SeriesMembers M, SeriesColumns C WHERE 1 = 0');
+  Statement.ExecuteQuery;
+  Statement := FConnection.CreateStatement;
+  Statement.SetSQLCommand('SELECT F.RangeMin, F.EntryLabel, X.FixedValue, ' +
+    'X.EntryLabel, L.Origin, V.LevelValue ' +
+    'FROM SeriesFactors F, SeriesFixedConditions X, SeriesSlots L, ' +
+    'SeriesSlotLevels V WHERE 1 = 0');
+  Statement.ExecuteQuery;
+end;
+
+function TLocalNotebook.HasCurrentSchema: Boolean;
+begin
+  try
+    VerifyCurrentSchema;
+    Result := True;
+  except
+    Result := False;
+  end;
 end;
 
 class function TLocalNotebook.Upgrade(const DatabasePath: string): string;
@@ -442,8 +468,11 @@ begin
   try
     FormatSetting := Notebook.FManager.Find<TDBSetting>(LOCAL_FORMAT_KEY);
     if not Assigned(FormatSetting) or
-      not IsUpgradableFormat(FormatSetting.SettingValue) then
-      raise ELocalNotebookError.Create('Only format 2, 3 or 4 notebooks can be upgraded');
+      not (IsUpgradableFormat(FormatSetting.SettingValue) or
+      ((FormatSetting.SettingValue = LOCAL_FORMAT_VERSION) and
+      not Notebook.HasCurrentSchema)) then
+      raise ELocalNotebookError.Create('Only format 2, 3, 4 or 5 notebooks, or an ' +
+        'incomplete format 6 notebook, can be upgraded');
     OldFormat := FormatSetting.SettingValue;
   finally
     Notebook.Free;

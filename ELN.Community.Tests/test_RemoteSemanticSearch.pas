@@ -41,6 +41,7 @@ type
     function Capture(const Search: ISemanticSearch; const Request: TSemanticSearchRequest;
       out Message: string; out ElapsedMs: Int64): ExceptClass;
     function WaitUntil(const Condition: TFunc<Boolean>; TimeoutMs: Integer): Boolean;
+    function StatusFor(const Extra: string): TSemanticSearchStatus;
   public
     [Setup]
     procedure Setup;
@@ -88,6 +89,28 @@ type
     procedure UnreachableStatusIsReportedAsFailed;
     [Test]
     procedure RealTransportTimesOutOnASilentServer;
+    [Test]
+    procedure StatusWithoutDetailKeepsOldMapping;
+    [Test]
+    procedure StatusRunningReadingFiles;
+    [Test]
+    procedure StatusRunningWithoutFilesIsEmbedding;
+    [Test]
+    procedure StatusWaitingWithError;
+    [Test]
+    procedure StatusNullTimeAndError;
+    [Test]
+    procedure StatusUnknownStateIsWaiting;
+    [Test]
+    procedure StatusWrongTypeIsInvalid;
+    [Test]
+    procedure SearchKeepsTheCachedStatusDetail;
+    [Test]
+    procedure SearchWithoutCachedDetailUsesTheSearchStatus;
+    [Test]
+    procedure StatusRefreshWithoutStateDropsDetail;
+    [Test]
+    procedure SearchAfterFailedRefreshDropsFailure;
   end;
 
 implementation
@@ -918,6 +941,241 @@ begin
   Assert.IsTrue(Message.Contains('1000 ms'), Message);
   Assert.IsTrue((Elapsed >= 900) and (Elapsed < 1000 + 1000),
     'raised after ' + IntToStr(Elapsed) + ' ms: ' + Message);
+end;
+
+function TRemoteSemanticSearchTests.StatusFor(const Extra: string): TSemanticSearchStatus;
+var
+  Search: ISemanticSearch;
+  Body: string;
+begin
+  Body := '{"index":{"complete":true,"indexed_passages":11,"pending_passages":4,' +
+    '"files_pending":3' + Extra + '},"reranker_available":true}';
+  FTransport.Handler :=
+    function(const Call: TFakeCall; Index: Integer): TRemoteHttpResponse
+    begin
+      Result := Reply(200, Body);
+    end;
+  Search := NewSearch;
+  Search.Status;
+  Assert.IsTrue(WaitUntil(
+    function: Boolean
+    begin
+      Result := (Search.Status.IndexedPassages = 11) or (Search.Status.State = ssFailed);
+    end, 5000));
+  Result := Search.Status;
+end;
+
+procedure TRemoteSemanticSearchTests.StatusWithoutDetailKeepsOldMapping;
+var
+  Status: TSemanticSearchStatus;
+begin
+  Status := StatusFor('');
+  Assert.IsFalse(Status.ServerDetail);
+  Assert.AreEqual(Ord(ssIdle), Ord(Status.State));
+  Assert.AreEqual(3, Status.FilesTotal);
+  Assert.AreEqual(0, Status.FilesDone);
+  Assert.AreEqual(0, Status.FilesSkipped);
+  Assert.AreEqual('', Status.LastErrorCode);
+  Assert.AreEqual<TDateTime>(0, Status.LastSyncUtc);
+end;
+
+procedure TRemoteSemanticSearchTests.StatusRunningReadingFiles;
+var
+  Status: TSemanticSearchStatus;
+begin
+  Status := StatusFor(',"state":"running","files_done":1200,"files_total":6000');
+  Assert.IsTrue(Status.ServerDetail);
+  Assert.AreEqual(Ord(ssSyncing), Ord(Status.State));
+  Assert.AreEqual(Ord(spExtracting), Ord(Status.Phase));
+  Assert.AreEqual(1200, Status.FilesDone);
+  Assert.AreEqual(6000, Status.FilesTotal);
+end;
+
+procedure TRemoteSemanticSearchTests.StatusRunningWithoutFilesIsEmbedding;
+var
+  Status: TSemanticSearchStatus;
+begin
+  Status := StatusFor(',"state":"running","files_done":0,"files_total":0');
+  Assert.AreEqual(Ord(ssSyncing), Ord(Status.State));
+  Assert.AreEqual(Ord(spEmbedding), Ord(Status.Phase));
+end;
+
+procedure TRemoteSemanticSearchTests.StatusWaitingWithError;
+var
+  Status: TSemanticSearchStatus;
+begin
+  Status := StatusFor(',"state":"waiting","files_done":0,"files_total":0,' +
+    '"last_sync_utc":"2026-10-31T02:58:00Z","last_error":"storage_unavailable","files_skipped":12');
+  Assert.IsTrue(Status.ServerDetail);
+  Assert.AreEqual(Ord(ssIdle), Ord(Status.State));
+  Assert.AreEqual(Ord(spIdle), Ord(Status.Phase));
+  Assert.AreEqual<TDateTime>(EncodeDateTime(2026, 10, 31, 2, 58, 0, 0), Status.LastSyncUtc);
+  Assert.AreEqual('storage_unavailable', Status.LastErrorCode);
+  Assert.AreEqual(12, Status.FilesSkipped);
+end;
+
+procedure TRemoteSemanticSearchTests.StatusNullTimeAndError;
+var
+  Status: TSemanticSearchStatus;
+begin
+  Status := StatusFor(',"state":"waiting","files_done":0,"files_total":0,' +
+    '"last_sync_utc":null,"last_error":null,"files_skipped":0');
+  Assert.IsTrue(Status.ServerDetail);
+  Assert.AreEqual<TDateTime>(0, Status.LastSyncUtc);
+  Assert.AreEqual('', Status.LastErrorCode);
+end;
+
+procedure TRemoteSemanticSearchTests.StatusUnknownStateIsWaiting;
+var
+  Status: TSemanticSearchStatus;
+begin
+  Status := StatusFor(',"state":"paused","files_done":0,"files_total":0');
+  Assert.IsTrue(Status.ServerDetail);
+  Assert.AreEqual(Ord(ssIdle), Ord(Status.State));
+  Assert.AreEqual(Ord(spIdle), Ord(Status.Phase));
+end;
+
+procedure TRemoteSemanticSearchTests.StatusWrongTypeIsInvalid;
+var
+  Status: TSemanticSearchStatus;
+begin
+  Status := StatusFor(',"state":"waiting","files_done":0,"files_total":0,"files_skipped":"12"');
+  Assert.AreEqual(Ord(ssFailed), Ord(Status.State));
+  Assert.IsTrue(Status.LastError.Contains('invalid response'), Status.LastError);
+end;
+
+procedure TRemoteSemanticSearchTests.SearchKeepsTheCachedStatusDetail;
+var
+  Search: ISemanticSearch;
+  Status: TSemanticSearchStatus;
+begin
+  FTransport.Handler :=
+    function(const Call: TFakeCall; Index: Integer): TRemoteHttpResponse
+    begin
+      if Call.Method = 'GET' then
+        Result := Reply(200,
+          '{"index":{"complete":false,"indexed_passages":11,"pending_passages":0,"files_pending":3,' +
+          '"state":"waiting","files_done":0,"files_total":0,' +
+          '"last_sync_utc":"2026-10-31T02:58:00Z","last_error":"storage_unavailable","files_skipped":12},' +
+          '"reranker_available":true}')
+      else
+        Result := Reply(200, FullResponse);
+    end;
+  Search := NewSearch;
+  Search.Status;
+  Assert.IsTrue(WaitUntil(
+    function: Boolean
+    begin
+      Result := Search.Status.ServerDetail;
+    end, 5000));
+  Search.Search(RequestFor('anything', [3, 5]), nil);
+  Status := Search.Status;
+  Assert.IsTrue(Status.ServerDetail);
+  Assert.AreEqual('storage_unavailable', Status.LastErrorCode);
+  Assert.AreEqual(12, Status.FilesSkipped);
+  Assert.AreEqual<TDateTime>(EncodeDateTime(2026, 10, 31, 2, 58, 0, 0), Status.LastSyncUtc);
+  Assert.AreEqual(0, Status.FilesTotal);
+  Assert.AreEqual(481, Status.IndexedPassages);
+  Assert.AreEqual(7, Status.PendingPassages);
+end;
+
+procedure TRemoteSemanticSearchTests.SearchWithoutCachedDetailUsesTheSearchStatus;
+var
+  Search: ISemanticSearch;
+  Status: TSemanticSearchStatus;
+begin
+  FTransport.Handler :=
+    function(const Call: TFakeCall; Index: Integer): TRemoteHttpResponse
+    begin
+      if Call.Method = 'GET' then
+        Result := Reply(200, StatusResponse)
+      else
+        Result := Reply(200, FullResponse);
+    end;
+  Search := NewSearch;
+  Search.Status;
+  Assert.IsTrue(WaitUntil(
+    function: Boolean
+    begin
+      Result := Search.Status.IndexedPassages = 11;
+    end, 5000));
+  Search.Search(RequestFor('anything', [3, 5]), nil);
+  Status := Search.Status;
+  Assert.IsFalse(Status.ServerDetail);
+  Assert.AreEqual(481, Status.IndexedPassages);
+  Assert.AreEqual(2, Status.FilesTotal);
+  Assert.AreEqual('', Status.LastErrorCode);
+end;
+
+procedure TRemoteSemanticSearchTests.StatusRefreshWithoutStateDropsDetail;
+var
+  Search: ISemanticSearch;
+  Status: TSemanticSearchStatus;
+begin
+  FTransport.Handler :=
+    function(const Call: TFakeCall; Index: Integer): TRemoteHttpResponse
+    begin
+      if Index = 0 then
+        Result := Reply(200,
+          '{"index":{"complete":false,"indexed_passages":11,"pending_passages":0,"files_pending":3,' +
+          '"state":"waiting","files_done":0,"files_total":0,' +
+          '"last_sync_utc":"2026-10-31T02:58:00Z","last_error":"storage_unavailable","files_skipped":12},' +
+          '"reranker_available":true}')
+      else
+        Result := Reply(200, StatusResponse);
+    end;
+  Search := NewSearch(2000, 100);
+  Search.Status;
+  Assert.IsTrue(WaitUntil(
+    function: Boolean
+    begin
+      Result := Search.Status.ServerDetail;
+    end, 5000), 'the first refresh brought the detail');
+  Assert.IsTrue(WaitUntil(
+    function: Boolean
+    begin
+      Result := not Search.Status.ServerDetail;
+    end, 5000), 'a refresh without state dropped the detail');
+  Status := Search.Status;
+  Assert.AreEqual('', Status.LastErrorCode);
+  Assert.AreEqual(11, Status.IndexedPassages);
+end;
+
+procedure TRemoteSemanticSearchTests.SearchAfterFailedRefreshDropsFailure;
+var
+  Search: ISemanticSearch;
+  Status: TSemanticSearchStatus;
+begin
+  FTransport.Handler :=
+    function(const Call: TFakeCall; Index: Integer): TRemoteHttpResponse
+    begin
+      if Call.Method <> 'GET' then
+        Result := Reply(200, FullResponse)
+      else if Index = 0 then
+        Result := Reply(200,
+          '{"index":{"complete":false,"indexed_passages":11,"pending_passages":0,"files_pending":3,' +
+          '"state":"waiting","files_done":0,"files_total":0,' +
+          '"last_sync_utc":"2026-10-31T02:58:00Z","last_error":"storage_unavailable","files_skipped":12},' +
+          '"reranker_available":true}')
+      else
+        raise Exception.Create('Connection refused (fake).');
+    end;
+  Search := NewSearch(2000, 100);
+  Search.Status;
+  Assert.IsTrue(WaitUntil(
+    function: Boolean
+    begin
+      Result := Search.Status.ServerDetail;
+    end, 5000));
+  Assert.IsTrue(WaitUntil(
+    function: Boolean
+    begin
+      Result := Search.Status.State = ssFailed;
+    end, 5000));
+  Search.Search(RequestFor('anything', [3, 5]), nil);
+  Status := Search.Status;
+  Assert.AreNotEqual(Ord(ssFailed), Ord(Status.State));
+  Assert.AreEqual(481, Status.IndexedPassages);
 end;
 
 initialization

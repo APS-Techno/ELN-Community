@@ -33,6 +33,8 @@ implementation
 
 uses
   Aurelius.Criteria.Base,
+  Aurelius.Criteria.Projections,
+  unit_HypothesisModel,
   unit_TimeHelper;
 
 
@@ -104,31 +106,34 @@ end;
 
 function TCommentModel.GetCommentedItemIds(const ItemIds: TList<Integer>): TDictionary<Integer, Integer>;
 var
-  AllComments: TComments;
-  Comment: TComment;
-  Count: Integer;
-  Ids: TArray<Variant>;
-  I: Integer;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+  Chunk: TArray<Variant>;
 begin
   Result := TDictionary<Integer, Integer>.Create;
   if (ItemIds = nil) or (ItemIds.Count = 0) then
     Exit;
 
-  SetLength(Ids, ItemIds.Count);
-  for I := 0 to ItemIds.Count - 1 do
-    Ids[I] := ItemIds[I];
-
-  AllComments := FManager.Find<TComment>
-    .Where(FDic.ItemId._In(Ids))
-    .List;
   try
-    for Comment in AllComments do
-      if Result.TryGetValue(Comment.ItemId, Count) then
-        Result[Comment.ItemId] := Count + 1
-      else
-        Result.Add(Comment.ItemId, 1);
-  finally
-    AllComments.Free;
+    for Chunk in IdChunks(ItemIds.ToArray) do
+    begin
+      Rows := FManager.Find<TComment>
+        .Select(TProjections.ProjectionList
+          .Add(TProjections.Group('ItemId').As_('ItemId'))
+          .Add(TProjections.Count('Id').As_('N')))
+        .Where(Linq['ItemId']._In(Chunk))
+        .ListValues;
+      try
+        for Row in Rows do
+          Result.AddOrSetValue(Integer(Row.Values['ItemId']),
+            Integer(Row.Values['N']));
+      finally
+        Rows.Free;
+      end;
+    end;
+  except
+    Result.Free;
+    raise;
   end;
 end;
 

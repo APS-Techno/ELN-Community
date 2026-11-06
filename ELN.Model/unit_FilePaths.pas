@@ -20,7 +20,7 @@ var
 begin
   Result := Input;
   for I := 1 to Length(Result) do
-    if not TPath.IsValidFileNameChar(Result[I]) then
+    if (Ord(Result[I]) < 32) or CharInSet(Result[I], ['"', '*', '/', ':', '<', '>', '?', '\', '|']) then
       Result[I] := '-';
 end;
 

@@ -37,6 +37,7 @@ type
     [Test] procedure DriftReRunsReaderInputsAndReportsMissingInput;
     [Test] procedure DriftReportsFormulaVersions;
     [Test] procedure SeedProvidesEveryBuiltInFormulaType;
+    [Test] procedure PlannedInputIsRefusedAndNotOffered;
   end;
 
 implementation
@@ -271,6 +272,31 @@ begin
   finally
     Types.Free;
     RegisterDerivedFormula(CopyFormula);
+  end;
+end;
+
+procedure TDerivedValueTests.PlannedInputIsRefusedAndNotOffered;
+var
+  Item: TItem;
+  Planned, Force, Cycles: Integer;
+  Model: TDerivedValueModel;
+begin
+  Item := NewItem(FProjectId, 0, 'Wear test');
+  Force := Manual(Item, 'Normal force', 'N', 5);
+  Cycles := Manual(Item, 'Cycles', '', 1000);
+  Planned := AddValue(Item, 'Wear area', AreaUnits, 0.004,
+    TValueSourceInfo.Planned('Planned value from a series'));
+  ExpectRefusal(Item, WEAR_RATE_FORMULA_ID, [Ref('area', Planned),
+    Ref('normal_force', Force), Ref('cycles', Cycles)],
+    'is a planned value; confirm it in the desktop first');
+  Model := TDerivedValueModel.Create(FNotebook.Manager);
+  try
+    Assert.AreEqual<NativeInt>(0, Length(Model.Candidates(Item, WearRateFormula.Roles[0])),
+      'a planned value is not offered as an input');
+    Manual(Item, 'Wear area', AreaUnits, 0.004);
+    Assert.AreEqual<NativeInt>(1, Length(Model.Candidates(Item, WearRateFormula.Roles[0])));
+  finally
+    Model.Free;
   end;
 end;
 

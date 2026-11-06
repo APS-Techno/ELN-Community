@@ -11,7 +11,7 @@ uses
 type
   TBatchTargetKind = (btItem, btFile, btNote);
   TBatchKinds = set of TBatchTargetKind;
-  TBatchOperation = (boDelete, boExtract, boMove, boTags, boExport, boDrag);
+  TBatchOperation = (boDelete, boExtract, boMove, boTags, boExport, boDrag, boSeriesLink);
 
   TBatchTarget = record
     Kind: TBatchTargetKind;
@@ -202,6 +202,15 @@ begin
       if Result then
         for Target in Targets do
           if Target.Item.Parent <> 0 then
+            Exit(False);
+    end;
+    boSeriesLink:
+    begin
+      Result := Kinds = [btItem];
+      if Result then
+        for Target in Targets do
+          if (Target.Item.Parent <> 0) or (Target.Item.Level = TItemLevel.Folder)
+            or (Target.Item.ProjectID <> Targets[0].Item.ProjectID) then
             Exit(False);
     end;
   end;

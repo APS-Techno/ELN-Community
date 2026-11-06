@@ -192,7 +192,7 @@ if ($viewerTarget) {
     "$sourceRoot\ELN.Desktop\Dialogs\System", "$sourceRoot\ELN.Desktop\Dialogs\Search",
     "$sourceRoot\ELN.Desktop\Dialogs\Projects", "$sourceRoot\ELN.Desktop\Dialogs\Items",
     "$sourceRoot\ELN.Desktop\Dialogs\Protocols", "$sourceRoot\ELN.Desktop\Dialogs\Protocols\Cards",
-    "$sourceRoot\ELN.Desktop\Dialogs\Hypotheses", "$sourceRoot\ELN.Desktop\Dialogs\ExperimentTemplates",
+    "$sourceRoot\ELN.Desktop\Dialogs\Hypotheses", "$sourceRoot\ELN.Desktop\Dialogs\Series", "$sourceRoot\ELN.Desktop\Dialogs\ExperimentTemplates",
     "$sourceRoot\ELN.Desktop\Dialogs\Export", "$sourceRoot\ELN.MCPServer"
   )
   foreach ($package in $viewerPackages) {

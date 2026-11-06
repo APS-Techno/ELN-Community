@@ -8,7 +8,7 @@
     <ELN_TmsRoot Condition="'$(ELN_TmsRoot)'==''">$(ELN_TMS_ROOT)</ELN_TmsRoot>
     <ELN_ExternalUnitPaths Condition="'$(ELN_ExternalUnitPaths)'==''">$(ELN_EXTERNAL_UNIT_PATHS)</ELN_ExternalUnitPaths>
     <ELN_ExternalUnitPaths Condition="'$(ELN_TmsRoot)'!=''">$(ELN_ExternalUnitPaths);$(ELN_TmsRoot)\tms.biz.aurelius\packages\d13\$(Platform)\$(Config);$(ELN_TmsRoot)\tms.biz.bcl\packages\d13\$(Platform)\$(Config)</ELN_ExternalUnitPaths>
-    <DCC_UnitSearchPath>$(ELN_IntermediateRoot)\Packages;..\ViewerPlugins\Core;..\ViewerPlugins\Core.Protocol;..\ELN.Community;..\ELN.Domain;..\ELN.Model;..\ELN.Model\ViewModels;..\ELN.DB;..\ELN.Components;..\ELN.Search;..\ELN.Desktop\Units;..\ELN.Desktop\Views;..\ELN.Desktop\ViewModels;..\ELN.Desktop\Forms;..\ELN.Desktop\Editors;..\ELN.Desktop\Dialogs;..\ELN.Desktop\Dialogs\System;..\ELN.Desktop\Dialogs\Search;..\ELN.Desktop\Dialogs\Projects;..\ELN.Desktop\Dialogs\Items;..\ELN.Desktop\Dialogs\Protocols;..\ELN.Desktop\Dialogs\Protocols\Cards;..\ELN.Desktop\Dialogs\Hypotheses;..\ELN.Desktop\Dialogs\ExperimentTemplates;..\ELN.Desktop\Dialogs\Export;$(ELN_ExternalUnitPaths)</DCC_UnitSearchPath>
+    <DCC_UnitSearchPath>$(ELN_IntermediateRoot)\Packages;..\ViewerPlugins\Core;..\ViewerPlugins\Core.Protocol;..\ELN.Community;..\ELN.Domain;..\ELN.Model;..\ELN.Model\ViewModels;..\ELN.DB;..\ELN.Components;..\ELN.Search;..\ELN.Desktop\Units;..\ELN.Desktop\Views;..\ELN.Desktop\ViewModels;..\ELN.Desktop\Forms;..\ELN.Desktop\Editors;..\ELN.Desktop\Dialogs;..\ELN.Desktop\Dialogs\System;..\ELN.Desktop\Dialogs\Search;..\ELN.Desktop\Dialogs\Projects;..\ELN.Desktop\Dialogs\Items;..\ELN.Desktop\Dialogs\Protocols;..\ELN.Desktop\Dialogs\Protocols\Cards;..\ELN.Desktop\Dialogs\Hypotheses;..\ELN.Desktop\Dialogs\Series;..\ELN.Desktop\Dialogs\ExperimentTemplates;..\ELN.Desktop\Dialogs\Export;$(ELN_ExternalUnitPaths)</DCC_UnitSearchPath>
     <DCC_DcpOutput>$(ELN_IntermediateRoot)\Packages</DCC_DcpOutput>
     <DCC_BplOutput>$(ELN_OutputRoot)</DCC_BplOutput>
     <DCC_HppOutput>$(ELN_IntermediateRoot)\Hpp</DCC_HppOutput>
@@ -41,10 +41,10 @@
     <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
     <VerInfo_Locale>1033</VerInfo_Locale>
     <VerInfo_MajorVer>2</VerInfo_MajorVer>
-    <VerInfo_MinorVer>3</VerInfo_MinorVer>
+    <VerInfo_MinorVer>4</VerInfo_MinorVer>
     <VerInfo_Release>0</VerInfo_Release>
-    <VerInfo_Build>55</VerInfo_Build>
-    <VerInfo_Keys>FileDescription=ELN Community Desktop;ProductName=ELN Community;ProductVersion=2.3.0.55;FileVersion=2.3.0.55;OriginalFilename=ELNCommunity.exe</VerInfo_Keys>
+    <VerInfo_Build>83</VerInfo_Build>
+    <VerInfo_Keys>FileDescription=ELN Community Desktop;ProductName=ELN Community;ProductVersion=2.4.0.83;FileVersion=2.4.0.83;OriginalFilename=ELNCommunity.exe</VerInfo_Keys>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Config)'=='Debug'">
     <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
@@ -103,6 +103,7 @@
     <DCCReference Include="..\ELN.Search\unit_RtfTextExtractor.pas"/>
     <DCCReference Include="..\ELN.Search\unit_TextExtractorRegistry.pas"/>
     <DCCReference Include="..\ELN.Search\unit_FileTextStage.pas"/>
+    <DCCReference Include="..\ELN.Desktop\Dialogs\Search\unit_SearchStatusText.pas"/>
     <DCCReference Include="..\ELN.Desktop\Dialogs\Search\dlg_SearchSetup.pas"><Form>dlgSearchSetup</Form></DCCReference>
     <BuildConfiguration Include="Debug"><Key>Cfg_1</Key><CfgParent>Base</CfgParent></BuildConfiguration>
     <BuildConfiguration Include="Release"><Key>Cfg_2</Key><CfgParent>Base</CfgParent></BuildConfiguration>

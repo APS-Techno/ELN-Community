@@ -53,10 +53,29 @@ object frameItemTree: TframeItemTree
       Transparent = True
       ExplicitWidth = 66
     end
+    object lblSeries: TRzLabel
+      AlignWithMargins = True
+      Left = 12
+      Top = 52
+      Width = 617
+      Height = 17
+      Margins.Left = 10
+      Align = alTop
+      Caption = 'Series:'
+      Font.Charset = DEFAULT_CHARSET
+      Font.Color = clWindowText
+      Font.Height = -13
+      Font.Name = 'Segoe UI'
+      Font.Style = []
+      ParentFont = False
+      Transparent = True
+      Visible = False
+      ExplicitWidth = 38
+    end
     object pnlLinks: TRzPanel
       AlignWithMargins = True
       Left = 12
-      Top = 55
+      Top = 72
       Width = 617
       Height = 44
       Margins.Left = 10
@@ -171,10 +190,11 @@ object frameItemTree: TframeItemTree
       object pnlSearch: TRzPanel
         AlignWithMargins = True
         Left = 5
-        Top = 45
+        Top = 42
         Width = 620
-        Height = 36
+        Height = 29
         Margins.Top = 0
+        Margins.Bottom = 0
         Align = alTop
         BorderOuter = fsNone
         TabOrder = 1
@@ -182,9 +202,11 @@ object frameItemTree: TframeItemTree
         object btnClearSearch: TRzBitBtn
           AlignWithMargins = True
           Left = 581
-          Top = 3
+          Top = 1
           Width = 36
-          Height = 30
+          Height = 27
+          Margins.Top = 1
+          Margins.Bottom = 1
           Hint = 'Clear search'
           Align = alRight
           ParentShowHint = False
@@ -197,13 +219,13 @@ object frameItemTree: TframeItemTree
         object edSearch: TRzEdit
           AlignWithMargins = True
           Left = 5
-          Top = 5
+          Top = 2
           Width = 568
-          Height = 26
+          Height = 25
           Margins.Left = 5
-          Margins.Top = 5
+          Margins.Top = 2
           Margins.Right = 5
-          Margins.Bottom = 5
+          Margins.Bottom = 2
           Text = ''
           Align = alClient
           TabOrder = 1
@@ -278,6 +300,7 @@ object frameItemTree: TframeItemTree
         Top = 5
         Width = 620
         Height = 37
+        Margins.Bottom = 0
         Align = alTop
         BorderOuter = fsNone
         TabOrder = 2
@@ -617,6 +640,16 @@ object frameItemTree: TframeItemTree
     object miItemSep3: TMenuItem
       Caption = '-'
     end
+    object miItemLinkToPlanPoint: TMenuItem
+      Caption = 'Link to plan point...'
+      ImageIndex = 71
+      OnClick = miLinkToPlanPointClick
+    end
+    object miItemConfirmPlanned: TMenuItem
+      Caption = 'Confirm planned values'
+      ImageIndex = 72
+      OnClick = miConfirmPlannedClick
+    end
     object miItemHypothesis: TMenuItem
       Caption = 'Hypothesis'
       object miItemAttachHypothesis: TMenuItem
@@ -793,6 +826,11 @@ object frameItemTree: TframeItemTree
       Caption = 'Export...'
       ImageIndex = 0
       OnClick = miBatchExportClick
+    end
+    object miBatchLinkToPlanPoint: TMenuItem
+      Caption = 'Link to plan point...'
+      ImageIndex = 71
+      OnClick = miLinkToPlanPointClick
     end
   end
   object tmrStartup: TTimer

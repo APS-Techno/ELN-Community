@@ -183,7 +183,7 @@ begin
     // Refresh ignores a row that is gone (InternalRefresh skips zero rows),
     // so a row deleted meanwhile leaves Obj dirty. Detach it; the manager
     // still owns and frees it.
-    // Evict cascades to Obj's child collections, which are then
+    // Evict cascades to Obj's loaded child collections, which are then
     // owned by nobody and leak; accepted over a manager poisoned for good.
     if Manager.HasChanges(Obj) then
     begin

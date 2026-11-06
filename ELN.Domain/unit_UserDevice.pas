@@ -15,10 +15,14 @@ const
   DEVICE_KIND_WEB = 'web';
   /// <summary>MCP key-file credential. Never accepted by /auth/refresh.</summary>
   DEVICE_KIND_MCP = 'mcp';
+  /// <summary>MCP key-file credential whose sessions refuse write tools.</summary>
+  DEVICE_KIND_MCP_READONLY = 'mcp-ro';
 
 // Empty means unrestricted to callers. Writers must reject nonempty input
 // that parses to no positive IDs, or malformed input could widen the scope.
 function ParseProjectScope(const AScope: string): TArray<Integer>;
+
+function IsMcpDeviceKind(const AKind: string): Boolean;
 
 type
   TUserDevice = class;
@@ -88,6 +92,12 @@ implementation
 
 uses
   System.SysUtils, Aurelius.Engine.ObjectManager;
+
+function IsMcpDeviceKind(const AKind: string): Boolean;
+begin
+  Result := SameText(AKind, DEVICE_KIND_MCP) or
+    SameText(AKind, DEVICE_KIND_MCP_READONLY);
+end;
 
 function ParseProjectScope(const AScope: string): TArray<Integer>;
 var

@@ -93,6 +93,7 @@ var
   Plugins: TPluginHost;
   Registry: TToolRegistry;
   Context: TToolContext;
+  Hooks: TToolServerHooks;
   PrincipalId: Integer;
   UploadValidator: TLocalNotebookStorage;
   Semantic: TSemanticSearchService;
@@ -155,7 +156,8 @@ begin
         Registry := TToolRegistry.Create(Context);
         try
           RegisterAllTools(Registry);
-          RunToolServer(Registry,
+          Hooks := Default(TToolServerHooks);
+          Hooks.BeforeToolCall :=
             procedure
             var
               FreshUser: TUser;
@@ -166,7 +168,8 @@ begin
               if (FreshUser = nil) or FreshUser.IsArchived then
                 raise Exception.Create('Local notebook principal is no longer active');
               Registry.SetUser(FreshUser);
-            end);
+            end;
+          RunToolServer(Registry, Hooks);
         finally
           Registry.Free;
           Context.SemanticSearch := nil;

@@ -20,6 +20,7 @@ type
     pnlBottom: TPanel;
     chkMeaning: TCheckBox;
     chkRerank: TCheckBox;
+    chkAutoComplete: TCheckBox;
     lblStatus: TLabel;
     lblDetail: TLabel;
     tmrStatus: TTimer;
@@ -27,9 +28,9 @@ type
     pnlFilters: TPanel;
     cbProject: TComboBox;
     cbItemType: TComboBox;
-    lblCreated: TLabel;
+    chkDateFrom: TCheckBox;
     dtpFrom: TDateTimePicker;
-    lblTo: TLabel;
+    chkDateTo: TCheckBox;
     dtpTo: TDateTimePicker;
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure FormDestroy(Sender: TObject);
@@ -41,9 +42,14 @@ type
     procedure ListViewSelectItem(Sender: TObject; Item: TListItem; Selected: Boolean);
     procedure chkMeaningClick(Sender: TObject);
     procedure chkRerankClick(Sender: TObject);
+    procedure chkAutoCompleteClick(Sender: TObject);
     procedure tmrStatusTimer(Sender: TObject);
     procedure tmrNavTimer(Sender: TObject);
     procedure FormResize(Sender: TObject);
+    procedure chkDateClick(Sender: TObject);
+    procedure ListViewColumnClick(Sender: TObject; Column: TListColumn);
+    procedure ListViewCompare(Sender: TObject; Item1, Item2: TListItem;
+      Data: Integer; var Compare: Integer);
   private
     class var FInstance: TdlgSearch;
     FResults: TSearchResults;
@@ -55,12 +61,21 @@ type
     FFilterProjectIds: TArray<Integer>;
     FMaxPending: Integer;
     FSearchError: string;
+    FUnavailableText: string;
     FBinding: Boolean;
     FBound: Boolean;
     FSearchSeq: Integer;
     FSearchPending: Boolean;
+    FBusyCursor: Boolean;
+    FDateNote: string;
+    FSorted: Boolean;
+    FSortColumn: Integer;
+    FSortDescending: Boolean;
+    function ColumnText(Item: TListItem; Column: Integer): string;
+    procedure UpdateSortArrows;
+    procedure SetBusyCursor(Busy: Boolean);
     procedure Bind(NavigateProc: TNavigateProc; const Semantic: ISemanticSearch;
-      const VisibleProjectIds: TArray<Integer>);
+      const VisibleProjectIds: TArray<Integer>; const UnavailableText: string = '');
     procedure LoadHistory;
     procedure FillProjectFilter(Reset: Boolean);
     procedure UpdateFilterState;
@@ -75,10 +90,13 @@ type
     procedure UpdateStatus;
     procedure FitDetail;
     function KindToStr(Kind: TSearchResultKind): string;
+  protected
+    procedure FillRow(ListItem: TListItem; const R: TSearchResult); virtual;
   public
     class procedure Execute(NavigateProc: TNavigateProc;
       const Semantic: ISemanticSearch;
-      const VisibleProjectIds: TArray<Integer>);
+      const VisibleProjectIds: TArray<Integer>;
+      const UnavailableText: string = '');
     class procedure ReleaseSemantic;
     class procedure CloseInstance;
   end;
@@ -86,9 +104,9 @@ type
 implementation
 
 uses
-  Winapi.CommCtrl, System.Math, System.Generics.Collections,
+  Winapi.CommCtrl, System.Math, System.DateUtils, System.Generics.Collections,
   unit_DataModel, unit_Item, unit_Project, unit_NotebookSettings, unit_SearchPassages,
-  unit_HybridSearch;
+  unit_HybridSearch, unit_SearchStatusText;
 
 {$R *.dfm}
 
@@ -104,16 +122,17 @@ const
 
 class procedure TdlgSearch.Execute(NavigateProc: TNavigateProc;
   const Semantic: ISemanticSearch;
-  const VisibleProjectIds: TArray<Integer>);
+  const VisibleProjectIds: TArray<Integer>;
+  const UnavailableText: string);
 begin
   if FInstance = nil then
   begin
-    FInstance := TdlgSearch.Create(Application);
+    FInstance := Self.Create(Application);
     FInstance.PopupParent := Application.MainForm;
     FInstance.LoadHistory;
     FInstance.RestoreGeometry;
   end;
-  FInstance.Bind(NavigateProc, Semantic, VisibleProjectIds);
+  FInstance.Bind(NavigateProc, Semantic, VisibleProjectIds, UnavailableText);
   FInstance.Show;
   SendMessage(ListView_GetToolTips(FInstance.ListView.Handle), TTM_ACTIVATE, 0, 0);
   if FInstance.WindowState = wsMinimized then
@@ -126,7 +145,7 @@ end;
 class procedure TdlgSearch.ReleaseSemantic;
 begin
   if FInstance <> nil then
-    FInstance.Bind(FInstance.FOnNavigate, nil, nil);
+    FInstance.Bind(FInstance.FOnNavigate, nil, nil, FInstance.FUnavailableText);
 end;
 
 class procedure TdlgSearch.CloseInstance;
@@ -155,7 +174,8 @@ begin
 end;
 
 procedure TdlgSearch.Bind(NavigateProc: TNavigateProc;
-  const Semantic: ISemanticSearch; const VisibleProjectIds: TArray<Integer>);
+  const Semantic: ISemanticSearch; const VisibleProjectIds: TArray<Integer>;
+  const UnavailableText: string);
 var
   Settings: TNotebookSettings;
   First, Changed: Boolean;
@@ -170,6 +190,7 @@ begin
     if FSearchPending then
     begin
       FSearchPending := False;
+      SetBusyCursor(False);
       lblCount.Caption := '';
     end;
     FreeAndNil(FRunner);
@@ -180,6 +201,7 @@ begin
     FillProjectFilter(First);
   end;
   FSearchError := '';
+  FUnavailableText := UnavailableText;
   FMaxPending := 0;
   FBinding := True;
   try
@@ -251,8 +273,8 @@ begin
   if Reset then
   begin
     cbItemType.ItemIndex := 0;
-    dtpFrom.Checked := False;
-    dtpTo.Checked := False;
+    chkDateFrom.Checked := False;
+    chkDateTo.Checked := False;
   end;
 end;
 
@@ -263,10 +285,10 @@ begin
   Active := chkMeaning.Enabled and chkMeaning.Checked;
   cbProject.Enabled := Active;
   cbItemType.Enabled := Active;
-  lblCreated.Enabled := Active;
-  dtpFrom.Enabled := Active;
-  lblTo.Enabled := Active;
-  dtpTo.Enabled := Active;
+  chkDateFrom.Enabled := Active;
+  dtpFrom.Enabled := Active and chkDateFrom.Checked;
+  chkDateTo.Enabled := Active;
+  dtpTo.Enabled := Active and chkDateTo.Checked;
   chkRerank.Enabled := Active and (FSemantic <> nil) and FSemantic.RerankerAvailable;
 end;
 
@@ -278,6 +300,8 @@ begin
   Settings := TNotebookSettings.Create;
   try
     Stored := Settings.LoadUIString('Search', 'History', '');
+    chkAutoComplete.Checked := Settings.LoadUIValue('Search', 'AutoComplete', 1) = 1;
+    edSearch.AutoComplete := chkAutoComplete.Checked;
   finally
     Settings.Free;
   end;
@@ -360,9 +384,14 @@ procedure TdlgSearch.UpdateStatus;
 var
   Status: TSemanticSearchStatus;
 begin
+  lblStatus.Hint := '';
+  lblStatus.ShowHint := False;
   if FSemantic = nil then
   begin
-    lblStatus.Caption := NotInstalledText;
+    if FUnavailableText <> '' then
+      lblStatus.Caption := FUnavailableText
+    else
+      lblStatus.Caption := NotInstalledText;
     Exit;
   end;
   if FSearchError <> '' then
@@ -371,6 +400,17 @@ begin
     Exit;
   end;
   Status := FSemantic.Status;
+  if (Status.State <> ssFailed) and Status.ServerDetail then
+  begin
+    lblStatus.Caption := ServerStatusText(Status,
+      function(Value: TDateTime): TDateTime
+      begin
+        Result := TTimeZone.Local.ToLocalTime(Value);
+      end, FormatSettings);
+    lblStatus.Hint := lblStatus.Caption;
+    lblStatus.ShowHint := True;
+    Exit;
+  end;
   case Status.State of
     ssSyncing:
       if Status.Phase = spExtracting then
@@ -428,6 +468,35 @@ begin
   end;
 end;
 
+procedure TdlgSearch.chkAutoCompleteClick(Sender: TObject);
+var
+  Settings: TNotebookSettings;
+begin
+  edSearch.AutoComplete := chkAutoComplete.Checked;
+  Settings := TNotebookSettings.Create;
+  try
+    Settings.SaveUIValue('Search', 'AutoComplete', Ord(chkAutoComplete.Checked));
+  finally
+    Settings.Free;
+  end;
+end;
+
+procedure TdlgSearch.chkDateClick(Sender: TObject);
+begin
+  UpdateFilterState;
+end;
+
+procedure TdlgSearch.SetBusyCursor(Busy: Boolean);
+begin
+  if Busy = FBusyCursor then
+    Exit;
+  FBusyCursor := Busy;
+  if Busy then
+    Screen.Cursor := crHourGlass
+  else
+    Screen.Cursor := crDefault;
+end;
+
 procedure TdlgSearch.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
   SaveGeometry;
@@ -436,6 +505,7 @@ end;
 
 procedure TdlgSearch.FormDestroy(Sender: TObject);
 begin
+  SetBusyCursor(False);
   FreeAndNil(FRunner);
   FSemantic := nil;
   if FInstance = Self then
@@ -487,8 +557,11 @@ begin
 
   Inc(FSearchSeq);
   FSearchPending := False;
+  SetBusyCursor(False);
   FSearchError := '';
   FreeAndNil(FResults);
+  FSorted := False;
+  UpdateSortArrows;
   if chkMeaning.Checked and (FSemantic <> nil) then
     StartSearchByMeaning(Query)
   else
@@ -507,9 +580,22 @@ begin
 end;
 
 procedure TdlgSearch.SearchKeyword(const Query: string);
+var
+  Visible: TDictionary<Integer, Boolean>;
+  Id, I: Integer;
 begin
   FResultsByMeaning := False;
   FResults := Model.Search.Search(Query);
+  Visible := TDictionary<Integer, Boolean>.Create;
+  try
+    for Id in FVisibleProjectIds do
+      Visible.AddOrSetValue(Id, True);
+    for I := FResults.Count - 1 downto 0 do
+      if not Visible.ContainsKey(FResults[I].ProjectId) then
+        FResults.Delete(I);
+  finally
+    Visible.Free;
+  end;
 end;
 
 procedure TdlgSearch.StartSearchByMeaning(const Query: string);
@@ -526,17 +612,27 @@ begin
   Request.TopK := 50;
   if cbItemType.ItemIndex > 0 then
     Request.Filter.ItemTypes := [cbItemType.Items[cbItemType.ItemIndex]];
-  if dtpFrom.Checked or dtpTo.Checked then
+  FDateNote := '';
+  if chkDateFrom.Checked or chkDateTo.Checked then
     Request.Filter.DateField := sdfCreated;
-  if dtpFrom.Checked then
+  if chkDateFrom.Checked then
+  begin
     Request.Filter.DateFrom := Int(dtpFrom.Date);
-  if dtpTo.Checked then
+    FDateNote := ' from ' + DateToStr(Request.Filter.DateFrom);
+  end;
+  if chkDateTo.Checked then
+  begin
     Request.Filter.DateTo := Int(dtpTo.Date);
+    FDateNote := FDateNote + ' to ' + DateToStr(Request.Filter.DateTo);
+  end;
+  if FDateNote <> '' then
+    FDateNote := ', created' + FDateNote;
   Request.Rerank := chkRerank.Enabled and chkRerank.Checked;
   lblCount.Caption := 'Searching' + #$2026;
   RefreshList;
   Seq := FSearchSeq;
   FSearchPending := True;
+  SetBusyCursor(True);
   FRunner.Start(Request,
     procedure(const Outcome: TSemanticSearchResult; const Error: string)
     begin
@@ -553,6 +649,7 @@ var
   R: TSearchResult;
 begin
   FSearchPending := False;
+  SetBusyCursor(False);
   if Error <> '' then
   begin
     FSearchError := Error;
@@ -581,7 +678,7 @@ begin
     FResults.Add(R);
   end;
   RefreshList;
-  lblCount.Caption := Format('%d result(s)', [FResults.Count]);
+  lblCount.Caption := Format('%d result(s)', [FResults.Count]) + FDateNote;
   if Outcome.Reranked then
     lblCount.Caption := lblCount.Caption + ', reranked';
 end;
@@ -589,7 +686,6 @@ end;
 procedure TdlgSearch.RefreshList;
 var
   I: Integer;
-  R: TSearchResult;
   ListItem: TListItem;
 begin
   tmrNav.Enabled := False;
@@ -603,26 +699,99 @@ begin
 
     for I := 0 to FResults.Count - 1 do
     begin
-      R := FResults[I];
       ListItem := ListView.Items.Add;
-      ListItem.Caption := IntToStr(R.ItemId);
-      if FResultsByMeaning then
-      begin
-        ListItem.SubItems.Add(R.EntityName);
-        ListItem.SubItems.Add(R.ItemTitle);
-        ListItem.SubItems.Add(R.ProjectPath);
-      end
-      else
-      begin
-        ListItem.SubItems.Add(KindToStr(R.Kind));
-        ListItem.SubItems.Add(R.EntityName);
-        ListItem.SubItems.Add(R.ProjectPath + ' > ' + R.ItemTitle);
-      end;
-      ListItem.SubItems.Add(R.MatchedField);
+      FillRow(ListItem, FResults[I]);
       ListItem.Data := Pointer(I);
     end;
   finally
     ListView.Items.EndUpdate;
+  end;
+end;
+
+procedure TdlgSearch.FillRow(ListItem: TListItem; const R: TSearchResult);
+begin
+  ListItem.Caption := IntToStr(R.ItemId);
+  if FResultsByMeaning then
+  begin
+    ListItem.SubItems.Add(R.EntityName);
+    ListItem.SubItems.Add(R.ItemTitle);
+    ListItem.SubItems.Add(R.ProjectPath);
+  end
+  else
+  begin
+    ListItem.SubItems.Add(KindToStr(R.Kind));
+    ListItem.SubItems.Add(R.EntityName);
+    ListItem.SubItems.Add(R.ProjectPath + ' > ' + R.ItemTitle);
+  end;
+  ListItem.SubItems.Add(R.MatchedField);
+end;
+
+function TdlgSearch.ColumnText(Item: TListItem; Column: Integer): string;
+begin
+  if Column = 0 then
+    Result := Item.Caption
+  else if Column - 1 < Item.SubItems.Count then
+    Result := Item.SubItems[Column - 1]
+  else
+    Result := '';
+end;
+
+procedure TdlgSearch.ListViewCompare(Sender: TObject; Item1, Item2: TListItem;
+  Data: Integer; var Compare: Integer);
+var
+  A, B: string;
+  NumA, NumB: Int64;
+begin
+  A := ColumnText(Item1, FSortColumn);
+  B := ColumnText(Item2, FSortColumn);
+  if TryStrToInt64(A, NumA) and TryStrToInt64(B, NumB) then
+    Compare := CompareValue(NumA, NumB)
+  else
+    Compare := AnsiCompareText(A, B);
+  if FSortDescending then
+    Compare := -Compare;
+  if Compare = 0 then
+    Compare := CompareValue(NativeInt(Item1.Data), NativeInt(Item2.Data));
+end;
+
+procedure TdlgSearch.ListViewColumnClick(Sender: TObject; Column: TListColumn);
+begin
+  if FSorted and (FSortColumn = Column.Index) then
+    FSortDescending := not FSortDescending
+  else
+  begin
+    FSorted := True;
+    FSortColumn := Column.Index;
+    FSortDescending := False;
+  end;
+  ListView.AlphaSort;
+  if ListView.Selected <> nil then
+    ListView.Selected.MakeVisible(False);
+  UpdateSortArrows;
+end;
+
+procedure TdlgSearch.UpdateSortArrows;
+var
+  Header: HWND;
+  Item: THDItem;
+  I: Integer;
+begin
+  if not ListView.HandleAllocated then
+    Exit;
+  Header := ListView_GetHeader(ListView.Handle);
+  for I := 0 to ListView.Columns.Count - 1 do
+  begin
+    Item := Default(THDItem);
+    Item.Mask := HDI_FORMAT;
+    if not Header_GetItem(Header, I, Item) then
+      Continue;
+    Item.fmt := Item.fmt and not (HDF_SORTUP or HDF_SORTDOWN);
+    if FSorted and (I = FSortColumn) then
+      if FSortDescending then
+        Item.fmt := Item.fmt or HDF_SORTDOWN
+      else
+        Item.fmt := Item.fmt or HDF_SORTUP;
+    Header_SetItem(Header, I, Item);
   end;
 end;
 

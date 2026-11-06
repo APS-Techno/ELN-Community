@@ -152,6 +152,12 @@
         <DCCReference Include="unit_ProtocolStatusChange.pas"/>
         <DCCReference Include="unit_Hypothesis.pas"/>
         <DCCReference Include="unit_HypothesisRun.pas"/>
+        <DCCReference Include="unit_Series.pas"/>
+        <DCCReference Include="unit_SeriesMember.pas"/>
+        <DCCReference Include="unit_SeriesColumn.pas"/>
+        <DCCReference Include="unit_SeriesFactor.pas"/>
+        <DCCReference Include="unit_SeriesFixed.pas"/>
+        <DCCReference Include="unit_SeriesSlot.pas"/>
         <DCCReference Include="unit_HypothesisEvidence.pas"/>
         <DCCReference Include="unit_HypothesisStatusChange.pas"/>
         <DCCReference Include="unit_AuditLog.pas"/>

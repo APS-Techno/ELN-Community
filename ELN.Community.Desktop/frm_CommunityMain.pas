@@ -45,6 +45,7 @@ type
     miEditProject: TMenuItem;
     miArchive: TMenuItem;
     miHypotheses: TMenuItem;
+    miSeries: TMenuItem;
     miDeleteProject: TMenuItem;
     miRefreshProjects: TMenuItem;
     miArchived: TMenuItem;
@@ -97,6 +98,7 @@ type
     StatusNotebook: TRzStatusPane;
     StatusFile: TRzStatusPane;
     StatusVersion: TRzStatusPane;
+    StatusTextbook: TRzGlyphStatus;
     spMain: TRzSplitter;
     spCenter: TRzSplitter;
     spRight: TRzSplitter;
@@ -126,6 +128,7 @@ type
     procedure CommandClick(Sender: TObject);
     procedure PreferencesClick(Sender: TObject);
     procedure SemanticSearchClick(Sender: TObject);
+    procedure StatusTextbookClick(Sender: TObject);
     procedure pnlWelcomeResize(Sender: TObject);
   private
     FNotebook: TLocalNotebook;
@@ -178,7 +181,11 @@ type
     procedure ApplyAppearance;
     procedure NavigateItem(Sender: TObject; ProjectId, FolderId, ItemId: Integer);
     procedure OpenHypotheses(Sender: TObject; ProjectId, HypothesisId: Integer);
+    procedure OpenSeries(Sender: TObject; ProjectId, SeriesId: Integer);
+    procedure SeriesNavigateItem(Sender: TObject; ProjectId, FolderId, ItemId: Integer);
+    procedure HypothesesNavigateItem(Sender: TObject; ProjectId, FolderId, ItemId: Integer);
     procedure RunsChanged(Sender: TObject);
+    procedure SeriesItemsChanged(Sender: TObject);
     procedure DecisionsChanged(Sender: TObject);
     procedure ImportPackage;
     procedure WMImageClick(var Msg: TMessage); message WM_ELN_IMAGECLICK;
@@ -211,11 +218,12 @@ uses
   dlg_AuditReport, dlg_ExperimentTemplate, dlg_RecycleBin, dlg_TagManager,
   dlg_Search, dlg_GoToItem, dlg_UnitConverter, dlg_HelpViewer, dlg_About,
   dlg_SearchSetup, unit_TextEmbedder, unit_SearchArtifacts, unit_SearchDocumentProvider,
-  unit_PdfiumApi, unit_CrossEncoder, unit_MainThreadSearchSource, unit_SearchVisibility,
+  unit_PdfiumApi, unit_CrossEncoder, unit_MainThreadSearchSource,
   unit_LocalSemanticSearch, unit_SemanticSearchFilter, frm_Analysis;
 
 const
   RecentNotebookLimit = 8;
+  TextbookUrl = 'https://oleksiypenkov.github.io/MasteringELN/';
 
 function GetExeVersion: string;
 var
@@ -260,6 +268,7 @@ var
   Key, Value: string;
 begin
   StatusVersion.Caption := GetExeVersion;
+  StatusTextbook.Hint := TextbookUrl;
   FFiles := TDictionary<Int64, TWorkingFile>.Create;
   FRecentNotebooks := TStringList.Create;
   ConfigPath := TPath.Combine(GetEnvironmentVariable('LOCALAPPDATA'),
@@ -302,11 +311,15 @@ begin
   frmDashboard.OnOpenHypothesis := OpenHypotheses;
   frmProjects.OnAuditNavigate := NavigateItem;
   frmProjects.OnOpenHypotheses := OpenHypotheses;
+  frmProjects.OnOpenSeries := OpenSeries;
   frmItems.OnNavigateItem := NavigateItem;
   frmItems.OnOpenHypotheses := OpenHypotheses;
+  frmItems.OnOpenSeries := OpenSeries;
   frmItems.OnPrepareFile := PrepareFile;
   frmItems.OnHypothesisDecisionsChanged := DecisionsChanged;
-  frmContentViewer.frmHypotheses.OnNavigateItem := NavigateItem;
+  frmContentViewer.frmHypotheses.OnNavigateItem := HypothesesNavigateItem;
+  frmContentViewer.frmSeries.OnNavigateItem := SeriesNavigateItem;
+  frmContentViewer.frmSeries.OnItemsChanged := SeriesItemsChanged;
   frmContentViewer.frmHypotheses.OnRunsChanged := RunsChanged;
   frmContentViewer.frmHypotheses.OnDecisionsChanged := DecisionsChanged;
   frmContentViewer.frmHypotheses.OnGetSelectedItemId := frmItems.SelectedItemId;
@@ -429,6 +442,7 @@ begin
   WireMenu(miEditProject, frmProjects.actEdit);
   WireMenu(miArchive, frmProjects.actArchive);
   WireMenu(miHypotheses, frmProjects.actHypotheses);
+  WireMenu(miSeries, frmProjects.actSeries);
   WireMenu(miDeleteProject, frmProjects.actDelete);
   WireMenu(miRefreshProjects, frmProjects.actRefresh);
   WireMenu(miArchived, frmProjects.actShowArchived);
@@ -628,12 +642,17 @@ begin
   TdlgSearchSetup.Execute(ReleaseSemanticSearch, StartSemanticSearch, SemanticIndexText);
 end;
 
+procedure TfrmCommunityMain.StatusTextbookClick(Sender: TObject);
+begin
+  ShellExecute(Handle, 'open', TextbookUrl, nil, nil, SW_SHOWNORMAL);
+end;
+
 procedure TfrmCommunityMain.OpenSearch;
 var
   ProjectIds: TArray<Integer>;
 begin
   RefreshSemanticIndex;
-  ProjectIds := SearchVisibleProjectIds(Model.Manager, Model.Access, Model.User);
+  ProjectIds := frmProjects.ShownProjectIds;
   TdlgSearch.Execute(NavigateItem, FLocalSearch, ProjectIds);
 end;
 
@@ -670,17 +689,18 @@ begin
   except
     on ELocalNotebookUpgradeRequired do
       if MessageDlg('The notebook' + sLineBreak + DatabasePath + sLineBreak +
-        'uses an older notebook format. This version opens format 5 only.' +
+        'needs an upgrade to notebook format 6, the only format this version opens.' +
         sLineBreak + sLineBreak +
         'The upgrade first copies the database beside it as a backup, then ' +
-        'adds value mappings, conversion provenance and Derived value ' +
-        'storage. Older ELN Community versions cannot open the upgraded notebook.' +
+        'adds value mappings, conversion provenance, Derived value storage ' +
+        'and experiment series. Older ELN Community versions cannot open the ' +
+        'upgraded notebook.' +
         sLineBreak + sLineBreak + 'Upgrade the notebook now?',
         mtConfirmation, [mbYes, mbNo], 0, mbNo) <> mrYes then
         Exit(nil);
   end;
   BackupPath := TLocalNotebook.Upgrade(DatabasePath);
-  MessageDlg('The notebook now uses format 5. The original copy is kept at:' +
+  MessageDlg('The notebook now uses format 6. The original copy is kept at:' +
     sLineBreak + BackupPath, mtInformation, [mbOK], 0);
   Result := TLocalNotebook.Open(DatabasePath, StorageRoot);
 end;
@@ -1128,10 +1148,34 @@ begin
   frmContentViewer.ShowHypotheses(ProjectId, HypothesisId);
 end;
 
+procedure TfrmCommunityMain.OpenSeries(Sender: TObject; ProjectId, SeriesId: Integer);
+begin
+  frmContentViewer.ShowSeries(ProjectId, SeriesId);
+end;
+
+procedure TfrmCommunityMain.SeriesNavigateItem(Sender: TObject; ProjectId, FolderId, ItemId: Integer);
+begin
+  NavigateItem(Sender, ProjectId, FolderId, ItemId);
+  if not frmContentViewer.SeriesShowing then
+    frmContentViewer.ReturnToSeries;
+end;
+
+procedure TfrmCommunityMain.HypothesesNavigateItem(Sender: TObject; ProjectId, FolderId, ItemId: Integer);
+begin
+  NavigateItem(Sender, ProjectId, FolderId, ItemId);
+  if not frmContentViewer.HypothesesShowing then
+    frmContentViewer.ReturnToHypotheses;
+end;
+
 procedure TfrmCommunityMain.RunsChanged(Sender: TObject);
 begin
   frmItems.RefreshKeepView;
   DecisionsChanged(Sender);
+end;
+
+procedure TfrmCommunityMain.SeriesItemsChanged(Sender: TObject);
+begin
+  frmItems.RefreshKeepView;
 end;
 
 procedure TfrmCommunityMain.DecisionsChanged(Sender: TObject);

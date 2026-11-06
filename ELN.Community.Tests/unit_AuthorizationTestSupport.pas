@@ -222,6 +222,7 @@ begin
   AddAudit(aetHypothesis, OwnHyp.Id);
   AddAudit(aetHypothesis, HiddenHyp.Id);
   AddAudit(aetHypothesis, 999999);
+  AddAudit(aetSeries, 999999);
   AddAudit(aetSetting, 999999);
   for Scoped in [False, True] do
   begin

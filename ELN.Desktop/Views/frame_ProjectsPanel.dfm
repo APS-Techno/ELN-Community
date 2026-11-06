@@ -79,6 +79,7 @@ object frameProjectTree: TframeProjectTree
       Top = 5
       Width = 478
       Height = 37
+      Margins.Bottom = 0
       Align = alTop
       BorderOuter = fsNone
       TabOrder = 1
@@ -119,7 +120,8 @@ object frameProjectTree: TframeProjectTree
           RzSpacer5
           btnShowArchived
           RzSpacer6
-          btnHypotheses)
+          btnHypotheses
+          btnSeries)
         object BtnNewFolder: TRzToolButton
           Left = 33
           Top = 5
@@ -247,15 +249,25 @@ object frameProjectTree: TframeProjectTree
           ParentShowHint = False
           ShowHint = True
         end
+        object btnSeries: TRzToolButton
+          Left = 297
+          Top = 5
+          Hint = 'Series...'
+          ImageIndex = 11
+          Caption = 'Series'
+          ParentShowHint = False
+          ShowHint = True
+        end
       end
     end
     object pnlSearch: TRzPanel
       AlignWithMargins = True
       Left = 5
-      Top = 45
+      Top = 42
       Width = 478
-      Height = 36
+      Height = 29
       Margins.Top = 0
+      Margins.Bottom = 0
       Align = alTop
       BorderOuter = fsNone
       TabOrder = 2
@@ -263,13 +275,13 @@ object frameProjectTree: TframeProjectTree
       object edSearch: TRzEdit
         AlignWithMargins = True
         Left = 5
-        Top = 5
+        Top = 2
         Width = 426
-        Height = 26
+        Height = 25
         Margins.Left = 5
-        Margins.Top = 5
+        Margins.Top = 2
         Margins.Right = 5
-        Margins.Bottom = 5
+        Margins.Bottom = 2
         Text = ''
         Align = alClient
         TabOrder = 0
@@ -279,9 +291,11 @@ object frameProjectTree: TframeProjectTree
       object btnClearSearch: TRzBitBtn
         AlignWithMargins = True
         Left = 439
-        Top = 3
+        Top = 1
         Width = 36
-        Height = 30
+        Height = 27
+        Margins.Top = 1
+        Margins.Bottom = 1
         Hint = 'Clear search'
         FrameColor = clBtnFace
         Align = alRight
@@ -442,6 +456,13 @@ object frameProjectTree: TframeProjectTree
       ImageIndex = 26
       ImageName = 'Analyze'
       OnClick = miProjectHypothesesClick
+    end
+    object miProjectSeries: TMenuItem
+      Caption = 'Series...'
+      Hint = 'Open the project'#39's experiment series: table, plot, export'
+      ImageIndex = 70
+      ImageName = 'Series'
+      OnClick = miProjectSeriesClick
     end
     object miProjectSep4: TMenuItem
       Caption = '-'

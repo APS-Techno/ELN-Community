@@ -175,6 +175,18 @@ Response 200:
 }
 ```
 
+The `index` object of this response can also have these optional fields. The search response never has them.
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `state` | string | `running` when a sync run is active. Any other value means `waiting`. |
+| `files_done`, `files_total` | integer | The files read in the current run, and the files to read. Both are required when `state` is present. If one is missing, the response is not valid. |
+| `last_sync_utc` | string or `null` | The end of the last sync run without an error, ISO 8601 UTC (for example `2026-10-31T02:58:00Z`). `null` until the first such run. |
+| `last_error` | string or `null` | `storage_unavailable`, `database_unavailable` or `sync_failed`. `null` means the last run had no error. The client treats an unknown code as `sync_failed`. No other text (path, host, file name) is allowed in any field. |
+| `files_skipped` | integer | The files that the last run did not read. |
+
+The client maps these fields only when `state` is present. Then `ServerDetail = True`. When `state` is `running`, `State = ssSyncing` and `Phase = spExtracting` if `files_total > 0`, else `spEmbedding`. For any other `state`, `State = ssIdle` and `Phase = spIdle`. `FilesDone = files_done`, `FilesTotal = files_total`, `LastSyncUtc = last_sync_utc` (0 when `null` or absent), `LastErrorCode = last_error` (empty when `null` or absent), `FilesSkipped = files_skipped` (0 when absent). When `state` is absent, the mapping of `index` is the mapping above and `ServerDetail = False`. A field with the wrong JSON type makes the response invalid.
+
 ## Errors
 
 An error response has the body `{"code": "<word>", "message": "<text for the user>"}`.

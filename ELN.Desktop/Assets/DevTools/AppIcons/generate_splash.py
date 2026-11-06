@@ -9,6 +9,7 @@ import generate_icon
 from generate_icon import draw_icon
 
 WIDTH, HEIGHT = 600, 340
+SCALE = 2
 TOP = (22, 66, 77)
 BOTTOM = (12, 30, 43)
 ACCENT = (55, 189, 193)
@@ -21,16 +22,21 @@ SPLASH_DFM = Path(__file__).resolve().parents[4] / "ELN.Community.Desktop" / "fr
 PICTURE_HEADER = b"\x09TPngImage"
 
 
+def s(*values):
+    return tuple(round(v * SCALE) for v in values)
+
+
 def font(name, size):
-    return ImageFont.truetype(str(Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / name), size)
+    return ImageFont.truetype(str(Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / name), size * SCALE)
 
 
 def gradient():
-    image = Image.new("RGB", (WIDTH, HEIGHT))
+    w, h = s(WIDTH, HEIGHT)
+    image = Image.new("RGB", (w, h))
     draw = ImageDraw.Draw(image)
-    for y in range(HEIGHT):
-        t = y / (HEIGHT - 1)
-        draw.line([(0, y), (WIDTH - 1, y)],
+    for y in range(h):
+        t = y / (h - 1)
+        draw.line([(0, y), (w - 1, y)],
                   fill=tuple(round(a + (b - a) * t) for a, b in zip(TOP, BOTTOM)))
     return image
 
@@ -38,18 +44,18 @@ def gradient():
 def render():
     assert generate_icon.EDITION == "community"
     image = gradient().convert("RGBA")
-    icon = draw_icon(216)
-    image.alpha_composite(icon, (23, 28))
+    icon = draw_icon(216 * SCALE)
+    image.alpha_composite(icon, s(23, 28))
     draw = ImageDraw.Draw(image)
-    draw.text((259, 61), "ELN", fill=WHITE, font=font("segoeuib.ttf", 42))
-    draw.text((259, 115), "Community", fill=ACCENT, font=font("segoeui.ttf", 29))
-    draw.text((259, 166), "Electronic Laboratory", fill=SOFT, font=font("segoeui.ttf", 16))
-    draw.text((259, 189), "Notebook", fill=SOFT, font=font("segoeui.ttf", 16))
-    draw.text((259, 225), "APS Technology", fill=MUTED, font=font("segoeui.ttf", 12))
+    draw.text(s(259, 61), "ELN", fill=WHITE, font=font("segoeuib.ttf", 42))
+    draw.text(s(259, 115), "Community", fill=ACCENT, font=font("segoeui.ttf", 29))
+    draw.text(s(259, 166), "Electronic Laboratory", fill=SOFT, font=font("segoeui.ttf", 16))
+    draw.text(s(259, 189), "Notebook", fill=SOFT, font=font("segoeui.ttf", 16))
+    draw.text(s(259, 225), "APS Technology", fill=MUTED, font=font("segoeui.ttf", 12))
     layer = Image.new("RGBA", image.size)
-    ImageDraw.Draw(layer).line([(24, 260), (575, 260)], fill=DIVIDER)
+    ImageDraw.Draw(layer).line([s(24, 260), s(575, 260)], fill=DIVIDER, width=SCALE)
     image.alpha_composite(layer)
-    ImageDraw.Draw(image).rectangle([24, 321, 575, 324], fill=ACCENT)
+    ImageDraw.Draw(image).rectangle([*s(24, 321), *s(575, 324)], fill=ACCENT)
     return image.convert("RGB")
 
 
@@ -81,7 +87,7 @@ def main():
     out = Path(__file__).resolve().parent / "splash.png"
     out.write_bytes(data)
     embed(data)
-    print(f"Splash {WIDTH}x{HEIGHT} ({len(data)} bytes): {out}")
+    print(f"Splash {WIDTH * SCALE}x{HEIGHT * SCALE} ({len(data)} bytes): {out}")
     print(f"Embedded in: {SPLASH_DFM}")
 
 

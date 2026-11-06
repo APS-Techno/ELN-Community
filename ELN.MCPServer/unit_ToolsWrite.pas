@@ -140,12 +140,16 @@ begin
     Value := Params.GetValue<string>(Key);
 end;
 
+function IsAbsentParam(const V: TJSONValue): Boolean;
+begin
+  Result := (V = nil) or (V is TJSONNull) or
+    ((V is TJSONString) and SameText(Trim(V.Value), 'null'));
+end;
+
 function GetOptInt(const Params: TJSONObject; const Key: string;
   out Value: Integer): Boolean;
 begin
-  // JSON null means absent, not an infrastructure parsing error.
-  Result := (Params <> nil) and (Params.FindValue(Key) <> nil) and
-            not (Params.FindValue(Key) is TJSONNull);
+  Result := (Params <> nil) and not IsAbsentParam(Params.FindValue(Key));
   if Result then
     Value := Params.GetValue<Integer>(Key);
 end;
@@ -153,8 +157,7 @@ end;
 function GetOptInt64(const Params: TJSONObject; const Key: string;
   out Value: Int64): Boolean;
 begin
-  Result := (Params <> nil) and (Params.FindValue(Key) <> nil) and
-            not (Params.FindValue(Key) is TJSONNull);
+  Result := (Params <> nil) and not IsAbsentParam(Params.FindValue(Key));
   if Result then
     Value := Params.GetValue<Int64>(Key);
 end;
@@ -163,6 +166,7 @@ function GetOptBool(const Params: TJSONObject; const Key: string;
   ADefault: Boolean): Boolean;
 var
   V: TJSONValue;
+  S: string;
 begin
   Result := ADefault;
   if Params = nil then
@@ -172,15 +176,26 @@ begin
     Exit;
   if V is TJSONBool then
     Result := TJSONBool(V).AsBoolean
-  else
-    // Tolerate the string forms some clients send for booleans.
-    Result := SameText(V.Value, 'true');
+  else if V is TJSONNumber then
+    Result := TJSONNumber(V).AsInt <> 0
+  else if V is TJSONString then
+  begin
+    S := Trim(V.Value);
+    if SameText(S, 'true') or (S = '1') then
+      Result := True
+    else if SameText(S, 'false') or (S = '0') then
+      Result := False
+    else if S <> '' then
+      raise Exception.CreateFmt(
+        'Invalid boolean parameter "%s": "%s" (expected true or false)',
+        [Key, V.Value]);
+  end;
 end;
 
 function GetOptNum(const Params: TJSONObject; const Key: string;
   out Value: Double): Boolean;
 begin
-  Result := (Params <> nil) and (Params.FindValue(Key) <> nil);
+  Result := (Params <> nil) and not IsAbsentParam(Params.FindValue(Key));
   if Result then
     Value := Params.GetValue<Double>(Key);
 end;
@@ -3275,11 +3290,11 @@ procedure RegisterWriteTools(Registry: TToolRegistry);
 begin
   Registry.Register('create_project',
     'Create a new project owned by the current principal.',
-    MakeCreateProjectSchema, HandleCreateProject, tscProjectScoped);
+    MakeCreateProjectSchema, HandleCreateProject, tscProjectScoped, taWrite);
 
   Registry.Register('create_folder',
     'Create a folder within a project. Requires write access.',
-    MakeCreateFolderSchema, HandleCreateFolder, tscProjectScoped);
+    MakeCreateFolderSchema, HandleCreateFolder, tscProjectScoped, taWrite);
 
   Registry.Register('create_item',
     'Create an item (experiment, specimen, action) in a project/folder. ' +
@@ -3289,7 +3304,7 @@ begin
     ' The response includes a `url` field — an eln://item/N (or ' +
     'eln://specimen/<title>) link that opens the item in the desktop ' +
     'ELN client when clicked in a markdown-rendering chat client.',
-    MakeCreateItemSchema, HandleCreateItem, tscProjectScoped);
+    MakeCreateItemSchema, HandleCreateItem, tscProjectScoped, taWrite);
 
   Registry.Register('update_item',
     'Update editable fields of an item (title, description, properties, level). ' +
@@ -3301,17 +3316,17 @@ begin
     ' The response includes a `url` field — an eln://item/N (or ' +
     'eln://specimen/<title>) link that opens the item in the desktop ' +
     'ELN client when clicked in a markdown-rendering chat client.',
-    MakeUpdateItemSchema, HandleUpdateItem, tscProjectScoped);
+    MakeUpdateItemSchema, HandleUpdateItem, tscProjectScoped, taWrite);
 
   Registry.Register('upload_file',
     'Upload a local file and attach it to an item. Reads from disk, copies to storage, ' +
     'computes MD5 hash. Requires write access. Item must not be signed.',
-    MakeUploadFileSchema, HandleUploadFile, tscProjectScoped);
+    MakeUploadFileSchema, HandleUploadFile, tscProjectScoped, taWrite);
 
   Registry.Register('rename_file',
     'Rename a file (change title and/or file type). Updates the DB record and ' +
     'renames the physical file in storage. Requires write access. Item must not be signed.',
-    MakeRenameFileSchema, HandleRenameFile, tscProjectScoped);
+    MakeRenameFileSchema, HandleRenameFile, tscProjectScoped, taWrite);
 
   Registry.Register('add_value',
     'Add a numeric value (measurement, condition, analysis result) to an ' +
@@ -3334,7 +3349,7 @@ begin
     'to store several values in one step. A value computed from other ' +
     'stored values by a named formula (source kind Derived, for example a ' +
     'wear rate) is made with add_derived_value, not with add_value.',
-    MakeAddValueSchema, HandleAddValue, tscProjectScoped);
+    MakeAddValueSchema, HandleAddValue, tscProjectScoped, taWrite);
 
   Registry.Register('add_values',
     'Add up to 200 values in one all-or-nothing step, for example all ' +
@@ -3347,7 +3362,7 @@ begin
     'the error names its index (values[i]) and nothing is stored. ' +
     'confirm_out_of_range: true applies to all entries. One audit row is ' +
     'written per value.',
-    MakeAddValuesSchema, HandleAddValues, tscProjectScoped);
+    MakeAddValuesSchema, HandleAddValues, tscProjectScoped, taWrite);
 
   Registry.Register('add_derived_value',
     'Add a Derived value: the server computes it from stored input values ' +
@@ -3364,7 +3379,7 @@ begin
     'goes through the value type range check like add_value. Requires write ' +
     'access; the item must not be signed. On a database without Derived ' +
     'storage the call is refused and nothing is stored.',
-    MakeAddDerivedValueSchema, HandleAddDerivedValue, tscProjectScoped);
+    MakeAddDerivedValueSchema, HandleAddDerivedValue, tscProjectScoped, taWrite);
 
   Registry.Register('move_item',
     'Move a root-level item (Proc, Specimen, etc.) and all its children to a different ' +
@@ -3373,13 +3388,13 @@ begin
     ' The response includes a `url` field — an eln://item/N (or ' +
     'eln://specimen/<title>) link that opens the item in the desktop ' +
     'ELN client when clicked in a markdown-rendering chat client.',
-    MakeMoveItemSchema, HandleMoveItem, tscProjectScoped);
+    MakeMoveItemSchema, HandleMoveItem, tscProjectScoped, taWrite);
 
   Registry.Register('move_folder',
     'Move a folder and all its items to a different project or parent folder. ' +
     'Relocates stored files for cross-project moves. Requires write access on both ' +
     'source and destination. Folders containing signed items cannot be moved.',
-    MakeMoveFolderSchema, HandleMoveFolder, tscProjectScoped);
+    MakeMoveFolderSchema, HandleMoveFolder, tscProjectScoped, taWrite);
 
   Registry.Register('relocate_item_files',
     'Repair tool: relocate attached files in storage for items whose DB record ' +
@@ -3391,7 +3406,7 @@ begin
     ' Each per-item entry in the response includes a `url` field — an ' +
     'eln://item/N (or eln://specimen/<title>) link that opens the item ' +
     'in the desktop ELN client when clicked in a markdown-rendering chat client.',
-    MakeRelocateItemFilesSchema, HandleRelocateItemFiles, tscProjectScoped);
+    MakeRelocateItemFilesSchema, HandleRelocateItemFiles, tscProjectScoped, taWrite);
 
   Registry.Register('repair_files',
     'Repair tool: check that every attached file of an item (and its ' +
@@ -3404,7 +3419,7 @@ begin
     'use reattach_file) or error (storage did not answer; not treated as ' +
     'missing). DRY RUN BY DEFAULT: pass dry_run false to commit the moves. ' +
     'Requires write access.',
-    MakeRepairFilesSchema, HandleRepairFiles, tscProjectScoped);
+    MakeRepairFilesSchema, HandleRepairFiles, tscProjectScoped, taWrite);
 
   Registry.Register('reattach_file',
     'Repair tool: upload a local file into an EXISTING file record whose ' +
@@ -3413,7 +3428,7 @@ begin
     'unless force is true. Use after repair_files reports a file as lost. ' +
     'Requires write access, a file_path under the server''s MCPUploadRoot, ' +
     'and an unsigned item.',
-    MakeReattachFileSchema, HandleReattachFile, tscProjectScoped);
+    MakeReattachFileSchema, HandleReattachFile, tscProjectScoped, taWrite);
 
   Registry.Register('move_file',
     'Move a file to another item in the same project, keeping its file id, ' +
@@ -3424,7 +3439,7 @@ begin
     'file itself is cited as hypothesis evidence (any status, closed ones ' +
     'included). A wiki page''s relative ' +
     'image links break if its images move to another item.',
-    MakeMoveFileSchema, HandleMoveFile, tscProjectScoped);
+    MakeMoveFileSchema, HandleMoveFile, tscProjectScoped, taWrite);
 
   Registry.Register('reparent_item',
     'Move an item (with its subtree) under another item in the same project ' +
@@ -3437,7 +3452,7 @@ begin
     ' The response includes a `url` field - an eln://item/N (or ' +
     'eln://specimen/<title>) link that opens the item in the desktop ' +
     'ELN client when clicked in a markdown-rendering chat client.',
-    MakeReparentItemSchema, HandleReparentItem, tscProjectScoped);
+    MakeReparentItemSchema, HandleReparentItem, tscProjectScoped, taWrite);
 end;
 
 end.

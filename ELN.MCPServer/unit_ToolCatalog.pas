@@ -22,6 +22,7 @@ uses
   unit_ToolsColumnar,
   unit_ToolsTags,
   unit_ToolsHypotheses,
+  unit_ToolsSeries,
   unit_ToolsValueChecks,
   unit_ToolsValueEdit;
 
@@ -37,6 +38,7 @@ begin
   RegisterColumnarTools(Registry);
   RegisterTagTools(Registry);
   RegisterHypothesisTools(Registry);
+  RegisterSeriesTools(Registry);
   RegisterValueCheckTools(Registry);
 end;
 

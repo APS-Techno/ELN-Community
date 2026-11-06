@@ -36,8 +36,22 @@ object frmCommunityMain: TfrmCommunityMain
       Width = 650
       Caption = 'No notebook open'
     end
+    object StatusTextbook: TRzGlyphStatus
+      AlignWithMargins = True
+      Left = 1210
+      Cursor = crHandPoint
+      ParentShowHint = False
+      ShowHint = True
+      Align = alRight
+      AutoSize = True
+      Caption = 'Mastering ELN textbook'
+      OnClick = StatusTextbookClick
+      ImageIndex = 46
+      Images = dmTreeImages.vilMenuImages
+    end
     object StatusVersion: TRzStatusPane
       AlignWithMargins = True
+      Left = 1404
       Align = alRight
       Width = 90
       Caption = ''
@@ -366,6 +380,11 @@ object frmCommunityMain: TfrmCommunityMain
         Caption = 'Hypotheses'
         ImageIndex = 26
         ImageName = 'Analyze'
+      end
+      object miSeries: TMenuItem
+        Caption = 'Series'
+        ImageIndex = 70
+        ImageName = 'Series'
       end
       object miDeleteProject: TMenuItem
         Caption = 'Delete'

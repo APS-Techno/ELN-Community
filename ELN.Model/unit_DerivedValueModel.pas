@@ -187,6 +187,10 @@ begin
       if Input = nil then
         raise EDerivedValueError.CreateFmt('Input value %d (role %s) does not exist',
           [Ref.ValueId, Ref.Role]);
+      if Input.EffectiveSourceKind = vskPlanned then
+        raise EDerivedValueError.CreateFmt(
+          'Input value %d (role %s) is a planned value; confirm it in the desktop first',
+          [Ref.ValueId, Ref.Role]);
       if (Input.Item = nil) or (Input.Item.ProjectID <> ResultItem.ProjectID) then
         raise EDerivedValueError.CreateFmt(
           'Input value %d (role %s) belongs to another project than item %d',
@@ -339,7 +343,7 @@ begin
   try
     for Item in SubtreeItems(ResultItem) do
       for V in Item.Values do
-        if RoleMatches(V, Role) then
+        if (V.EffectiveSourceKind <> vskPlanned) and RoleMatches(V, Role) then
           Found.Add(V);
     Result := Found.ToArray;
   finally

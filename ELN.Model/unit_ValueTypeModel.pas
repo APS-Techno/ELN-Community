@@ -43,16 +43,22 @@ type
       procedure LoadCategories(APersistMissing: Boolean);
       procedure SaveCategories;
       procedure MoveToCategory(ValueTypeID, NewCatID: Integer);
+      procedure UsageCounts(ID: Integer; out ValueCount, MappingCount: Integer);
+      procedure ChangeUnits(ValueTypeID: Integer; const NewUnits: string;
+        ConversionFactor: Double; UserId: Integer);
   end;
 
 
 implementation
 
 uses
-  System.JSON, System.Variants, Aurelius.Criteria.Projections,
+  System.JSON, System.Variants, System.Math, Aurelius.Criteria.Projections,
   unit_DBSetting, unit_DBSettingsModel,
   unit_ReaderValueMapping,
-  unit_TimeHelper;
+  unit_AuditLog, unit_AuditHelper,
+  unit_TimeHelper,
+  Aurelius.Criteria.Linq,
+  unit_SeriesFactor, unit_SeriesFixed, unit_SeriesColumn;
 
 const
   KEY_VT_CATEGORIES = 'ValueTypeCategories';
@@ -271,30 +277,73 @@ begin
   end;
 end;
 
-function TValueTypeModel.CanDelete(ID: Integer): string;
+procedure TValueTypeModel.UsageCounts(ID: Integer; out ValueCount, MappingCount: Integer);
 var
   ValDic: TValueDictionary;
-  ValCount: Integer;
+  Values: TList<TValue>;
   Mappings: TList<TReaderValueMapping>;
   Mapping: TReaderValueMapping;
 begin
-  Result := '';
+  ValueCount := 0;
+  MappingCount := 0;
   Mappings := FManager.Find<TReaderValueMapping>.List;
   try
     for Mapping in Mappings do
-      if Mapping.ValueType.Id = ID then
-        Exit('Cannot delete: used by a reader mapping.');
+      if Assigned(Mapping.ValueType) and (Mapping.ValueType.Id = ID) then
+        Inc(MappingCount);
   finally
     Mappings.Free;
   end;
   ValDic := TValueDictionary.Create;
   try
-    ValCount := FManager.Find<TValue>.Where(ValDic.Typeid.Id = ID).List.Count;
-    if ValCount > 0 then
-      Result := Format('Cannot delete: used by %d value(s).', [ValCount]);
+    Values := FManager.Find<TValue>.Where(ValDic.Typeid.Id = ID).List;
+    try
+      ValueCount := Values.Count;
+    finally
+      Values.Free;
+    end;
   finally
     ValDic.Free;
   end;
+end;
+
+function TValueTypeModel.CanDelete(ID: Integer): string;
+var
+  ValCount, MapCount, PlanCount: Integer;
+  Factors: TList<TSeriesFactor>;
+  Fixed: TList<TSeriesFixed>;
+  Cols: TList<TSeriesColumn>;
+  C: TSeriesColumn;
+begin
+  Result := '';
+  UsageCounts(ID, ValCount, MapCount);
+  if MapCount > 0 then
+    Exit('Cannot delete: used by a reader mapping.');
+  if ValCount > 0 then
+    Exit(Format('Cannot delete: used by %d value(s).', [ValCount]));
+  PlanCount := 0;
+  Factors := FManager.Find<TSeriesFactor>.Where(Linq['ValueTypeId'] = ID).List;
+  try
+    Inc(PlanCount, Factors.Count);
+  finally
+    Factors.Free;
+  end;
+  Fixed := FManager.Find<TSeriesFixed>.Where(Linq['ValueTypeId'] = ID).List;
+  try
+    Inc(PlanCount, Fixed.Count);
+  finally
+    Fixed.Free;
+  end;
+  Cols := FManager.Find<TSeriesColumn>.Where(Linq['ValueTypeId'] = ID).List;
+  try
+    for C in Cols do
+      if C.Role = scrResponse then
+        Inc(PlanCount);
+  finally
+    Cols.Free;
+  end;
+  if PlanCount > 0 then
+    Result := 'Cannot delete: used by a series plan.';
 end;
 
 procedure TValueTypeModel.LoadCategories(APersistMissing: Boolean);
@@ -365,6 +414,84 @@ begin
   VT.CatID := NewCatID;
   FManager.Update(VT);
   FManager.Flush;
+end;
+
+procedure TValueTypeModel.ChangeUnits(ValueTypeID: Integer; const NewUnits: string;
+  ConversionFactor: Double; UserId: Integer);
+var
+  VT: TValueType;
+  OldUnits, FactorText: string;
+  ValCount, MapCount: Integer;
+  ValDic: TValueDictionary;
+  Values: TList<TValue>;
+  Val: TValue;
+  Mappings: TList<TReaderValueMapping>;
+  Mapping: TReaderValueMapping;
+  Trans: IDBTransaction;
+begin
+  VT := FManager.Find<TValueType>(ValueTypeID);
+  if VT = nil then
+    raise EArgumentException.CreateFmt('Value type %d not found', [ValueTypeID]);
+  OldUnits := VT.Units;
+  if OldUnits = NewUnits then
+    Exit;
+  UsageCounts(ValueTypeID, ValCount, MapCount);
+  if ((ValCount > 0) or (MapCount > 0)) and
+     (IsNan(ConversionFactor) or IsInfinite(ConversionFactor) or (ConversionFactor <= 0)) then
+    raise EArgumentException.Create(
+      'A positive conversion factor is required when changing units of a value type that has stored values or reader mappings.');
+
+  Trans := FManager.Connection.BeginTransaction;
+  try
+    VT.Units := NewUnits;
+    VT.ModifiedDate := UTCNow;
+    if UserId > 0 then
+      VT.ModifiedBy := UserId;
+    if (ValCount > 0) or (MapCount > 0) then
+    begin
+      if VT.RangeMin.HasValue then
+        VT.RangeMin := VT.RangeMin.Value * ConversionFactor;
+      if VT.RangeMax.HasValue then
+        VT.RangeMax := VT.RangeMax.Value * ConversionFactor;
+      ValDic := TValueDictionary.Create;
+      try
+        Values := FManager.Find<TValue>.Where(ValDic.Typeid.Id = ValueTypeID).List;
+        try
+          for Val in Values do
+          begin
+            Val.Value := Val.Value * ConversionFactor;
+            Val.Tol := Val.Tol * ConversionFactor;
+            if Val.ConversionFactor.HasValue then
+              Val.ConversionFactor := Val.ConversionFactor.Value * ConversionFactor;
+            Val.ModifiedDate := UTCNow;
+            if UserId > 0 then
+              Val.ModifiedBy := UserId;
+          end;
+        finally
+          Values.Free;
+        end;
+      finally
+        ValDic.Free;
+      end;
+      Mappings := FManager.Find<TReaderValueMapping>.List;
+      try
+        for Mapping in Mappings do
+          if Assigned(Mapping.ValueType) and (Mapping.ValueType.Id = ValueTypeID) then
+            Mapping.Factor := Mapping.Factor * ConversionFactor;
+      finally
+        Mappings.Free;
+      end;
+    end;
+    FManager.Flush;
+    FactorText := FloatToStr(ConversionFactor, TFormatSettings.Invariant);
+    RecordAudit(FManager, aetSetting, ValueTypeID, aoUpdate, UserId,
+      Format('Changed value type "%s" (%d) units from "%s" to "%s" (factor %s; %d value(s), %d mapping(s))',
+        [VT.Title, ValueTypeID, OldUnits, NewUnits, FactorText, ValCount, MapCount]));
+    Trans.Commit;
+  except
+    Trans.Rollback;
+    raise;
+  end;
 end;
 
 end.

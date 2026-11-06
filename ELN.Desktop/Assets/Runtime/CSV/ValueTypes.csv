@@ -1,5 +1,5 @@
 Symbol,Title,Units,Group
-d,Thickness,m,0
+d,Thickness,nm,0
 Δ,Displacement,m,0
 R,Reflectivity,,1
 I,Intensity,,1

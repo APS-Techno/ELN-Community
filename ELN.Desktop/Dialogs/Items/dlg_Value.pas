@@ -117,6 +117,8 @@ begin
     vskDerived:
       Result := Format('Source: derived by %s version %d',
         [Source.FormulaId, Source.FormulaVersion]);
+    vskPlanned:
+      Result := 'Source: Planned (from an experiment series, not confirmed)';
   else
     Result := 'Source: unknown (recorded before value sources)';
   end;
@@ -269,6 +271,9 @@ begin
   lblSource.Caption := DescribeValueSource(ReadSource(Value), SourceFileName);
   if Value.EffectiveSourceKind = vskDerived then
     lblSource.Caption := lblSource.Caption + DerivedInputsText(Value) +
+      '. Editing the number makes it a manual entry.'
+  else if Value.EffectiveSourceKind = vskPlanned then
+    lblSource.Caption := lblSource.Caption +
       '. Editing the number makes it a manual entry.';
 end;
 

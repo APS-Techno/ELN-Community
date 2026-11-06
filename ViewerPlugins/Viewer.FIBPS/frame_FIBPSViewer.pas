@@ -161,6 +161,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure LoadFromFile(const AFileName: string);
+    function ProfileDataText: string;
     procedure ShowError(const Msg: string);
     function GetPreviewBitmap(MaxW, MaxH: Integer): TBitmap;
     function GetKeyValues: TArray<TPluginKeyValue>;
@@ -1670,6 +1671,15 @@ begin
 end;
 
 procedure TframeFIBPSViewer.btnCopyDataClick(Sender: TObject);
+var
+  Text: string;
+begin
+  Text := ProfileDataText;
+  if Text <> '' then
+    Clipboard.AsText := Text;
+end;
+
+function TframeFIBPSViewer.ProfileDataText: string;
 const
   UM = #$00B5'm';
 var
@@ -1687,6 +1697,7 @@ var
   end;
 
 begin
+  Result := '';
   List := TStringList.Create;
   try
     if serWearMean.Count > 0 then
@@ -1722,7 +1733,7 @@ begin
       for I := 0 to Ser.Count - 1 do
         List.Add(Cell(Ser.XValue[I]) + #9 + Cell(Ser.YValue[I]));
     end;
-    Clipboard.AsText := List.Text;
+    Result := List.Text;
   finally
     List.Free;
   end;

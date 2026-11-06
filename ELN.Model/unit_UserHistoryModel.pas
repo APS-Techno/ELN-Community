@@ -4,8 +4,6 @@ interface
 
 uses
   SysUtils,
-  Aurelius.Bind.BaseDataset,
-  Aurelius.Bind.Dataset,
   Aurelius.Drivers.Interfaces,
   Aurelius.Engine.DatabaseManager,
   Aurelius.Engine.ObjectManager,
@@ -86,10 +84,6 @@ end;
 
 procedure TUserHistoryModel.OpenDataSet;
 begin
-  FDataSet := CreateDataSet;
-  FDataSet.Manager := FManager;
-  FDataSet.SetSourceCriteria(FManager.Find<TUsersHistory>.Where(Dic.Userid = 2));
-  FDataSet.Open;
 end;
 
 procedure TUserHistoryModel.SaveHistory;

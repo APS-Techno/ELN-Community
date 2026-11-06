@@ -7,7 +7,7 @@ uses
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs,
   Vcl.ExtCtrls, Vcl.StdCtrls, Vcl.ComCtrls, RzEdit, RzPanel, RzButton, RzLabel,
   upfManager, unit_ELNPluginCore, Vcl.WinXPanels, dm_TreeImages,
-  frame_Hypotheses;
+  frame_Hypotheses, frame_Series;
 
 type
   TViewerFrameRec = record
@@ -32,6 +32,8 @@ type
     barDownload: TProgressBar;
     HypothesesCard: TCard;
     frmHypotheses: TframeHypotheses;
+    SeriesCard: TCard;
+    frmSeries: TframeSeries;
     NoteCard: TCard;
     NoteContent: TRichEdit;
     PreviewHost: TPanel;
@@ -87,6 +89,10 @@ type
     procedure ShowHypotheses(AProjectId, AHypothesisId: Integer);
     function HypothesesShowing: Boolean;
     procedure ReturnToHypotheses;
+    procedure ShowSeries(AProjectId, ASeriesId: Integer);
+    function SeriesShowing: Boolean;
+    procedure ReturnToSeries;
+    procedure ResetSeries;
     /// <summary>Before logout frees Model: frees the view's VM and leaves
     /// the card if it is showing.</summary>
     procedure ResetHypotheses;
@@ -385,6 +391,7 @@ begin
   // Preserve the old notebook's viewer state before detaching its identities.
   Clear;
   ResetHypotheses;
+  ResetSeries;
   for Rec in Frames do
     if Supports(Rec.Frame, IItemContextAware, Context) then
       Context.SetItemContext(0, 0);
@@ -661,6 +668,43 @@ procedure TframeContentViewer.ResetHypotheses;
 begin
   frmHypotheses.ResetSession;
   if HypothesesShowing then
+    Clear;
+end;
+
+procedure TframeContentViewer.ShowSeries(AProjectId, ASeriesId: Integer);
+begin
+  SaveCurrentState;
+  FCurrentFileId := 0;
+  FCurrentItemId := 0;
+  FCurrentFilePath := '';
+  HideDownloadProgress;
+  ShowFileButtons(False);
+  ButtonsPanel.Visible := False;
+  frmSeries.OpenProject(AProjectId, ASeriesId);
+  Cards.ActiveCard := SeriesCard;
+end;
+
+function TframeContentViewer.SeriesShowing: Boolean;
+begin
+  Result := Cards.ActiveCard = SeriesCard;
+end;
+
+procedure TframeContentViewer.ReturnToSeries;
+begin
+  SaveCurrentState;
+  FCurrentFileId := 0;
+  FCurrentItemId := 0;
+  FCurrentFilePath := '';
+  HideDownloadProgress;
+  ShowFileButtons(False);
+  ButtonsPanel.Visible := False;
+  Cards.ActiveCard := SeriesCard;
+end;
+
+procedure TframeContentViewer.ResetSeries;
+begin
+  frmSeries.ResetSession;
+  if SeriesShowing then
     Clear;
 end;
 

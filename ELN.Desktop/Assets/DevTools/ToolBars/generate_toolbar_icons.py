@@ -460,6 +460,13 @@ def icon_analyze(pal):
     return generate_menu_icons.icon_analyze(pal)
 
 
+def icon_series(pal):
+    """The menu's Series icon, reused so the toolbar button and
+    Project > Series... look the same."""
+    import generate_menu_icons
+    return generate_menu_icons.icon_series(pal)
+
+
 
 ICONS = {
     'New':             icon_new,
@@ -479,6 +486,7 @@ ICONS = {
     'Expand All':      icon_expand_all,
     'Collapse All':    icon_collapse_all,
     'Analyze':         icon_analyze,
+    'Series':          icon_series,
 }
 
 ITEM_ICONS = ['Add File', 'Add Folder', 'Edit', 'Delete Document',
@@ -487,7 +495,7 @@ ITEM_ICONS = ['Add File', 'Add Folder', 'Edit', 'Delete Document',
               'Expand All', 'Collapse All', 'New']
 PROJECT_ICONS = ['Add File', 'Add Folder', 'Edit', 'Delete Document',
                  'Arrow Up', 'Down Right', 'Refresh', 'Show Archived',
-                 'New', 'Analyze']
+                 'New', 'Analyze', 'Series']
 
 
 def main():

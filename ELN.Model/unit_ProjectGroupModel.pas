@@ -23,6 +23,7 @@ type
       procedure OpenDataSet; override;
 
       function ListGroups(OwnerId: Integer): TProjectGroupList;
+      function ListGroupsIn(const OwnerIds: TArray<Variant>): TProjectGroupList;
       function AddGroup(const Title: string; OwnerId: Integer): TProjectGroup;
       function RenameGroup(Group: TProjectGroup; const Title: string): Boolean;
       function DeleteGroup(GroupId: Integer; UserId: Integer): Boolean;
@@ -55,6 +56,15 @@ function TProjectGroupModel.ListGroups(OwnerId: Integer): TProjectGroupList;
 begin
   Result := FManager.Find<TProjectGroup>
     .Where(Linq['OwnerId'] = OwnerId)
+    .OrderBy('SortOrder')
+    .OrderBy('Id')
+    .List;
+end;
+
+function TProjectGroupModel.ListGroupsIn(const OwnerIds: TArray<Variant>): TProjectGroupList;
+begin
+  Result := FManager.Find<TProjectGroup>
+    .Where(Linq['OwnerId']._In(OwnerIds))
     .OrderBy('SortOrder')
     .OrderBy('Id')
     .List;

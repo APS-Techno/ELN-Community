@@ -4,7 +4,7 @@ interface
 
 uses
   DUnitX.TestFramework, Aurelius.Engine.ObjectManager, unit_LocalNotebook,
-  unit_Item, unit_ItemTreeVM, unit_ELNPluginTypes;
+  unit_Item, unit_ItemTreeVM, unit_ELNPluginTypes, unit_ValueSource;
 
 type
   [TestFixture]
@@ -22,6 +22,9 @@ type
     function CofKeysOf(const Keys: TArray<TPluginKeyValue>): TArray<TPluginKeyValue>;
     function CofCount: Integer;
     function CofValue: TValue;
+    function AddValueOfSource(AValue: Double;
+      const Source: TValueSourceInfo): Integer;
+    function ConfirmAuditCount: Integer;
   public
     [Setup] procedure Setup;
     [TearDown] procedure TearDown;
@@ -41,6 +44,12 @@ type
     [Test] procedure WriteChosenValuesPairsDuplicateKeysInOrder;
     [Test] procedure ReExtractionFromOneFileUpdatesItsValue;
     [Test] procedure DerivedValueDialogComputesFromChosenInputs;
+    [Test] procedure PlannedSourceNameAndParse;
+    [Test] procedure PlannedRejectsReaderFields;
+    [Test] procedure ConfirmPlannedValuesConvertsAndAudits;
+    [Test] procedure ConfirmRefusedOnSignedItem;
+    [Test] procedure DriftSkipsPlanned;
+    [Test] procedure ValueDialogEditMakesPlannedManual;
   end;
 
 implementation
@@ -50,11 +59,13 @@ uses
   Vcl.ExtCtrls, dlg_Value,
   unit_Project, unit_ItemTypes, unit_ProjectAccessPolicy, unit_ValueType,
   unit_ReaderValueMappingModel, unit_ReaderValueStatistics,
-  unit_FileType, unit_ValueSource, unit_ELNPluginCore,
+  unit_FileType, unit_ELNPluginCore,
   unit_DataModel, dlg_ExtractValues, unit_ActionDialogVM,
   unit_AnalysisSettingsModel, unit_ZRWPlateau, unit_ZRWViewerPlugin,
   unit_ElnAnalysisSettings,
-  test_ZRWExtraction, dlg_DerivedValue, unit_DerivedFormulas;
+  test_ZRWExtraction, dlg_DerivedValue, unit_DerivedFormulas,
+  System.Generics.Collections, Aurelius.Criteria.Linq, unit_AuditLog,
+  unit_ValueDrift;
 
 type
   TExtractionDialogDriver = class
@@ -63,6 +74,16 @@ type
     TargetTitle: string;
     procedure Tick(Sender: TObject);
   end;
+
+  TNoReaderRunner = class(TInterfacedObject, IValueReaderRunner)
+    function Run(FileId: Int64; const AnalysisSnapshot: string): TReaderRun;
+  end;
+
+function TNoReaderRunner.Run(FileId: Int64;
+  const AnalysisSnapshot: string): TReaderRun;
+begin
+  Result := Default(TReaderRun);
+end;
 
 procedure TExtractionDialogDriver.Tick(Sender: TObject);
 begin
@@ -271,11 +292,11 @@ begin
     Resolver.Free;
   end;
   Stored := FreshValue(FItem.Values[0].Id);
-  Assert.AreEqual(15e-10, Stored.Value, 1e-22);
+  Assert.AreEqual(1.5, Stored.Value, 1e-12);
   Assert.AreEqual('Co', Stored.Description);
   Assert.AreEqual('Co Thickness', Stored.KeyName);
   Assert.AreEqual('A', Stored.ReaderUnits.Value);
-  Assert.AreEqual(1e-10, Stored.ConversionFactor.Value, 1e-22);
+  Assert.AreEqual(0.1, Stored.ConversionFactor.Value, 1e-12);
 end;
 
 procedure TValueSourceDesktopTests.BothExtractionPathsValidateConvertedNumbers;
@@ -310,7 +331,7 @@ begin
   try
     Mapping := Resolver.Resolve('aps.xrcx', KV.Name, KV.Units);
     Mapping.ValueType.RangeMin := 0;
-    Mapping.ValueType.RangeMax := 1e-7;
+    Mapping.ValueType.RangeMax := 100;
     Model.Manager.Flush;
     AutoStd := KV;
     AutoStd.Name := KV.Name + ' STD';
@@ -320,13 +341,13 @@ begin
     Assert.AreEqual<NativeInt>(1, FItem.Values.Count, 'A key-flagged STD is not a second value');
     AutoId := FItem.Values[0].Id;
     Automatic := FreshValue(AutoId);
-    Assert.AreEqual(15e-10, Automatic.Value, 1e-22);
-    Assert.AreEqual(0.2e-10, Automatic.Tol, 1e-22);
+    Assert.AreEqual(1.5, Automatic.Value, 1e-12);
+    Assert.AreEqual(0.02, Automatic.Tol, 1e-12);
     KV.Value := 2000;
     Assert.IsFalse(TryWriteAutomaticExtractedValue(Model.Items, Mapping, KV,
       Model.User.Id, FItem, AFile.Id, 'aps.xrcx', '1', '', 1000, 0));
     Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
-    Assert.AreEqual(15e-10, FreshValue(AutoId).Value, 1e-22);
+    Assert.AreEqual(1.5, FreshValue(AutoId).Value, 1e-12);
     KV.Value := 15;
     KV.Description := 'paired STD test';
     SavedConfirmation := ConfirmValueIssues;
@@ -352,9 +373,9 @@ begin
       Assert.AreEqual(0, Questions, 'Converted value is inside the range');
       Assert.AreEqual<NativeInt>(1, FItem.Values.Count, 'The dialog updates the value of this file');
       Assert.AreEqual(AutoId, FItem.Values[0].Id);
-      Assert.AreEqual(15e-10, FreshValue(AutoId).Value, 1e-22);
+      Assert.AreEqual(1.5, FreshValue(AutoId).Value, 1e-12);
       Assert.AreEqual('A', FreshValue(AutoId).ReaderUnits.Value);
-      Assert.AreEqual(0.2e-10, FreshValue(AutoId).Tol, 1e-22);
+      Assert.AreEqual(0.02, FreshValue(AutoId).Tol, 1e-12);
       Driver.Attempts := 0;
       begin
         var StdKV := KV;
@@ -365,7 +386,7 @@ begin
           AFile.Id, 'aps.xrcx', '1', nil));
       end;
       Assert.AreEqual<NativeInt>(1, FItem.Values.Count, 'Invalid STD is not stored separately');
-      Assert.AreEqual(15e-10, FreshValue(AutoId).Value, 1e-22);
+      Assert.AreEqual(1.5, FreshValue(AutoId).Value, 1e-12);
       Assert.AreEqual<Double>(0, FreshValue(AutoId).Tol);
       Assert.AreEqual(1, Driver.WarningsShown, 'Invalid STD reason must be visibly reported');
       Driver.Attempts := 0;
@@ -890,7 +911,7 @@ begin
       FItem, AFile.Id, 'aps.xrcx', '1', nil, 1000, Warning);
     Assert.AreEqual<NativeInt>(1, FItem.Values.Count);
     Assert.AreEqual(ValueId, FItem.Values[0].Id, 'The stored value keeps its ID');
-    Assert.AreEqual(16e-10, FreshValue(ValueId).Value, 1e-22);
+    Assert.AreEqual(1.6, FreshValue(ValueId).Value, 1e-12);
     Assert.IsTrue(FreshValue(ValueId).ModifiedDate.HasValue);
     WriteAutomaticExtractedValues(Model.Items, Resolver, [KV], Model.User.Id,
       FItem, Other.Id, 'aps.xrcx', '1', nil, 1000, Warning);
@@ -1019,6 +1040,150 @@ begin
     Assert.IsTrue(Stored.EffectiveSourceKind = vskManual,
       'A number typed by hand makes the value Manual');
     Assert.Contains(Stored.SourceNote, 'was derived by ' + WEAR_RATE_FORMULA_ID);
+  finally
+    ConfirmValueIssues := Saved;
+    ValueEditor.Free;
+  end;
+end;
+
+function TValueSourceDesktopTests.AddValueOfSource(AValue: Double;
+  const Source: TValueSourceInfo): Integer;
+begin
+  Model.Items.AddValue(Model.ValueTypes.FindByTitleUnits('Cycles', ''),
+    TEST_RESULT, AValue, Model.User.Id, FItem, 0, '', Source);
+  Result := FItem.Values[FItem.Values.Count - 1].Id;
+end;
+
+function TValueSourceDesktopTests.ConfirmAuditCount: Integer;
+var
+  Rows: TList<TAuditLog>;
+  Row: TAuditLog;
+begin
+  Result := 0;
+  Rows := Model.Manager.Find<TAuditLog>.Where(
+    Linq['EntityType'] = Ord(aetValue)).List;
+  try
+    for Row in Rows do
+      if (Row.Operation = aoUpdate) and
+        (Pos('Confirmed planned value', Row.Description) = 1) then
+        Inc(Result);
+  finally
+    Rows.Free;
+  end;
+end;
+
+procedure TValueSourceDesktopTests.PlannedSourceNameAndParse;
+var
+  Kind: TValueSourceKind;
+  Source: TValueSourceInfo;
+begin
+  Assert.AreEqual('Planned', SourceKindName(vskPlanned));
+  Assert.IsFalse(TryParseSourceKind('Planned', Kind));
+  Source := TValueSourceInfo.Planned('from series');
+  Assert.IsTrue(Source.Kind = vskPlanned);
+  Assert.AreEqual('from series', Source.Note);
+  Assert.AreEqual('', Source.ReaderId);
+  Assert.AreEqual('', Source.FormulaId);
+  ValidateSource(Source);
+end;
+
+procedure TValueSourceDesktopTests.PlannedRejectsReaderFields;
+var
+  Source: TValueSourceInfo;
+begin
+  Source := TValueSourceInfo.Planned('');
+  Source.ReaderId := 'aps.xrcx';
+  Assert.WillRaise(procedure begin ValidateSource(Source) end, EValueSourceError);
+  Source := TValueSourceInfo.Planned('');
+  Source.KeyName := 'k';
+  Assert.WillRaise(procedure begin ValidateSource(Source) end, EValueSourceError);
+  Source := TValueSourceInfo.Planned('');
+  Source.FileId := 5;
+  Assert.WillRaise(procedure begin ValidateSource(Source) end, EValueSourceError);
+  Source := TValueSourceInfo.Planned('');
+  Source.FormulaId := 'f';
+  Source.FormulaVersion := 1;
+  Assert.WillRaise(procedure begin ValidateSource(Source) end, EValueSourceError);
+  Source := TValueSourceInfo.Planned('');
+  Source.ReaderUnits := 'm';
+  Source.ConversionFactor := 1.0;
+  Assert.WillRaise(procedure begin ValidateSource(Source) end, EValueSourceError);
+end;
+
+procedure TValueSourceDesktopTests.ConfirmPlannedValuesConvertsAndAudits;
+var
+  P1, P2, M1: Integer;
+  Stored: TValue;
+begin
+  P1 := AddValueOfSource(10, TValueSourceInfo.Planned(''));
+  P2 := AddValueOfSource(5, TValueSourceInfo.Planned(''));
+  M1 := AddValueOfSource(0.004, TValueSourceInfo.Manual('hand'));
+  Assert.IsTrue(Model.Items.HasPlannedValues(FItem.Id));
+  Assert.AreEqual(2, Model.Items.ConfirmPlannedValues(Model.User.Id, FItem.Id));
+  Assert.IsFalse(Model.Items.HasPlannedValues(FItem.Id));
+  Stored := FreshValue(P1);
+  Assert.IsTrue(Stored.EffectiveSourceKind = vskManual);
+  Assert.AreEqual('Confirmed planned value', Stored.SourceNote);
+  Stored := FreshValue(P2);
+  Assert.IsTrue(Stored.EffectiveSourceKind = vskManual);
+  Assert.AreEqual('Confirmed planned value', Stored.SourceNote);
+  Stored := FreshValue(M1);
+  Assert.AreEqual('hand', Stored.SourceNote, 'A Manual value is untouched');
+  Assert.AreEqual(2, ConfirmAuditCount);
+  Assert.AreEqual(0, Model.Items.ConfirmPlannedValues(Model.User.Id, FItem.Id));
+end;
+
+procedure TValueSourceDesktopTests.ConfirmRefusedOnSignedItem;
+var
+  P1: Integer;
+begin
+  P1 := AddValueOfSource(10, TValueSourceInfo.Planned(''));
+  Assert.IsTrue(Model.Signatures.SignItem(FItem, Model.User, Password,
+    'Synthetic', ''));
+  Assert.AreEqual(0, Model.Items.ConfirmPlannedValues(Model.User.Id, FItem.Id));
+  Assert.IsTrue(FreshValue(P1).EffectiveSourceKind = vskPlanned);
+  Assert.AreEqual(0, ConfirmAuditCount);
+end;
+
+procedure TValueSourceDesktopTests.DriftSkipsPlanned;
+var
+  Report: TValueDriftReport;
+begin
+  AddValueOfSource(10, TValueSourceInfo.Planned(''));
+  Report := CheckValueDrift(Model.Manager, [FItem.Id], TNoReaderRunner.Create);
+  Assert.AreEqual(0, Report.Checked);
+  Assert.AreEqual<NativeInt>(0, Length(Report.Rows));
+end;
+
+procedure TValueSourceDesktopTests.ValueDialogEditMakesPlannedManual;
+var
+  ValueEditor: TdlgValue;
+  Saved: TValueIssueConfirmation;
+  Id: Integer;
+  Stored: TValue;
+begin
+  Id := AddValueOfSource(10, TValueSourceInfo.Planned(''));
+  Stored := FreshValue(Id);
+  Saved := ConfirmValueIssues;
+  ValueEditor := TdlgValue.Create(nil);
+  try
+    ConfirmValueIssues :=
+      function(const Text: string): Boolean
+      begin
+        Result := True;
+      end;
+    ValueEditor.LoadValueTypes(Model.ValueTypes.GetTypes);
+    ValueEditor.LoadValue(Stored, '');
+    Assert.Contains(ValueEditor.lblSource.Caption,
+      'Planned (from an experiment series, not confirmed)');
+    ValueEditor.edDescription.Text := 'Only the description changes';
+    ValueEditor.ApplyTo(Stored);
+    Assert.IsTrue(Stored.EffectiveSourceKind = vskPlanned,
+      'An untouched number keeps the Planned source');
+    ValueEditor.edValue.Text := '25';
+    ValueEditor.ApplyTo(Stored);
+    Assert.IsTrue(Stored.EffectiveSourceKind = vskManual,
+      'A number typed by hand makes the value Manual');
   finally
     ConfirmValueIssues := Saved;
     ValueEditor.Free;

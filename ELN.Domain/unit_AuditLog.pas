@@ -10,7 +10,7 @@ uses
 
 type
   [Enumeration(TEnumMappingType.emInteger)]
-  TAuditEntityType = (aetProject, aetFolder, aetItem, aetFile, aetProtocol, aetNote, aetValue, aetSignature, aetProjectGroup, aetHypothesis, aetSetting);
+  TAuditEntityType = (aetProject, aetFolder, aetItem, aetFile, aetProtocol, aetNote, aetValue, aetSignature, aetProjectGroup, aetHypothesis, aetSetting, aetSeries);
 
   [Enumeration(TEnumMappingType.emInteger)]
   TAuditOperation = (aoCreate, aoUpdate, aoDelete);
@@ -57,7 +57,7 @@ type
 
 const
   AuditEntityTypeNames: array[TAuditEntityType] of string = (
-    'Project', 'Folder', 'Item', 'File', 'Protocol', 'Note', 'Value', 'Signature', 'Project Group', 'Hypothesis', 'Setting');
+    'Project', 'Folder', 'Item', 'File', 'Protocol', 'Note', 'Value', 'Signature', 'Project Group', 'Hypothesis', 'Setting', 'Series');
 
   AuditOperationNames: array[TAuditOperation] of string = (
     'Create', 'Update', 'Delete');

@@ -15,6 +15,8 @@ uses
   unit_SearchArtifacts in '..\ELN.Search\unit_SearchArtifacts.pas',
   unit_CrossEncoder in '..\ELN.Search\unit_CrossEncoder.pas',
   unit_SearchTestSupport in 'unit_SearchTestSupport.pas',
+  unit_FilePaths in '..\ELN.Model\unit_FilePaths.pas',
+  test_FilePaths in 'test_FilePaths.pas',
   test_SearchEmbedding in 'test_SearchEmbedding.pas';
 
 var

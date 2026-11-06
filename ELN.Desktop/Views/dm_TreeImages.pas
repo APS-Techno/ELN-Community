@@ -74,17 +74,17 @@ const
     'Note', 'Protocol', 'Folder', 'Wiki'
   );
 
-  CProjectToolbarOrder: array[0..10] of string = (
+  CProjectToolbarOrder: array[0..11] of string = (
     'Add File', 'Add Folder', 'Edit', 'Arrow Up',
     'Delete Document', 'Refresh', 'Show Archived',
-    'Refresh', 'Show Archived', 'New', 'Analyze'
+    'Refresh', 'Show Archived', 'New', 'Analyze', 'Series'
   );
 
   CProjectTreeOrder: array[0..1] of string = (
     'Project', 'Folder'
   );
 
-  CMenuOrder: array[0..69] of string = (
+  CMenuOrder: array[0..75] of string = (
     'Export', 'Import', 'Logout', 'Exit', 'Dashboard', 'Copy',
     'Add File', 'Add Folder', 'Edit', 'Delete Document',
     'Arrow Up', 'Down Right', 'Refresh', 'Duplicate',
@@ -101,7 +101,9 @@ const
     'Regen Previews', 'Favorite', 'New Item', 'DB Maintenance',
     'Extract Values', 'Audit Rules', 'Data Completeness',
     'Link Types', 'Go To', 'Show IDs', 'Web Devices',
-    'Save Draft', 'Reload Draft', 'Semantic Search'
+    'Save Draft', 'Reload Draft', 'Semantic Search', 'Series',
+    'Link Plan Point', 'Confirm Planned', 'Mark Failed', 'Unlink',
+    'Remove Point'
   );
 
   CFileTypeOrder: array[0..31] of string = (

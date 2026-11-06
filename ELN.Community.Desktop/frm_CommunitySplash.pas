@@ -11,6 +11,8 @@ type
     imgBackground: TImage;
     lblVersion: TLabel;
     lblStatus: TLabel;
+  private
+    procedure FitBackground;
   public
     class function Display: TfrmCommunitySplash; static;
     procedure SetStatus(const Text: string);
@@ -19,7 +21,7 @@ type
 implementation
 
 uses
-  Winapi.Windows;
+  Winapi.Windows, Vcl.Graphics;
 
 {$R *.dfm}
 
@@ -47,6 +49,7 @@ var
 begin
   Result := TfrmCommunitySplash.Create(nil);
   try
+    Result.FitBackground;
     Version := ExecutableVersion;
     if Version = '' then Version := 'unavailable';
     Result.lblVersion.Caption := 'Version ' + Version;
@@ -56,6 +59,29 @@ begin
   except
     Result.Free;
     raise;
+  end;
+end;
+
+procedure TfrmCommunitySplash.FitBackground;
+var
+  Source, Target: TBitmap;
+begin
+  Source := TBitmap.Create;
+  Target := TBitmap.Create;
+  try
+    Source.PixelFormat := pf24bit;
+    Source.SetSize(imgBackground.Picture.Width, imgBackground.Picture.Height);
+    Source.Canvas.Draw(0, 0, imgBackground.Picture.Graphic);
+    Target.PixelFormat := pf24bit;
+    Target.SetSize(ClientWidth, ClientHeight);
+    SetStretchBltMode(Target.Canvas.Handle, HALFTONE);
+    SetBrushOrgEx(Target.Canvas.Handle, 0, 0, nil);
+    StretchBlt(Target.Canvas.Handle, 0, 0, Target.Width, Target.Height,
+      Source.Canvas.Handle, 0, 0, Source.Width, Source.Height, SRCCOPY);
+    imgBackground.Picture.Assign(Target);
+  finally
+    Target.Free;
+    Source.Free;
   end;
 end;
 

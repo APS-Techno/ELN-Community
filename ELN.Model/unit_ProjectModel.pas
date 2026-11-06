@@ -4,8 +4,6 @@ interface
 
 uses
   SysUtils,
-  Aurelius.Bind.BaseDataset,
-  Aurelius.Bind.Dataset,
   Aurelius.Drivers.Interfaces,
   Aurelius.Engine.DatabaseManager,
   Aurelius.Engine.ObjectManager,
@@ -38,12 +36,10 @@ type
       FManager: TObjectManager;
       FAccess: IProjectAccessPolicy;
     protected
-      function GetDataSet: TAureliusDataset; override;
       function GetProjectList: TProjectList;
     public
       constructor Create(Manager: TObjectManager; const Access: IProjectAccessPolicy);
       procedure AssignUser(AUser: TUser);
-      property DataSet:TAureliusDataset read GetDataSet;
       procedure OpenDataSet; override;
       property List: TProjectList read GetProjectList;
 
@@ -154,21 +150,11 @@ begin
     raise EArgumentNilException.Create('Access');
   FManager := Manager;
   FAccess := Access;
-  FDataSet := CreateDataSet;
-  FDataSet.Manager := FManager;
 end;
 
 function TProjectsModel.GetProjectAccess(ProjectID: Integer): TProjectAccess;
 begin
   Result := FAccess.GetProjectAccess(FManager, FUser, ProjectID);
-end;
-
-function TProjectsModel.GetDataSet: TAureliusDataset;
-begin
-  if not Assigned(FDataSet) then
-    OpenDataSet;
-
-  Result := FDataSet;
 end;
 
 function TProjectsModel.GetProject(const ID: integer): TProject;
@@ -183,9 +169,6 @@ end;
 
 procedure TProjectsModel.OpenDataSet;
 begin
-  FDataSet.Close;
-  FDataSet.SetSourceCriteria(FAccess.ProjectDataSetCriteria(FManager, FUser));
-  FDataSet.Open;
 end;
 
 function TProjectsModel.MoveFolder(Folder: TFolder; OldProjectID, NewProjectID,

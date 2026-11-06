@@ -12,14 +12,7 @@ implementation
 uses
   System.SysUtils, System.JSON,
   Aurelius.Engine.ObjectManager,
-  unit_Item, unit_FileType, unit_ToolScope, unit_ToolDownloads;
-
-function GetReqInt64(const Params: TJSONObject; const Key: string): Int64;
-begin
-  if (Params = nil) or (Params.FindValue(Key) = nil) then
-    raise Exception.CreateFmt('Missing required parameter: %s', [Key]);
-  Result := Params.GetValue<Int64>(Key);
-end;
+  unit_Item, unit_FileType, unit_ToolScope, unit_ToolDownloads, unit_ToolsWrite;
 
 
 procedure SpliceInner(Outer, Inner: TJSONObject);
@@ -233,7 +226,7 @@ begin
     'List the columns of a tabular file (e.g. .log). Returns per-column ' +
     'metadata (index, name, units, dtype) plus total_rows and time_span. ' +
     'Use this before get_file_columns to discover what is available.',
-    MakeListFileColumnsSchema, HandleListFileColumns, tscProjectScoped);
+    MakeListFileColumnsSchema, HandleListFileColumns, tscProjectScoped, taRead);
 
   Registry.Register('get_file_columns',
     'Fetch data for selected columns of a tabular file. Three modes: ' +
@@ -241,7 +234,7 @@ begin
     'returns min/max-binned series capped at max_rows points (default 500); ' +
     '"raw" returns unbinned rows, optionally row-range scoped. columns can ' +
     'be integer index or name string; ambiguous names error.',
-    MakeGetFileColumnsSchema, HandleGetFileColumns, tscProjectScoped);
+    MakeGetFileColumnsSchema, HandleGetFileColumns, tscProjectScoped, taRead);
 end;
 
 end.

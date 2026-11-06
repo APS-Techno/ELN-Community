@@ -148,7 +148,7 @@ end;
 
 ### Hosts
 
-- The Desktop Search dialog takes `ISemanticSearch`: `TdlgSearch.Execute(NavigateProc, Semantic, VisibleProjectIds)`. It owns one `TSemanticSearchRunner` for each binding. `TdlgSearch.ReleaseSemantic` waits for a running search.
+- The Desktop Search dialog takes `ISemanticSearch`: `TdlgSearch.Execute(NavigateProc, Semantic, VisibleProjectIds, UnavailableText)`. A host can give `UnavailableText`. The dialog shows it in the status line when `Semantic` is nil. When `UnavailableText` is empty, the dialog shows its own text. It owns one `TSemanticSearchRunner` for each binding. `TdlgSearch.ReleaseSemantic` waits for a running search.
 - The MCP tool `search_semantic` uses `TToolContext.SemanticSearch: ISemanticSearch`. `TToolContext.SemanticIndex: TSemanticSearchService` is the local index that the tool syncs, or nil. The tool calls `SyncNow` only when `SemanticIndex` is set and the search is not remote. A remote search never starts a sync.
 - The sync methods (`StartSync`, `SyncNow`) stay on `TSemanticSearchService`. The hosts keep the service for the sync and own all lifetimes. A host releases the interface before it frees the service.
 

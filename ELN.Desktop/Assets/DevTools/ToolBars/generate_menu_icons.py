@@ -1077,6 +1077,110 @@ def icon_semantic_search(pal):
     return finalize(img, pal)
 
 
+def _plan_point(d, pal, cx, cy, r):
+    x, y, rr = S(cx), S(cy), S(r)
+    d.ellipse([x - rr, y - rr, x + rr, y + rr], fill=_c(pal['BODY_TOP']),
+              outline=_c(pal['OUTLINE']), width=S(1.5))
+    rr = S(max(1.4, r * 0.25))
+    d.ellipse([x - rr, y - rr, x + rr, y + rr], fill=_c(pal['DETAIL']))
+
+
+def _measured_point(d, pal, cx, cy, r):
+    x, y, rr = S(cx), S(cy), S(r)
+    d.ellipse([x - rr, y - rr, x + rr, y + rr], fill=_c(pal['ACCENT']),
+              outline=_c(pal['OUTLINE']), width=S(1.5))
+
+
+def _plot_axes(d, pal):
+    d.line([(S(5), S(4)), (S(5), S(33)), (S(34), S(33))], fill=_c(pal['OUTLINE']), width=LW, joint='curve')
+
+
+def _corner_badge(d, pal, color):
+    d.ellipse([S(23), S(23), S(39), S(39)], fill=_c(color), outline=_c(pal['OUTLINE']), width=S(1.5))
+
+
+def icon_series(pal):
+    """Measured points rising along a line, ending in an open planned point."""
+    img = make_canvas()
+    d = ImageDraw.Draw(img)
+    d.line([(S(6), S(5)), (S(6), S(33)), (S(35), S(33))], fill=_c(pal['OUTLINE']), width=LW, joint='curve')
+    measured = [(13, 26), (21, 19)]
+    planned = (30, 11)
+    thick_line(d, [(S(x), S(y)) for x, y in measured + [planned]], pal, width=3)
+    for x, y in measured:
+        _measured_point(d, pal, x, y, 4)
+    _plan_point(d, pal, *planned, 4)
+    return finalize(img, pal)
+
+
+def icon_link_plan_point(pal):
+    """Arrow from a deposition into an open planned point."""
+    img = make_canvas()
+    img = gfill_rect(img, S(4), S(22), S(18), S(36), pal, 'body', rx=S(2))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle([S(4), S(22), S(18), S(36)], radius=S(2), outline=_c(pal['OUTLINE']), width=LW)
+    d.line([(S(16), S(24)), (S(23), S(17))], fill=_c(pal['ACCENT']), width=int(2.5 * SCALE))
+    d.polygon([(S(27), S(13)), (S(18), S(16)), (S(24), S(22))], fill=_c(pal['ACCENT']))
+    _plan_point(d, pal, 29, 11, 7)
+    return finalize(img, pal)
+
+
+def icon_confirm_planned(pal):
+    """Series point turned measured, with a green check badge."""
+    img = make_canvas()
+    d = ImageDraw.Draw(img)
+    _plot_axes(d, pal)
+    _measured_point(d, pal, 18, 17, 7)
+    _corner_badge(d, pal, pal['SIG_GREEN'])
+    d.line([(S(26.5), S(31)), (S(30), S(34.5)), (S(35.5), S(27.5))],
+           fill=(255, 255, 255, 255), width=S(2.6), joint='curve')
+    return finalize(img, pal)
+
+
+def icon_mark_failed(pal):
+    """Series point with a red cross badge."""
+    img = make_canvas()
+    d = ImageDraw.Draw(img)
+    _plot_axes(d, pal)
+    _measured_point(d, pal, 18, 17, 7)
+    _corner_badge(d, pal, pal['SIG_RED'])
+    for (x1, y1), (x2, y2) in (((27.5, 27.5), (34.5, 34.5)), ((34.5, 27.5), (27.5, 34.5))):
+        d.line([(S(x1), S(y1)), (S(x2), S(y2))], fill=(255, 255, 255, 255), width=S(2.6))
+    return finalize(img, pal)
+
+
+def icon_unlink(pal):
+    """Two chain links pulled apart."""
+    def link(box, color):
+        layer = make_canvas()
+        d = ImageDraw.Draw(layer)
+        x1, y1, x2, y2 = (S(v) for v in box)
+        d.rounded_rectangle([x1, y1, x2, y2], radius=S(7), outline=_c(pal['OUTLINE']), width=S(6))
+        inset = S(1.5)
+        d.rounded_rectangle([x1 + inset, y1 + inset, x2 - inset, y2 - inset], radius=S(5.5),
+                            outline=_c(color), width=S(3))
+        return layer
+
+    img = Image.alpha_composite(make_canvas(), link((1, 19, 19, 33), body_mid(pal)))
+    img = Image.alpha_composite(img, link((21, 7, 39, 21), pal['ACCENT']))
+    d = ImageDraw.Draw(img)
+    for (x1, y1), (x2, y2) in (((15, 15), (11, 11)), ((19, 13), (19, 8)),
+                               ((25, 25), (29, 29)), ((21, 27), (21, 32))):
+        d.line([(S(x1), S(y1)), (S(x2), S(y2))], fill=_c(pal['SIG_RED']), width=S(2))
+    return finalize(img, pal)
+
+
+def icon_remove_point(pal):
+    """Open planned point with a red minus badge."""
+    img = make_canvas()
+    d = ImageDraw.Draw(img)
+    _plot_axes(d, pal)
+    _plan_point(d, pal, 18, 17, 7)
+    _corner_badge(d, pal, pal['SIG_RED'])
+    d.line([(S(26.5), S(31)), (S(35.5), S(31))], fill=(255, 255, 255, 255), width=S(2.8))
+    return finalize(img, pal)
+
+
 
 ICONS = {
     'Import':             icon_import,
@@ -1137,6 +1241,12 @@ ICONS = {
     'Save Draft':         icon_save_draft,
     'Reload Draft':       icon_reload_draft,
     'Semantic Search':    icon_semantic_search,
+    'Series':             icon_series,
+    'Link Plan Point':    icon_link_plan_point,
+    'Confirm Planned':    icon_confirm_planned,
+    'Mark Failed':        icon_mark_failed,
+    'Unlink':             icon_unlink,
+    'Remove Point':       icon_remove_point,
 }
 
 

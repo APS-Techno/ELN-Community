@@ -15,6 +15,21 @@ uses
 type
   TDeleteCheck = (dcOK, dcNotEmpty, dcHasRecycleBinItems);
 
+  TOwnerTree = class
+  private
+    FUsers: TList<TUser>;
+    FProjects: TObjectDictionary<Integer, TList<TProject>>;
+    FGroups: TObjectDictionary<Integer, TProjectGroupList>;
+  public
+    constructor Create(AUsers: TList<TUser>;
+      AProjects: TObjectDictionary<Integer, TList<TProject>>;
+      AGroups: TObjectDictionary<Integer, TProjectGroupList>);
+    destructor Destroy; override;
+    property Users: TList<TUser> read FUsers;
+    property Projects: TObjectDictionary<Integer, TList<TProject>> read FProjects;
+    property Groups: TObjectDictionary<Integer, TProjectGroupList> read FGroups;
+  end;
+
   TProjectTreeVM = class
   private
     FProjectsModel: TProjectsModel;
@@ -29,8 +44,16 @@ type
     FFilterText: string;
     FOnChanged: TNotifyEvent;
     FHypBadges: TDictionary<Integer, THypProjectBadge>;
+    FFolderLookup: TObjectDictionary<Integer, TFoldersList>;
+    FNoFolders: TFoldersList;
     procedure DoChanged;
+    procedure DropFolderLookup;
+    procedure FillFolderLookup(const AProjectIds: TArray<Integer>);
     function OwnsHypothesisProject(AUserId: Integer): Boolean;
+    function PassesFilterText(Project: TProject): Boolean;
+    function ArchiveListed(Project: TProject): Boolean;
+    function OwnerProjectListed(Project: TProject): Boolean;
+    function OwnerProjectSource(const AOwnerIds: TArray<Integer>): TList<TProject>;
   public
     constructor Create(
       AProjectsModel: TProjectsModel;
@@ -49,10 +72,21 @@ type
     function UserId: Integer;
 
     function GetUsers: TList<TUser>;
+    /// The users that get their own node. Empty when the tree lists the
+    /// viewer's projects directly (not a supervisor, or only one user).
+    function OwnerNodes: TList<TUser>;
+    /// Nil when OwnerNodes is empty.
+    function LoadOwnerTree: TOwnerTree;
     function GetProjects(AUserId: Integer): TList<TProject>;
+    function GetProjectsByOwner(
+      const AOwnerIds: TArray<Integer>): TObjectDictionary<Integer, TList<TProject>>;
+    function GetGroupsByOwner(
+      const AOwnerIds: TArray<Integer>): TObjectDictionary<Integer, TProjectGroupList>;
     function GetSortedFolders(Project: TProject): TList<TFolder>;
+    function FoldersOf(Project: TProject): TFoldersList;
     function GetFavorites: TList<TFavorite>;
     function ProjectMatchesFilter(Project: TProject): Boolean;
+    function ShownProjectIds: TArray<Integer>;
 
     // Hypothesis badges ("HYP n" on project nodes). RefreshHypothesisBadges
     // re-reads them for the current user; call it before filling the tree.
@@ -117,8 +151,28 @@ type
 implementation
 
 uses
-  System.StrUtils, System.Generics.Defaults, Aurelius.Criteria.Linq;
+  System.StrUtils, System.Generics.Defaults, System.Variants,
+  Aurelius.Engine.ObjectManager, Aurelius.Criteria.Base,
+  Aurelius.Criteria.Linq, Aurelius.Criteria.Projections,
+  unit_HypothesisModel;
 
+constructor TOwnerTree.Create(AUsers: TList<TUser>;
+  AProjects: TObjectDictionary<Integer, TList<TProject>>;
+  AGroups: TObjectDictionary<Integer, TProjectGroupList>);
+begin
+  inherited Create;
+  FUsers := AUsers;
+  FProjects := AProjects;
+  FGroups := AGroups;
+end;
+
+destructor TOwnerTree.Destroy;
+begin
+  FGroups.Free;
+  FProjects.Free;
+  FUsers.Free;
+  inherited;
+end;
 
 constructor TProjectTreeVM.Create(
   AProjectsModel: TProjectsModel;
@@ -138,16 +192,20 @@ begin
   FItemModel := AItemModel;
   FGroupsModel := AGroupsModel;
   FHypBadges := TDictionary<Integer, THypProjectBadge>.Create;
+  FNoFolders := TFoldersList.Create;
 end;
 
 destructor TProjectTreeVM.Destroy;
 begin
+  DropFolderLookup;
+  FNoFolders.Free;
   FHypBadges.Free;
   inherited;
 end;
 
 procedure TProjectTreeVM.DoChanged;
 begin
+  DropFolderLookup;
   if Assigned(FOnChanged) then
     FOnChanged(Self);
 end;
@@ -189,6 +247,44 @@ begin
        ((not FShowArchived) and Result[I].IsArchived and
         not OwnsHypothesisProject(Result[I].Id)) then
       Result.Delete(I);
+end;
+
+function TProjectTreeVM.OwnerNodes: TList<TUser>;
+begin
+  Result := GetUsers;
+  if Result.Count <= 1 then
+    Result.Clear;
+end;
+
+function TProjectTreeVM.LoadOwnerTree: TOwnerTree;
+var
+  Users: TList<TUser>;
+  Ids: TArray<Integer>;
+  Projects: TObjectDictionary<Integer, TList<TProject>>;
+  Groups: TObjectDictionary<Integer, TProjectGroupList>;
+  I: Integer;
+begin
+  Users := OwnerNodes;
+  if Users.Count = 0 then
+  begin
+    Users.Free;
+    Exit(nil);
+  end;
+  Projects := nil;
+  Groups := nil;
+  try
+    SetLength(Ids, Users.Count);
+    for I := 0 to Users.Count - 1 do
+      Ids[I] := Users[I].Id;
+    Projects := GetProjectsByOwner(Ids);
+    Groups := GetGroupsByOwner(Ids);
+    Result := TOwnerTree.Create(Users, Projects, Groups);
+  except
+    Groups.Free;
+    Projects.Free;
+    Users.Free;
+    raise;
+  end;
 end;
 
 function TProjectTreeVM.OwnsHypothesisProject(AUserId: Integer): Boolean;
@@ -244,63 +340,58 @@ begin
             ContainsText(Project.Description, FFilterText);
 end;
 
+function TProjectTreeVM.PassesFilterText(Project: TProject): Boolean;
+var
+  Folder: TFolder;
+begin
+  if ProjectMatchesFilter(Project) then
+    Exit(True);
+  for Folder in FoldersOf(Project) do
+    if ContainsText(Folder.Title, FFilterText) or
+       ContainsText(Folder.Description, FFilterText) then
+      Exit(True);
+  Result := False;
+end;
+
 function TProjectTreeVM.GetProjects(AUserId: Integer): TList<TProject>;
 var
   Proj: TProject;
-  Folder: TFolder;
-  AnyFolderMatches: Boolean;
-  Viewer: TUser;
-  Source: TList<TProject>;
+  Source, Eligible: TList<TProject>;
+  UnloadedIds: TList<Integer>;
+  ByOwner: TObjectDictionary<Integer, TList<TProject>>;
 begin
-  Result := TList<TProject>.Create;
+  if AUserId > 0 then
+  begin
+    ByOwner := GetProjectsByOwner([AUserId]);
+    try
+      Exit(ByOwner.ExtractPair(AUserId).Value);
+    finally
+      ByOwner.Free;
+    end;
+  end;
 
-  // AUserId selects an owner group, never an acting principal. In particular,
-  // an active supervisor may browse archived owners, while a revoked viewer
-  // must not gain the selected owner's authority.
-  Viewer := FUsersModel.CurrentUser;
+  Result := TList<TProject>.Create;
   try
-    if (AUserId > 0) and IsSupervisorMode then
-      Source := FProjectsModel.Access.ProjectDataSetCriteria(
-        FProjectsModel.Manager, Viewer).Where(Linq['Owner.Id'] = AUserId)
-        .OrderBy('SortOrder').OrderBy('ID').List
-    else
-      Source := FProjectsModel.Access.ProjectList(FProjectsModel.Manager, Viewer);
+    Source := FProjectsModel.Access.ProjectList(FProjectsModel.Manager,
+      FUsersModel.CurrentUser);
+    Eligible := TList<TProject>.Create;
+    UnloadedIds := TList<Integer>.Create;
     try
       for Proj in Source do
       begin
-        if Proj.IsArchived and (not FShowArchived) then
+        if not ArchiveListed(Proj) then
           Continue;
-
-        if (AUserId > 0) and Assigned(Proj.Owner) and (Proj.Owner.Id <> AUserId) then
-          Continue;
-
-        // An archived owner is listed only for their projects with
-        // hypotheses (GetUsers); the rest wait for "Show Archived".
-        if (AUserId > 0) and (not FShowArchived) and Assigned(Proj.Owner) and
-           Proj.Owner.IsArchived and (HypothesisCount(Proj.Id) = 0) then
-          Continue;
-
-        if FFilterText <> '' then
-        begin
-          if not ProjectMatchesFilter(Proj) then
-          begin
-            AnyFolderMatches := False;
-            if Assigned(Proj.Folders) then
-              for Folder in Proj.Folders do
-                if ContainsText(Folder.Title, FFilterText) or
-                   ContainsText(Folder.Description, FFilterText) then
-                begin
-                  AnyFolderMatches := True;
-                  Break;
-                end;
-            if not AnyFolderMatches then
-              Continue;
-          end;
-        end;
-
-        Result.Add(Proj);
+        Eligible.Add(Proj);
+        if not Proj.FoldersLoaded then
+          UnloadedIds.Add(Proj.Id);
       end;
+      FillFolderLookup(UnloadedIds.ToArray);
+      for Proj in Eligible do
+        if PassesFilterText(Proj) then
+          Result.Add(Proj);
     finally
+      UnloadedIds.Free;
+      Eligible.Free;
       Source.Free;
     end;
   except
@@ -309,15 +400,275 @@ begin
   end;
 end;
 
+function TProjectTreeVM.ArchiveListed(Project: TProject): Boolean;
+begin
+  Result := FShowArchived or not Project.IsArchived;
+end;
+
+function TProjectTreeVM.OwnerProjectListed(Project: TProject): Boolean;
+begin
+  // An archived owner is listed only for their projects with
+  // hypotheses (GetUsers); the rest wait for "Show Archived".
+  Result := ArchiveListed(Project) and
+    (FShowArchived or not Project.Owner.IsArchived or (HypothesisCount(Project.Id) > 0));
+end;
+
+function TProjectTreeVM.OwnerProjectSource(const AOwnerIds: TArray<Integer>): TList<TProject>;
+var
+  Viewer: TUser;
+  Chunk: TArray<Variant>;
+  Part: TList<TProject>;
+begin
+  Result := TList<TProject>.Create;
+  try
+    // An owner id selects an owner group, never an acting principal. In
+    // particular, an active supervisor may browse archived owners, while a
+    // revoked viewer must not gain the selected owner's authority.
+    Viewer := FUsersModel.CurrentUser;
+    if IsSupervisorMode then
+      for Chunk in unit_HypothesisModel.IdChunks(AOwnerIds) do
+      begin
+        Part := FProjectsModel.Access.ProjectDataSetCriteria(
+          FProjectsModel.Manager, Viewer).Where(Linq['Owner.Id']._In(Chunk))
+          .OrderBy('SortOrder').OrderBy('ID').List;
+        try
+          Result.AddRange(Part);
+        finally
+          Part.Free;
+        end;
+      end
+    else
+    begin
+      Part := FProjectsModel.Access.ProjectList(FProjectsModel.Manager, Viewer);
+      try
+        Result.AddRange(Part);
+      finally
+        Part.Free;
+      end;
+    end;
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+function TProjectTreeVM.GetProjectsByOwner(
+  const AOwnerIds: TArray<Integer>): TObjectDictionary<Integer, TList<TProject>>;
+var
+  Proj: TProject;
+  Source, Eligible: TList<TProject>;
+  UnloadedIds: TList<Integer>;
+  OwnerId: Integer;
+begin
+  Result := TObjectDictionary<Integer, TList<TProject>>.Create([doOwnsValues]);
+  Source := nil;
+  Eligible := TList<TProject>.Create;
+  UnloadedIds := TList<Integer>.Create;
+  try
+    try
+      for OwnerId in AOwnerIds do
+        if not Result.ContainsKey(OwnerId) then
+          Result.Add(OwnerId, TList<TProject>.Create);
+      if Result.Count = 0 then
+        Exit;
+
+      Source := OwnerProjectSource(AOwnerIds);
+      for Proj in Source do
+      begin
+        if (not Assigned(Proj.Owner)) or (not Result.ContainsKey(Proj.Owner.Id)) then
+          Continue;
+        if not OwnerProjectListed(Proj) then
+          Continue;
+        Eligible.Add(Proj);
+        if not Proj.FoldersLoaded then
+          UnloadedIds.Add(Proj.Id);
+      end;
+
+      FillFolderLookup(UnloadedIds.ToArray);
+
+      for Proj in Eligible do
+        if PassesFilterText(Proj) then
+          Result[Proj.Owner.Id].Add(Proj);
+    except
+      Result.Free;
+      raise;
+    end;
+  finally
+    UnloadedIds.Free;
+    Eligible.Free;
+    Source.Free;
+  end;
+end;
+
+function TProjectTreeVM.ShownProjectIds: TArray<Integer>;
+var
+  Users: TList<TUser>;
+  Owners: TDictionary<Integer, Boolean>;
+  Source: TList<TProject>;
+  Ids: TList<Integer>;
+  Proj: TProject;
+  User: TUser;
+begin
+  Owners := TDictionary<Integer, Boolean>.Create;
+  Ids := TList<Integer>.Create;
+  Source := nil;
+  Users := OwnerNodes;
+  try
+    if Users.Count = 0 then
+    begin
+      Source := FProjectsModel.Access.ProjectList(FProjectsModel.Manager,
+        FUsersModel.CurrentUser);
+      for Proj in Source do
+        if ArchiveListed(Proj) then
+          Ids.Add(Proj.Id);
+    end
+    else
+    begin
+      for User in Users do
+        Owners.AddOrSetValue(User.Id, True);
+      Source := OwnerProjectSource(Owners.Keys.ToArray);
+      for Proj in Source do
+        if Assigned(Proj.Owner) and Owners.ContainsKey(Proj.Owner.Id) and
+           OwnerProjectListed(Proj) then
+          Ids.Add(Proj.Id);
+    end;
+    Result := Ids.ToArray;
+  finally
+    Source.Free;
+    Users.Free;
+    Ids.Free;
+    Owners.Free;
+  end;
+end;
+
+function TProjectTreeVM.GetGroupsByOwner(
+  const AOwnerIds: TArray<Integer>): TObjectDictionary<Integer, TProjectGroupList>;
+var
+  Chunk: TArray<Variant>;
+  Found: TProjectGroupList;
+  Group: TProjectGroup;
+  OwnerId: Integer;
+begin
+  Result := TObjectDictionary<Integer, TProjectGroupList>.Create([doOwnsValues]);
+  try
+    for OwnerId in AOwnerIds do
+      if not Result.ContainsKey(OwnerId) then
+        Result.Add(OwnerId, TProjectGroupList.Create);
+    for Chunk in unit_HypothesisModel.IdChunks(AOwnerIds) do
+    begin
+      Found := FGroupsModel.ListGroupsIn(Chunk);
+      try
+        for Group in Found do
+          Result[Group.OwnerId].Add(Group);
+      finally
+        Found.Free;
+      end;
+    end;
+  except
+    Result.Free;
+    raise;
+  end;
+end;
+
+procedure TProjectTreeVM.DropFolderLookup;
+begin
+  FreeAndNil(FFolderLookup);
+end;
+
+procedure TProjectTreeVM.FillFolderLookup(const AProjectIds: TArray<Integer>);
+var
+  Chunk: TArray<Variant>;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+  Owner: TDictionary<Integer, Integer>;
+  FolderIds: TList<Integer>;
+  Found: TFoldersList;
+  Folder: TFolder;
+  Manager: TObjectManager;
+  ProjectId, OwnerId: Integer;
+begin
+  if Length(AProjectIds) = 0 then
+    Exit;
+  Manager := FProjectsModel.Manager;
+  if FFolderLookup = nil then
+    FFolderLookup := TObjectDictionary<Integer, TFoldersList>.Create([doOwnsValues]);
+  Owner := TDictionary<Integer, Integer>.Create;
+  FolderIds := TList<Integer>.Create;
+  try
+    try
+      for ProjectId in AProjectIds do
+      begin
+        FFolderLookup.Remove(ProjectId);
+        FFolderLookup.Add(ProjectId, TFoldersList.Create);
+      end;
+      for Chunk in unit_HypothesisModel.IdChunks(AProjectIds) do
+      begin
+        Rows := Manager.Find<TProject>
+          .CreateAlias('FFolders', 'f')
+          .Select(TProjections.ProjectionList
+            .Add(TProjections.Prop('Id').As_('ProjectId'))
+            .Add(TProjections.Prop('f.Id').As_('FolderId')))
+          .Where(Linq['Id']._In(Chunk))
+          .ListValues;
+        try
+          for Row in Rows do
+            if not VarIsNull(Row.Values['FolderId']) then
+              Owner.AddOrSetValue(Integer(Row.Values['FolderId']),
+                Integer(Row.Values['ProjectId']));
+        finally
+          Rows.Free;
+        end;
+      end;
+      FolderIds.AddRange(Owner.Keys);
+      FolderIds.Sort;
+      for Chunk in unit_HypothesisModel.IdChunks(FolderIds.ToArray) do
+      begin
+        Found := Manager.Find<TFolder>
+          .Where(Linq['Id']._In(Chunk))
+          .OrderBy('Id')
+          .List;
+        try
+          for Folder in Found do
+            if Owner.TryGetValue(Folder.Id, OwnerId) then
+              FFolderLookup[OwnerId].Add(Folder);
+        finally
+          Found.Free;
+        end;
+      end;
+    except
+      DropFolderLookup;
+      raise;
+    end;
+  finally
+    FolderIds.Free;
+    Owner.Free;
+  end;
+end;
+
+function TProjectTreeVM.FoldersOf(Project: TProject): TFoldersList;
+var
+  Manager: TObjectManager;
+  Live: TProject;
+begin
+  Manager := FProjectsModel.Manager;
+  Live := Manager.FindCached<TProject>(Project.Id);
+  if Live <> Project then
+    Live := Manager.Find<TProject>(Project.Id);
+  if Live = nil then
+    Exit(FNoFolders);
+  if Live.FoldersLoaded then
+    Exit(Live.Folders);
+  if Assigned(FFolderLookup) and FFolderLookup.TryGetValue(Live.Id, Result) then
+    Exit;
+  Result := Live.Folders;
+end;
+
 function TProjectTreeVM.GetSortedFolders(Project: TProject): TList<TFolder>;
 var
   Folder: TFolder;
 begin
   Result := TList<TFolder>.Create;
-  if not Assigned(Project.Folders) then
-    Exit;
-
-  for Folder in Project.Folders do
+  for Folder in FoldersOf(Project) do
     Result.Add(Folder);
 
   Result.Sort(TComparer<TFolder>.Construct(
@@ -540,6 +891,7 @@ end;
 
 procedure TProjectTreeVM.EvictCache;
 begin
+  DropFolderLookup;
   FProjectsModel.EvictCache;
 end;
 

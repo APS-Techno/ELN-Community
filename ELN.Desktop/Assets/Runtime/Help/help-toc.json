@@ -79,6 +79,11 @@
           "summary": "Link runs and evidence to local human review decisions."
         },
         {
+          "file": "Series.html",
+          "title": "Series",
+          "summary": "Compare depositions in a table and a plot, and export to Origin."
+        },
+        {
           "file": "Integrity.html",
           "title": "Signatures, audit and completeness",
           "summary": "Sign records, check history and inspect missing data."

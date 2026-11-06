@@ -138,6 +138,59 @@ var
   Skipped: TList<string>;
   Descr, SQL: string;
   Performer: TSQLPerformer;
+  procedure MigrateThicknessToNanometres(APerformer: TSQLPerformer);
+  const
+    THICKNESS_IN_METRES =
+      'SELECT Id FROM ValueTypes WHERE LOWER(Title) = ''thickness'' AND Units = ''m''';
+  var
+    HasValueTypes, HasMappings, HasValues: Boolean;
+    C: TDDLCommand;
+  begin
+    HasValueTypes := (ExistingDB <> nil) and
+      (TSchemaUtils.FindTable(ExistingDB, 'ValueTypes', '') <> nil);
+    HasMappings := (ExistingDB <> nil) and
+      (TSchemaUtils.FindTable(ExistingDB, 'ReaderValueMappings', '') <> nil);
+    HasValues := (ExistingDB <> nil) and
+      (TSchemaUtils.FindTable(ExistingDB, 'DataValues', '') <> nil);
+    for C in Commands do
+      if C is TCreateTableCommand then
+        if SameText(TCreateTableCommand(C).Table.Name, 'ValueTypes') then
+          HasValueTypes := True
+        else if SameText(TCreateTableCommand(C).Table.Name, 'ReaderValueMappings') then
+          HasMappings := True
+        else if SameText(TCreateTableCommand(C).Table.Name, 'DataValues') then
+          HasValues := True;
+    if not HasValueTypes then
+      Exit;
+    if HasMappings then
+    begin
+      APerformer.ExecuteSQL(
+        'UPDATE ReaderValueMappings SET Factor = Factor * 1000000000 ' +
+        'WHERE ValueTypeId IN (' + THICKNESS_IN_METRES + ')');
+      APerformer.ExecuteSQL(
+        'UPDATE ReaderValueMappings SET Factor = 0.1 ' +
+        'WHERE ReaderId = ''aps.xrcx'' AND KeyPattern = ''<Material> Thickness'' ' +
+        'AND ReaderUnits = ''A'' AND ABS(Factor - 1e-10) < 1e-20 ' +
+        'AND ValueTypeId IN (' +
+        'SELECT Id FROM ValueTypes WHERE LOWER(Title) = ''thickness'' AND Units = ''nm'')');
+      APerformer.ExecuteSQL(
+        'UPDATE ReaderValueMappings SET Factor = 1000 ' +
+        'WHERE ReaderId = ''aps.fibps'' AND KeyPattern = ''Step Height'' ' +
+        'AND ReaderUnits = ''um'' AND ABS(Factor - 1e-6) < 1e-16 ' +
+        'AND ValueTypeId IN (' +
+        'SELECT Id FROM ValueTypes WHERE LOWER(Title) = ''thickness'' AND Units = ''nm'')');
+    end;
+    if HasValues then
+      APerformer.ExecuteSQL(
+        'UPDATE DataValues SET Value = Value * 1000000000, ' +
+        'Tolerance = Tolerance * 1000000000, ' +
+        'ConversionFactor = ConversionFactor * 1000000000 ' +
+        'WHERE TypeID IN (' + THICKNESS_IN_METRES + ')');
+    APerformer.ExecuteSQL(
+      'UPDATE ValueTypes SET Units = ''nm'', ' +
+      'RangeMin = RangeMin * 1000000000, RangeMax = RangeMax * 1000000000 ' +
+      'WHERE LOWER(Title) = ''thickness'' AND Units = ''m''');
+  end;
 begin
   Keep := TList<string>.Create;
   Skipped := TList<string>.Create;
@@ -159,6 +212,7 @@ begin
         try
           for SQL in Keep do
             Performer.ExecuteSQL(SQL);
+          MigrateThicknessToNanometres(Performer);
         finally
           Performer.Free;
         end;

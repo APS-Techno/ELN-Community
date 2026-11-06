@@ -174,6 +174,9 @@ begin
   Assert.IsFalse(TItemTreeBatch.Allows(boExport, [AFile, ANote]));
   Assert.IsTrue(TItemTreeBatch.Allows(boDrag, [ARoot, TBatchTarget.ForItem(Other)]));
   Assert.IsFalse(TItemTreeBatch.Allows(boDrag, [ARoot, AChild]));
+  Assert.IsTrue(TItemTreeBatch.Allows(boSeriesLink, [ARoot]));
+  Assert.IsFalse(TItemTreeBatch.Allows(boSeriesLink, [ARoot, AChild]));
+  Assert.IsFalse(TItemTreeBatch.Allows(boSeriesLink, [ARoot, AFile]));
 
   Empty := nil;
   Assert.IsFalse(TItemTreeBatch.Allows(boDelete, Empty));
@@ -182,6 +185,7 @@ begin
   Assert.IsFalse(TItemTreeBatch.Allows(boTags, Empty));
   Assert.IsFalse(TItemTreeBatch.Allows(boExport, Empty));
   Assert.IsFalse(TItemTreeBatch.Allows(boDrag, Empty));
+  Assert.IsFalse(TItemTreeBatch.Allows(boSeriesLink, Empty));
 end;
 
 procedure TItemTreeBatchTests.FormatSkipsCapsLines;

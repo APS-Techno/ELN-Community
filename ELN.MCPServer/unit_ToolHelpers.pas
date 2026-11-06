@@ -4,7 +4,7 @@ unit unit_ToolHelpers;
 interface
 
 uses
-  System.JSON,
+  System.JSON, System.Generics.Collections,
   Aurelius.Types.Nullable, Aurelius.Engine.ObjectManager,
   unit_Item, unit_ItemTypes, unit_ValueChecks, unit_MCPTools;
 
@@ -37,13 +37,27 @@ procedure CheckMaxLen(const AValue, AFieldName: string; AMax: Integer);
 
 function ItemInRecycleBin(Manager: TObjectManager; Item: TItem): Boolean;
 
+type
+  TAncestorChain = record
+    Ids: TArray<Integer>;
+    Incomplete: Boolean;
+  end;
+
+/// Per item id: its ancestor ids from the root down to the direct parent; the
+/// item itself is excluded. Incomplete when a row on the way up is missing or
+/// the chain loops. One IN query per tree level. Caller frees.
+function AncestorChains(Manager: TObjectManager;
+  const ItemIds: TArray<Integer>): TDictionary<Integer, TAncestorChain>;
+function AncestorIdsJSON(const Chain: TAncestorChain): TJSONArray;
+
 procedure RefreshCachedItem(const Context: TToolContext; ItemId: Integer);
 procedure ForgetCachedRow(const Context: TToolContext; Cached: TObject);
 
 implementation
 
 uses
-  System.SysUtils, System.NetEncoding, System.Generics.Collections,
+  System.SysUtils, System.NetEncoding, System.Math, System.Variants,
+  Aurelius.Criteria.Base, Aurelius.Criteria.Linq, Aurelius.Criteria.Projections,
   unit_ValueSource,
   unit_JSONCompact;
 
@@ -139,6 +153,129 @@ begin
   finally
     Seen.Free;
   end;
+end;
+
+const
+  ANCESTOR_CHUNK = 500;
+
+procedure LoadParents(Manager: TObjectManager; const Ids: TArray<Integer>;
+  Parents: TDictionary<Integer, Integer>);
+var
+  Start, I: Integer;
+  Keys: TArray<Variant>;
+  Rows: TObjectList<TCriteriaResult>;
+  Row: TCriteriaResult;
+begin
+  Start := 0;
+  while Start < Length(Ids) do
+  begin
+    SetLength(Keys, Min(ANCESTOR_CHUNK, Length(Ids) - Start));
+    for I := 0 to High(Keys) do
+      Keys[I] := Ids[Start + I];
+    Rows := Manager.Find<TItem>
+      .Select(TProjections.ProjectionList
+        .Add(TProjections.Prop('Id').As_('Id'))
+        .Add(TProjections.Prop('ParentID').As_('Parent')))
+      .Where(Linq['Id']._In(Keys))
+      .ListValues;
+    try
+      for Row in Rows do
+        if VarIsNull(Row.Values['Parent']) then
+          Parents.AddOrSetValue(Row.Values['Id'], 0)
+        else
+          Parents.AddOrSetValue(Row.Values['Id'], Row.Values['Parent']);
+    finally
+      Rows.Free;
+    end;
+    Inc(Start, Length(Keys));
+  end;
+end;
+
+function AncestorChains(Manager: TObjectManager;
+  const ItemIds: TArray<Integer>): TDictionary<Integer, TAncestorChain>;
+var
+  Parents: TDictionary<Integer, Integer>;
+  Queried, Seen: TDictionary<Integer, Boolean>;
+  Frontier, Next, Path: TList<Integer>;
+  Id, Parent: Integer;
+  Chain: TAncestorChain;
+begin
+  Result := TDictionary<Integer, TAncestorChain>.Create;
+  Parents := TDictionary<Integer, Integer>.Create;
+  Queried := TDictionary<Integer, Boolean>.Create;
+  Seen := TDictionary<Integer, Boolean>.Create;
+  Frontier := TList<Integer>.Create;
+  Next := TList<Integer>.Create;
+  Path := TList<Integer>.Create;
+  try
+    try
+      for Id in ItemIds do
+        if not Queried.ContainsKey(Id) then
+        begin
+          Queried.Add(Id, True);
+          Frontier.Add(Id);
+        end;
+      while Frontier.Count > 0 do
+      begin
+        LoadParents(Manager, Frontier.ToArray, Parents);
+        Next.Clear;
+        for Id in Frontier do
+          if Parents.TryGetValue(Id, Parent) and (Parent > 0) and
+            not Queried.ContainsKey(Parent) then
+          begin
+            Queried.Add(Parent, True);
+            Next.Add(Parent);
+          end;
+        Frontier.Clear;
+        Frontier.AddRange(Next);
+      end;
+
+      for Id in ItemIds do
+      begin
+        if Result.ContainsKey(Id) then
+          Continue;
+        Chain := Default(TAncestorChain);
+        Path.Clear;
+        Seen.Clear;
+        Seen.Add(Id, True);
+        if not Parents.TryGetValue(Id, Parent) then
+          Chain.Incomplete := True
+        else
+          while Parent > 0 do
+          begin
+            if Seen.ContainsKey(Parent) or not Parents.ContainsKey(Parent) then
+            begin
+              Chain.Incomplete := True;
+              Break;
+            end;
+            Seen.Add(Parent, True);
+            Path.Insert(0, Parent);
+            Parent := Parents[Parent];
+          end;
+        Chain.Ids := Path.ToArray;
+        Result.Add(Id, Chain);
+      end;
+    except
+      Result.Free;
+      raise;
+    end;
+  finally
+    Path.Free;
+    Next.Free;
+    Frontier.Free;
+    Seen.Free;
+    Queried.Free;
+    Parents.Free;
+  end;
+end;
+
+function AncestorIdsJSON(const Chain: TAncestorChain): TJSONArray;
+var
+  Id: Integer;
+begin
+  Result := TJSONArray.Create;
+  for Id in Chain.Ids do
+    Result.Add(Id);
 end;
 
 procedure RefreshCachedItem(const Context: TToolContext; ItemId: Integer);
